@@ -258,6 +258,25 @@ click:
 },
 ```
 
+Runtime button edits can also define shared buttons once and reference them
+from any job/profile slot:
+
+```lua
+return {
+    shared = {
+        ['Cure STPT'] = { label = 'Cure', icon = 'cure', command = '/ma "Cure" <stpt>' },
+    },
+    profiles = {
+        WHM = {
+            base = {
+                [1] = { shared = 'Cure STPT' },
+                [2] = { shared = 'Cure STPT' },
+            },
+        },
+    },
+}
+```
+
 You can edit visible buttons in game while the bar frame is shown. Open
 `/ashitabars config`, enable `Show Bar Frame`, then click the small top-left
 corner of a button. The editor can save a label, a single-command or
@@ -275,6 +294,14 @@ persist across addon reloads and game sessions. `Clear` saves an empty button
 for that slot, while `Reset` removes the saved edit and returns to the
 configured profile slot. `Validate & Run` validates the current editor command
 or macro lines and queues them immediately without saving the button.
+
+Shared buttons are linked by name, not copied. If multiple slots use the same
+shared button, editing and saving any attached slot updates the shared
+definition and every other slot using that shared button changes with it. In
+the editor, `Save Shared` creates or updates the named shared button and
+attaches the current slot to it, `Assign Shared` points the current slot at the
+selected shared button without changing the definition, and `Detach Local`
+saves the current fields as a local per-slot copy.
 
 `icon_style = 'auto'` uses the configured icon when present and otherwise
 infers a built-in icon from the command. Use `icon_style = 'configured'` to

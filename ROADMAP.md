@@ -37,6 +37,8 @@ most one configured action or static macro.
 - Done: single-command and multi-line macro modes in the button editor, with
   per-line command-prefix validation, a Validate & Run editor button, and
   attended execution only.
+- Done: shared button definitions that can be assigned by name to slots across
+  jobs/rows, with linked updates when an attached shared button is edited.
 
 ## Later Feature Ideas
 

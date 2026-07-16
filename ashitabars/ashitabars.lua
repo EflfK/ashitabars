@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.20.0';
+addon.version   = '0.21.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -143,6 +143,9 @@ local MACRO_COMMAND_MAX = 256;
 local MACRO = {
     COMMANDS_MAX = 6,
     COMMANDS_TEXT_MAX = (MACRO_COMMAND_MAX + 1) * 6,
+};
+local SHARED = {
+    NAME_MAX = 48,
 };
 local MACRO_ICON_MAX = 32;
 local FRAMELESS_WINDOW_PADDING = 4;
@@ -425,7 +428,7 @@ local DEFAULT_CONFIG = {
 
 local state = {
     config = DEFAULT_CONFIG,
-    macro_overrides = { profiles = {} },
+    macro_overrides = { profiles = {}, shared = {} },
     visible = T{ true },
     config_visible = T{ false },
     config_save_message = nil,
@@ -463,7 +466,9 @@ local state = {
         group = nil,
         index = nil,
         source = nil,
+        shared_ref = nil,
         macro_mode = 'single',
+        shared_name_buffer = T{ '' },
         label_buffer = T{ '' },
         command_buffer = T{ '' },
         commands_buffer = T{ '' },
@@ -1242,6 +1247,83 @@ local function sorted_keys(tbl)
     return keys;
 end
 
+function SHARED.normalize_name(value)
+    local name = trim_one_line(value, SHARED.NAME_MAX);
+    name = name:gsub('%s+', ' ');
+    if (name == '') then
+        return nil;
+    end
+
+    return name;
+end
+
+function SHARED.ensure_overrides()
+    if (type(state.macro_overrides) ~= 'table') then
+        state.macro_overrides = { profiles = {}, shared = {} };
+    end
+    if (type(state.macro_overrides.profiles) ~= 'table') then
+        state.macro_overrides.profiles = {};
+    end
+    if (type(state.macro_overrides.shared) ~= 'table') then
+        state.macro_overrides.shared = {};
+    end
+
+    return state.macro_overrides;
+end
+
+function SHARED.definitions()
+    local overrides = SHARED.ensure_overrides();
+    return overrides.shared;
+end
+
+function SHARED.definition(name)
+    name = SHARED.normalize_name(name);
+    if (name == nil) then
+        return nil, nil;
+    end
+
+    local shared = SHARED.definitions();
+    local slot = shared[name];
+    if (type(slot) ~= 'table') then
+        return nil, name;
+    end
+
+    return slot, name;
+end
+
+function SHARED.slot_parts(slot)
+    local parts = {};
+    if (type(slot) ~= 'table') then
+        return parts;
+    end
+
+    if (slot.shared ~= nil) then
+        table.insert(parts, ('shared = %s'):fmt(lua_string_literal(slot.shared)));
+        return parts;
+    end
+    if (slot.label ~= nil) then
+        table.insert(parts, ('label = %s'):fmt(lua_string_literal(slot.label)));
+    end
+    if (slot.icon ~= nil) then
+        table.insert(parts, ('icon = %s'):fmt(lua_string_literal(slot.icon)));
+    end
+    if (slot.command ~= nil) then
+        table.insert(parts, ('command = %s'):fmt(lua_string_literal(slot.command)));
+    end
+    if (slot.macro_mode == 'multi') then
+        table.insert(parts, "macro_mode = 'multi'");
+    end
+    if (type(slot.commands) == 'table' and #slot.commands > 0) then
+        local command_literals = {};
+        for _, command in ipairs(slot.commands) do
+            table.insert(command_literals, lua_string_literal(command));
+        end
+        table.insert(parts, ('commands = { %s }'):fmt(table.concat(command_literals, ', ')));
+    end
+
+    return parts;
+end
+
 local function button_overrides_dir()
     local install_path = safe_read(function ()
         return AshitaCore:GetInstallPath();
@@ -1426,9 +1508,14 @@ local function save_visual_settings()
     return true, 'Saved visual settings to config/addons/ashitabars/visual_settings.lua.';
 end
 
-local function sanitize_slot_override(slot)
+local function sanitize_slot_override(slot, allow_shared)
     if (type(slot) ~= 'table') then
         return nil;
+    end
+
+    local shared_name = (allow_shared ~= false) and SHARED.normalize_name(slot.shared) or nil;
+    if (shared_name ~= nil) then
+        return { shared = shared_name };
     end
 
     local sanitized = {};
@@ -1472,32 +1559,45 @@ local function sanitize_slot_override(slot)
 end
 
 local function sanitize_button_overrides(overrides)
-    local sanitized = { profiles = {} };
-    if (type(overrides) ~= 'table' or type(overrides.profiles) ~= 'table') then
+    local sanitized = { profiles = {}, shared = {} };
+    if (type(overrides) ~= 'table') then
         return sanitized;
     end
 
-    for profile_key, profile in pairs(overrides.profiles) do
-        local normalized_profile_key = normalize_profile_key(tostring(profile_key));
-        if (normalized_profile_key ~= nil and type(profile) == 'table') then
-            local sanitized_profile = {};
-            for _, row in ipairs(ROWS) do
-                local row_overrides = profile[row.id];
-                if (type(row_overrides) == 'table') then
-                    local sanitized_row = {};
-                    for index = 1, 10 do
-                        local slot = sanitize_slot_override(row_overrides[index]);
-                        if (slot ~= nil) then
-                            sanitized_row[index] = slot;
+    local shared_source = (type(overrides.shared) == 'table') and overrides.shared or overrides.shared_buttons;
+    if (type(shared_source) == 'table') then
+        for name, slot in pairs(shared_source) do
+            local shared_name = SHARED.normalize_name(name);
+            local sanitized_slot = sanitize_slot_override(slot, false);
+            if (shared_name ~= nil and sanitized_slot ~= nil) then
+                sanitized.shared[shared_name] = sanitized_slot;
+            end
+        end
+    end
+
+    if (type(overrides.profiles) == 'table') then
+        for profile_key, profile in pairs(overrides.profiles) do
+            local normalized_profile_key = normalize_profile_key(tostring(profile_key));
+            if (normalized_profile_key ~= nil and type(profile) == 'table') then
+                local sanitized_profile = {};
+                for _, row in ipairs(ROWS) do
+                    local row_overrides = profile[row.id];
+                    if (type(row_overrides) == 'table') then
+                        local sanitized_row = {};
+                        for index = 1, 10 do
+                            local slot = sanitize_slot_override(row_overrides[index], true);
+                            if (slot ~= nil) then
+                                sanitized_row[index] = slot;
+                            end
+                        end
+                        if (next(sanitized_row) ~= nil) then
+                            sanitized_profile[row.id] = sanitized_row;
                         end
                     end
-                    if (next(sanitized_row) ~= nil) then
-                        sanitized_profile[row.id] = sanitized_row;
-                    end
                 end
-            end
-            if (next(sanitized_profile) ~= nil) then
-                sanitized.profiles[normalized_profile_key] = sanitized_profile;
+                if (next(sanitized_profile) ~= nil) then
+                    sanitized.profiles[normalized_profile_key] = sanitized_profile;
+                end
             end
         end
     end
@@ -1508,20 +1608,20 @@ end
 load_button_overrides = function ()
     local path = button_overrides_file_path();
     if (path == nil or ashita == nil or ashita.fs == nil or not ashita.fs.exists(path)) then
-        state.macro_overrides = { profiles = {} };
+        state.macro_overrides = { profiles = {}, shared = {} };
         return true;
     end
 
     local chunk, load_err = loadfile(path);
     if (chunk == nil) then
-        state.macro_overrides = { profiles = {} };
+        state.macro_overrides = { profiles = {}, shared = {} };
         log_warn(('Button overrides ignored: %s'):fmt(tostring(load_err)));
         return false;
     end
 
     local ok, overrides = pcall(chunk);
     if (not ok or type(overrides) ~= 'table') then
-        state.macro_overrides = { profiles = {} };
+        state.macro_overrides = { profiles = {}, shared = {} };
         log_warn(('Button overrides ignored: %s'):fmt(tostring(overrides)));
         return false;
     end
@@ -1535,8 +1635,19 @@ local function serialize_button_overrides()
         '-- Generated by AshitaBars. Runtime button edits are stored here.',
         '-- Each saved button executes only from an attended key press or click.',
         'return {',
-        '    profiles = {',
+        '    shared = {',
     };
+
+    local shared = (state.macro_overrides and state.macro_overrides.shared) or {};
+    for _, name in ipairs(sorted_keys(shared)) do
+        local parts = SHARED.slot_parts(shared[name]);
+        if (#parts > 0) then
+            table.insert(lines, ('        [%s] = { %s },'):fmt(lua_string_literal(name), table.concat(parts, ', ')));
+        end
+    end
+
+    table.insert(lines, '    },');
+    table.insert(lines, '    profiles = {');
 
     local profiles = (state.macro_overrides and state.macro_overrides.profiles) or {};
     for _, profile_key in ipairs(sorted_keys(profiles)) do
@@ -1550,26 +1661,7 @@ local function serialize_button_overrides()
                     for index = 1, 10 do
                         local slot = row_overrides[index];
                         if (type(slot) == 'table') then
-                            local parts = {};
-                            if (slot.label ~= nil) then
-                                table.insert(parts, ('label = %s'):fmt(lua_string_literal(slot.label)));
-                            end
-                            if (slot.icon ~= nil) then
-                                table.insert(parts, ('icon = %s'):fmt(lua_string_literal(slot.icon)));
-                            end
-                            if (slot.command ~= nil) then
-                                table.insert(parts, ('command = %s'):fmt(lua_string_literal(slot.command)));
-                            end
-                            if (slot.macro_mode == 'multi') then
-                                table.insert(parts, "macro_mode = 'multi'");
-                            end
-                            if (type(slot.commands) == 'table' and #slot.commands > 0) then
-                                local command_literals = {};
-                                for _, command in ipairs(slot.commands) do
-                                    table.insert(command_literals, lua_string_literal(command));
-                                end
-                                table.insert(parts, ('commands = { %s }'):fmt(table.concat(command_literals, ', ')));
-                            end
+                            local parts = SHARED.slot_parts(slot);
                             if (#parts > 0) then
                                 table.insert(lines, ('                [%d] = { %s },'):fmt(index, table.concat(parts, ', ')));
                             end
@@ -1693,6 +1785,11 @@ local function apply_slot_override(base_slot, override)
         return base_slot;
     end
 
+    local shared_name = SHARED.normalize_name(override.shared);
+    if (shared_name ~= nil) then
+        return { shared = shared_name };
+    end
+
     local slot = copy_slot(base_slot);
     if (override.label ~= nil) then
         slot.label = override.label;
@@ -1715,6 +1812,31 @@ local function apply_slot_override(base_slot, override)
     end
 
     return slot;
+end
+
+function SHARED.resolve_slot(slot)
+    if (type(slot) ~= 'table') then
+        return nil;
+    end
+
+    local shared_name = SHARED.normalize_name(slot.shared);
+    if (shared_name == nil) then
+        return slot;
+    end
+
+    local definition = SHARED.definition(shared_name);
+    if (definition == nil) then
+        return {
+            shared = shared_name,
+            label = shared_name,
+            command = '',
+            icon = 'command',
+        };
+    end
+
+    local resolved = copy_slot(definition);
+    resolved.shared = shared_name;
+    return resolved;
 end
 
 function MACRO.normalize_slot_runtime(slot)
@@ -1836,6 +1958,7 @@ local function get_slot(group, index)
     local slot = get_raw_config_slot(profile, group, index);
     local override = get_slot_override(profile_key, group, index);
     slot = apply_slot_override(slot, override);
+    slot = SHARED.resolve_slot(slot);
     slot = apply_editor_preview(slot, profile_key, group, index);
     slot = MACRO.normalize_slot_runtime(slot);
     if (type(slot) ~= 'table') then
@@ -1987,43 +2110,172 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > 10) then
         return false, 'Invalid button selection.';
     end
 
-    if (type(state.macro_overrides) ~= 'table') then
-        state.macro_overrides = { profiles = {} };
-    end
-    if (type(state.macro_overrides.profiles) ~= 'table') then
-        state.macro_overrides.profiles = {};
-    end
-
-    local profiles = state.macro_overrides.profiles;
+    local overrides = SHARED.ensure_overrides();
+    local profiles = overrides.profiles;
     profiles[profile_key] = profiles[profile_key] or {};
     profiles[profile_key][group] = profiles[profile_key][group] or {};
 
-    local slot = {
-        label = trim_one_line(label, MACRO_LABEL_MAX),
-        command = MACRO.sanitize_command_line(command),
-    };
-    slot.icon = trim_one_line(icon, MACRO_ICON_MAX);
-    slot.macro_mode = MACRO.normalize_mode(macro_mode);
-    if (slot.macro_mode == 'multi') then
-        slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
-        if (#slot.commands == 0 and slot.command ~= '') then
-            slot.commands = { slot.command };
+    local shared_name = SHARED.normalize_name(shared_ref);
+    local slot = nil;
+    if (shared_name ~= nil) then
+        if (SHARED.definition(shared_name) == nil) then
+            return false, ('Shared button not found: %s'):fmt(shared_name);
         end
-        slot.command = slot.commands[1] or '';
+        slot = { shared = shared_name };
     else
-        slot.macro_mode = 'single';
-        slot.commands = nil;
+        slot = {
+            label = trim_one_line(label, MACRO_LABEL_MAX),
+            command = MACRO.sanitize_command_line(command),
+        };
+        slot.icon = trim_one_line(icon, MACRO_ICON_MAX);
+        slot.macro_mode = MACRO.normalize_mode(macro_mode);
+        if (slot.macro_mode == 'multi') then
+            slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
+            if (#slot.commands == 0 and slot.command ~= '') then
+                slot.commands = { slot.command };
+            end
+            slot.command = slot.commands[1] or '';
+        else
+            slot.macro_mode = 'single';
+            slot.commands = nil;
+        end
     end
 
     profiles[profile_key][group][index] = slot;
     prune_button_overrides();
     return true;
+end
+
+function SHARED.editor_slot(require_command)
+    local editor = state.macro_editor;
+    if (editor == nil) then
+        return nil, 'No button selected.';
+    end
+
+    local mode, command, commands, too_many = MACRO.editor_commands();
+    if (too_many) then
+        return nil, ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
+    end
+
+    if (require_command and #commands == 0) then
+        return nil, 'Shared button needs at least one command.';
+    end
+
+    local validation_error = MACRO.commands_validation_error(commands);
+    if (validation_error ~= nil) then
+        return nil, validation_error;
+    end
+
+    local slot = {
+        label = trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX),
+        command = command,
+        icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX),
+        macro_mode = mode,
+    };
+    if (mode == 'multi') then
+        slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
+        slot.command = slot.commands[1] or '';
+    end
+
+    return slot, nil, mode, command, commands;
+end
+
+function SHARED.load_into_editor(name)
+    local editor = state.macro_editor;
+    local definition, shared_name = SHARED.definition(name);
+    if (editor == nil or definition == nil) then
+        return false, ('Shared button not found: %s'):fmt(tostring(name));
+    end
+
+    local slot = MACRO.normalize_slot_runtime(definition) or {};
+    editor.shared_ref = shared_name;
+    editor.source = 'shared: ' .. shared_name;
+    editor.macro_mode = MACRO.slot_mode(slot);
+    buffer_set(editor.shared_name_buffer, shared_name);
+    buffer_set(editor.label_buffer, slot.label or '');
+    buffer_set(editor.command_buffer, MACRO.primary_command(slot));
+    buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
+    buffer_set(editor.icon_buffer, slot.icon or '');
+    return true;
+end
+
+function SHARED.save_editor_shared()
+    local editor = state.macro_editor;
+    if (editor == nil or editor.profile_key == nil or editor.group == nil or editor.index == nil) then
+        return false, 'No button selected.';
+    end
+
+    local shared_name = SHARED.normalize_name(editor.shared_name_buffer[1] or editor.shared_ref);
+    if (shared_name == nil) then
+        return false, 'Enter a shared button name.';
+    end
+
+    local slot, slot_error = SHARED.editor_slot(true);
+    if (slot == nil) then
+        return false, slot_error;
+    end
+
+    SHARED.definitions()[shared_name] = slot;
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, nil, nil, nil, nil, nil, shared_name);
+    if (not set_ok) then
+        return false, set_err;
+    end
+
+    local save_ok, save_message = save_button_overrides();
+    if (not save_ok) then
+        return false, save_message;
+    end
+
+    editor.shared_ref = shared_name;
+    editor.source = 'shared: ' .. shared_name;
+    buffer_set(editor.shared_name_buffer, shared_name);
+    log_info(save_message);
+    return true, ('Saved shared button: %s'):fmt(shared_name);
+end
+
+function SHARED.assign_editor_shared()
+    local editor = state.macro_editor;
+    if (editor == nil or editor.profile_key == nil or editor.group == nil or editor.index == nil) then
+        return false, 'No button selected.';
+    end
+
+    local shared_name = SHARED.normalize_name(editor.shared_ref or editor.shared_name_buffer[1]);
+    if (shared_name == nil) then
+        return false, 'Choose a shared button first.';
+    end
+    if (SHARED.definition(shared_name) == nil) then
+        return false, ('Shared button not found: %s'):fmt(shared_name);
+    end
+
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, nil, nil, nil, nil, nil, shared_name);
+    if (not set_ok) then
+        return false, set_err;
+    end
+
+    local save_ok, save_message = save_button_overrides();
+    if (not save_ok) then
+        return false, save_message;
+    end
+
+    SHARED.load_into_editor(shared_name);
+    log_info(save_message);
+    return true, ('Assigned shared button: %s'):fmt(shared_name);
+end
+
+function SHARED.detach_editor_shared()
+    local editor = state.macro_editor;
+    if (editor == nil) then
+        return;
+    end
+
+    editor.shared_ref = nil;
+    editor.source = 'local edit';
 end
 
 local function remove_slot_override(profile_key, group, index)
@@ -2058,8 +2310,10 @@ local function open_macro_editor(row, index)
     editor.profile_key = profile_key;
     editor.group = row.id;
     editor.index = index;
-    editor.source = (override ~= nil) and 'saved edit' or profile.source;
+    editor.shared_ref = SHARED.normalize_name(slot.shared);
+    editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or ((override ~= nil) and 'saved edit' or profile.source);
     editor.macro_mode = MACRO.slot_mode(slot);
+    buffer_set(editor.shared_name_buffer, editor.shared_ref or '');
     buffer_set(editor.label_buffer, slot.label or '');
     buffer_set(editor.command_buffer, MACRO.primary_command(slot));
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
@@ -2073,6 +2327,39 @@ local function save_macro_editor(clear_slot)
         editor.message = 'No button selected.';
         editor.message_color = CONFIG_ERROR_COLOR;
         return false;
+    end
+
+    local shared_ref = (not clear_slot) and SHARED.normalize_name(editor.shared_ref) or nil;
+    if (shared_ref ~= nil) then
+        local slot, slot_error = SHARED.editor_slot(true);
+        if (slot == nil) then
+            editor.message = slot_error;
+            editor.message_color = CONFIG_ERROR_COLOR;
+            return false;
+        end
+
+        SHARED.definitions()[shared_ref] = slot;
+        local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, nil, nil, nil, nil, nil, shared_ref);
+        if (not set_ok) then
+            editor.message = set_err;
+            editor.message_color = CONFIG_ERROR_COLOR;
+            return false;
+        end
+
+        local save_ok, save_message = save_button_overrides();
+        if (not save_ok) then
+            editor.message = save_message;
+            editor.message_color = CONFIG_ERROR_COLOR;
+            log_warn(save_message);
+            return false;
+        end
+
+        editor.source = 'shared: ' .. shared_ref;
+        buffer_set(editor.shared_name_buffer, shared_ref);
+        editor.message = ('Saved shared: %s'):fmt(shared_ref);
+        editor.message_color = CONFIG_SUCCESS_COLOR;
+        log_info(save_message);
+        return true;
     end
 
     local mode, command, commands, too_many = MACRO.editor_commands();
@@ -2106,6 +2393,7 @@ local function save_macro_editor(clear_slot)
     buffer_set(editor.command_buffer, command);
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(commands));
     editor.macro_mode = mode;
+    editor.shared_ref = nil;
     buffer_set(editor.icon_buffer, icon);
     editor.source = 'saved edit';
     editor.message = clear_slot and 'Cleared.' or 'Saved.';
@@ -2130,13 +2418,16 @@ local function reset_macro_editor()
     end
 
     local profile = refresh_profile_context();
-    local slot = MACRO.normalize_slot_runtime(get_raw_config_slot(profile, editor.group, editor.index)) or {};
+    local slot = SHARED.resolve_slot(get_raw_config_slot(profile, editor.group, editor.index));
+    slot = MACRO.normalize_slot_runtime(slot) or {};
+    editor.shared_ref = SHARED.normalize_name(slot.shared);
+    buffer_set(editor.shared_name_buffer, editor.shared_ref or '');
     editor.macro_mode = MACRO.slot_mode(slot);
     buffer_set(editor.label_buffer, slot.label or '');
     buffer_set(editor.command_buffer, MACRO.primary_command(slot));
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
-    editor.source = profile.source;
+    editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or profile.source;
     editor.message = 'Reset to config.';
     editor.message_color = CONFIG_SUCCESS_COLOR;
     log_info(save_message);
@@ -2157,16 +2448,18 @@ local function icon_selector_label(token)
     return 'Custom: ' .. token;
 end
 
-local function render_icon_selector(editor)
+local function render_icon_selector(editor, width)
     local current_icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
     local normalized_current = normalize_icon_token(current_icon);
     local selected_label = icon_selector_label(current_icon);
+    local changed = false;
 
     editor.preview_icon = nil;
-    imgui.PushItemWidth(360);
+    imgui.PushItemWidth(width or 360);
     if (imgui.BeginCombo('Icon Preset##ashitabars_button_icon_select', selected_label, ImGuiComboFlags_None)) then
         if (imgui.Selectable('Auto (infer from command)', current_icon == '')) then
             buffer_set(editor.icon_buffer, '');
+            changed = true;
         end
         if (imgui.IsItemHovered()) then
             editor.preview_icon = '';
@@ -2176,9 +2469,38 @@ local function render_icon_selector(editor)
             local selected = normalized_current == token;
             if (imgui.Selectable(token, selected)) then
                 buffer_set(editor.icon_buffer, token);
+                changed = true;
             end
             if (imgui.IsItemHovered()) then
                 editor.preview_icon = token;
+            end
+        end
+
+        imgui.EndCombo();
+    end
+        imgui.PopItemWidth();
+    return changed;
+end
+
+function SHARED.render_selector(editor)
+    local shared = SHARED.definitions();
+    local selected = SHARED.normalize_name(editor.shared_ref);
+    local selected_label = selected or 'None (local button)';
+
+    imgui.PushItemWidth(360);
+    if (imgui.BeginCombo('Shared Button##ashitabars_button_shared_select', selected_label, ImGuiComboFlags_None)) then
+        if (imgui.Selectable('None (local button)', selected == nil)) then
+            editor.shared_ref = nil;
+            editor.source = 'local edit';
+        end
+
+        for _, name in ipairs(sorted_keys(shared)) do
+            if (imgui.Selectable(name, selected == name)) then
+                local ok, message = SHARED.load_into_editor(name);
+                if (not ok) then
+                    editor.message = message;
+                    editor.message_color = CONFIG_ERROR_COLOR;
+                end
             end
         end
 
@@ -3744,6 +4066,39 @@ local function render_macro_editor_window()
         imgui.Text(('(%s)'):fmt(editor.source or 'config'));
 
         imgui.Separator();
+        imgui.TextColored(CONFIG_HEADER_COLOR, 'Shared Button');
+        SHARED.render_selector(editor);
+        imgui.PushItemWidth(360);
+        imgui.InputText('Shared Name##ashitabars_button_shared_name', editor.shared_name_buffer, SHARED.NAME_MAX);
+        imgui.PopItemWidth();
+        if (imgui.Button('Save Shared##ashitabars_button_save_shared')) then
+            local ok, message = SHARED.save_editor_shared();
+            editor.message = message;
+            editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+            if (not ok) then
+                log_warn(message);
+            end
+        end
+        imgui.SameLine(0, 8);
+        if (imgui.Button('Assign Shared##ashitabars_button_assign_shared')) then
+            local ok, message = SHARED.assign_editor_shared();
+            editor.message = message;
+            editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+            if (not ok) then
+                log_warn(message);
+            end
+        end
+        imgui.SameLine(0, 8);
+        if (imgui.Button('Detach Local##ashitabars_button_detach_shared')) then
+            local detached = editor.shared_ref;
+            SHARED.detach_editor_shared();
+            if (save_macro_editor(false)) then
+                editor.message = detached ~= nil and ('Detached local copy from: ' .. detached) or 'Saved local copy.';
+                editor.message_color = CONFIG_SUCCESS_COLOR;
+            end
+        end
+
+        imgui.Separator();
         local mode = MACRO.normalize_mode(editor.macro_mode);
         imgui.TextColored(CONFIG_HEADER_COLOR, 'Command Mode');
         if (imgui.RadioButton('Single Command##ashitabars_button_mode_single', mode == 'single')) then
@@ -3771,9 +4126,9 @@ local function render_macro_editor_window()
             imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, MACRO_COMMAND_MAX);
         end
         imgui.PopItemWidth();
-        render_icon_selector(editor);
-        imgui.SameLine(0, 10);
         render_editor_icon_preview(editor);
+        imgui.SameLine(0, 10);
+        render_icon_selector(editor, 296);
 
         local validation_error = MACRO.editor_validation_error();
         if (validation_error ~= nil) then
