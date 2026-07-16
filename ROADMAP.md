@@ -1,0 +1,33 @@
+# AshitaBars Roadmap
+
+This is a working list for later AshitaBars improvements. Keep changes within
+the attended-action boundary: one intentional keypress or click produces at
+most one configured command.
+
+## Visual Polish
+
+- Custom action-button renderer with a World of Warcraft-style square slot,
+  bevel, inner border, hover state, pressed state, and active-row glow.
+- Per-slot icon support through config, with a text-only fallback when no icon
+  is configured or loaded.
+- Final Fantasy-inspired icon set for common action types such as white magic,
+  black magic, job abilities, weapon skills, items, targeting, assist, healing,
+  and test actions.
+- Slot overlays for hotkey text, action label text, empty-slot dimming, and
+  readable text shadowing.
+- Single-row modifier transition polish, such as a quick glow or color shift
+  when the visible row changes between base, Ctrl, and Alt.
+- Theme settings for visual preferences, such as `theme`, `show_hotkeys`,
+  `show_labels`, and `icon_style`.
+
+## Later Feature Ideas
+
+- `/ashitabars mode single|stacked` to switch display mode in game without
+  editing `ashitabars_config.lua` and reloading.
+- Display-only cooldown or recast overlays if the data can be read safely.
+- Display-only charge/count text for items or abilities where safe state is
+  available.
+- Display-only range or usability dimming if it can be implemented without
+  automated action choice.
+- Drag-to-reorder or config editing UI, guarded so it only changes static
+  profile configuration.
