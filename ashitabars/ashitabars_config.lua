@@ -6,6 +6,7 @@ return {
         row_gap = 6,
         window_x = 820,
         window_y = 760,
+        block_native_macro_modifiers = true,
     },
 
     bars = {

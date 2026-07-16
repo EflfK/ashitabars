@@ -15,6 +15,8 @@ text input is open.
   - `Alt+1-0`
 - Captures those keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
+- Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is
+  closed by default, so FFXI should not also show or execute native macro rows.
 - Clicks on visible slots also execute one configured command.
 - Ships default test commands that only `/echo`.
 
@@ -70,6 +72,12 @@ Each slot has a label and command:
 
 ```lua
 [1] = { label = 'Cure', command = '/ma "Cure" <stpt>' },
+```
+
+If modifier blocking conflicts with another hotkey, disable it:
+
+```lua
+block_native_macro_modifiers = false,
 ```
 
 Allowed command prefixes are intentionally narrow. Ashita control commands such
