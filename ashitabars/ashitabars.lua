@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.9.0';
+addon.version   = '0.10.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -359,6 +359,7 @@ local state = {
     visible = T{ true },
     config_error = nil,
     profile = nil,
+    display_mode_override = nil,
     visual = {
         row = 'base',
         changed_at = 0,
@@ -495,6 +496,7 @@ local function load_config()
         state.config = DEFAULT_CONFIG;
         state.visible[1] = true;
         state.profile = nil;
+        state.display_mode_override = nil;
         return;
     end
 
@@ -512,6 +514,7 @@ local function load_config()
 
     state.visible[1] = (state.config.settings.visible ~= false);
     state.profile = nil;
+    state.display_mode_override = nil;
 end
 
 local function key_down(vk)
@@ -559,17 +562,44 @@ local function active_group()
     return nil;
 end
 
-local function display_mode()
-    local settings = state.config.settings or {};
-    local mode = settings.display_mode;
-    if (type(mode) == 'string') then
-        mode = mode:lower():gsub('%s+', '');
-        if (mode == 'stacked' or mode == 'single') then
-            return mode;
-        end
+local function normalize_display_mode(value)
+    if (type(value) ~= 'string') then
+        return nil;
     end
 
-    return DEFAULT_CONFIG.settings.display_mode;
+    local mode = value:lower():gsub('%s+', '');
+    if (mode == 'stacked' or mode == 'single') then
+        return mode;
+    end
+
+    return nil;
+end
+
+local function configured_display_mode()
+    local settings = state.config.settings or {};
+    local mode = normalize_display_mode(settings.display_mode);
+    if (mode ~= nil) then
+        return mode, 'config';
+    end
+
+    return DEFAULT_CONFIG.settings.display_mode, 'default';
+end
+
+local function display_mode()
+    if (state.display_mode_override ~= nil) then
+        return state.display_mode_override;
+    end
+
+    return configured_display_mode();
+end
+
+local function display_mode_source()
+    if (state.display_mode_override ~= nil) then
+        return 'runtime';
+    end
+
+    local _, source = configured_display_mode();
+    return source;
 end
 
 local function visual_group()
@@ -1371,6 +1401,7 @@ local function print_help()
     log_info('/ashitabars toggle - Show or hide the bars.');
     log_info('/ashitabars show - Show the bars.');
     log_info('/ashitabars hide - Hide the bars.');
+    log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
     log_info('/ashitabars reload - Reload ashitabars_config.lua.');
     log_info('/ashitabars status - Print input status.');
 end
@@ -1403,6 +1434,22 @@ ashita.events.register('command', 'command_cb', function (e)
     elseif (sub == 'hide') then
         state.visible[1] = false;
         log_info('Hidden.');
+    elseif (sub == 'mode') then
+        local requested = (#args >= 3) and args[3]:lower() or nil;
+        if (requested == nil) then
+            log_info(('Display mode is %s (%s).'):fmt(display_mode(), display_mode_source()));
+        elseif (requested == 'config' or requested == 'default') then
+            state.display_mode_override = nil;
+            log_info(('Display mode override cleared. Using %s (%s).'):fmt(display_mode(), display_mode_source()));
+        else
+            local mode = normalize_display_mode(requested);
+            if (mode == nil) then
+                log_warn('Usage: /ashitabars mode single|stacked|config');
+            else
+                state.display_mode_override = mode;
+                log_info(('Display mode set to %s (runtime).'):fmt(mode));
+            end
+        end
     elseif (sub == 'reload') then
         load_config();
         log_info('Config reloaded.');
@@ -1412,11 +1459,12 @@ ashita.events.register('command', 'command_cb', function (e)
         local profile = refresh_profile_context();
         local active = active_group();
         local _, theme_key = current_theme();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s visualRow=%s theme=%s iconStyle=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s theme=%s iconStyle=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
             display_mode(),
+            display_mode_source(),
             visual_group(),
             theme_key,
             icon_style(),

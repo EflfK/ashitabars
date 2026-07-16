@@ -22,7 +22,7 @@ most one configured command.
 
 ## Later Feature Ideas
 
-- `/ashitabars mode single|stacked` to switch display mode in game without
+- Done: `/ashitabars mode single|stacked` to switch display mode in game without
   editing `ashitabars_config.lua` and reloading.
 - Display-only cooldown or recast overlays if the data can be read safely.
 - Display-only charge/count text for items or abilities where safe state is

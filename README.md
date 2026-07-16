@@ -56,6 +56,9 @@ Commands:
 /ashitabars show
 /ashitabars hide
 /ashitabars toggle
+/ashitabars mode single
+/ashitabars mode stacked
+/ashitabars mode config
 /ashitabars status
 /ashitabars reload
 ```
@@ -90,6 +93,17 @@ settings = {
 The setting changes only the visible UI. Key execution remains `1-0`,
 `Ctrl+1-0`, and `Alt+1-0` in both modes. Existing configs without
 `display_mode` keep the original stacked view.
+
+You can switch display modes at runtime without editing the config:
+
+```txt
+/ashitabars mode single
+/ashitabars mode stacked
+/ashitabars mode config
+```
+
+`mode config` clears the runtime override and returns to `settings.display_mode`.
+`/ashitabars reload` also clears the runtime override.
 
 Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
 preserves the current brass-and-crystal look; the other themes only change the
@@ -152,7 +166,8 @@ can be tested.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
-theme, and icon style alongside input, profile, and modifier-blocking state.
+display-mode source, theme, and icon style alongside input, profile, and
+modifier-blocking state.
 
 If modifier blocking conflicts with another hotkey, disable it:
 
