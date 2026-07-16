@@ -93,7 +93,7 @@ return {
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
         slot_size = 64,
-        slot_gap = 4,
+        button_gap = 6,
         row_gap = 6,
         window_x = 820,
         window_y = 760,

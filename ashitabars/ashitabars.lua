@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.13.0';
+addon.version   = '0.14.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -130,6 +130,8 @@ local ITEM_COUNT_CONTAINER_IDS = { 0, 3 };
 local ITEM_COUNT_CACHE_SECONDS = 0.40;
 local SLOT_SIZE_MIN = 40;
 local SLOT_SIZE_MAX = 96;
+local BUTTON_GAP_MIN = 0;
+local BUTTON_GAP_MAX = 24;
 
 local THEMES = {
     ffxi = {
@@ -366,7 +368,7 @@ local DEFAULT_CONFIG = {
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
         slot_size = 64,
-        slot_gap = 4,
+        button_gap = 6,
         row_gap = 6,
         window_x = 820,
         window_y = 760,
@@ -393,6 +395,7 @@ local state = {
     profile = nil,
     display_mode_override = nil,
     slot_size_override = nil,
+    button_gap_override = nil,
     recast_cache = {},
     recast_totals = {},
     item_source_cache = {},
@@ -535,6 +538,7 @@ local function load_config()
         state.profile = nil;
         state.display_mode_override = nil;
         state.slot_size_override = nil;
+        state.button_gap_override = nil;
         state.recast_cache = {};
         state.recast_totals = {};
         state.item_source_cache = {};
@@ -558,6 +562,7 @@ local function load_config()
     state.profile = nil;
     state.display_mode_override = nil;
     state.slot_size_override = nil;
+    state.button_gap_override = nil;
     state.recast_cache = {};
     state.recast_totals = {};
     state.item_source_cache = {};
@@ -686,6 +691,56 @@ local function slot_size_source()
     end
 
     return 'default';
+end
+
+local function normalize_button_gap(value)
+    local gap = tonumber(value);
+    if (gap == nil) then
+        return nil;
+    end
+
+    gap = math.floor(gap + 0.5);
+    if (gap < BUTTON_GAP_MIN) then
+        return BUTTON_GAP_MIN;
+    end
+    if (gap > BUTTON_GAP_MAX) then
+        return BUTTON_GAP_MAX;
+    end
+
+    return gap;
+end
+
+local function configured_button_gap()
+    local settings = state.config.settings or {};
+    local gap = normalize_button_gap(settings.button_gap);
+    if (gap ~= nil) then
+        return gap, 'config';
+    end
+
+    gap = normalize_button_gap(settings.slot_gap);
+    if (gap ~= nil) then
+        return gap, 'legacy';
+    end
+
+    return DEFAULT_CONFIG.settings.button_gap, 'default';
+end
+
+local function button_gap()
+    if (state.button_gap_override ~= nil) then
+        return state.button_gap_override;
+    end
+
+    local gap = configured_button_gap();
+    return gap;
+end
+
+local function button_gap_source()
+    if (state.button_gap_override ~= nil) then
+        return 'runtime';
+    end
+
+    local _, source = configured_button_gap();
+    return source;
 end
 
 local function visual_group()
@@ -1964,9 +2019,8 @@ local function render_tooltip(row, index)
 end
 
 local function render_row(row, active, transition_alpha)
-    local settings = state.config.settings or {};
     local current_slot_size = slot_size();
-    local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
+    local gap = button_gap();
 
     imgui.Text(row.label);
     imgui.SameLine(52, gap);
@@ -1991,7 +2045,7 @@ local function render_bars()
     local profile = refresh_profile_context();
     local settings = state.config.settings or {};
     local current_slot_size = slot_size();
-    local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
+    local gap = button_gap();
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local mode = display_mode();
     local theme = current_theme();
@@ -2036,6 +2090,7 @@ local function print_help()
     log_info('/ashitabars hide - Hide the bars.');
     log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
     log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(SLOT_SIZE_MIN, SLOT_SIZE_MAX));
+    log_info(('/ashitabars gap %d-%d|config - Change button spacing until config reload.'):fmt(BUTTON_GAP_MIN, BUTTON_GAP_MAX));
     log_info('/ashitabars reload - Reload ashitabars_config.lua.');
     log_info('/ashitabars status - Print input status.');
 end
@@ -2100,6 +2155,22 @@ ashita.events.register('command', 'command_cb', function (e)
                 log_info(('Button size set to %d px (runtime).'):fmt(size));
             end
         end
+    elseif (sub == 'gap') then
+        local requested = (#args >= 3) and args[3]:lower() or nil;
+        if (requested == nil) then
+            log_info(('Button gap is %d px (%s).'):fmt(button_gap(), button_gap_source()));
+        elseif (requested == 'config' or requested == 'default') then
+            state.button_gap_override = nil;
+            log_info(('Button gap override cleared. Using %d px (%s).'):fmt(button_gap(), button_gap_source()));
+        else
+            local gap = normalize_button_gap(requested);
+            if (gap == nil) then
+                log_warn(('/ashitabars gap expects %d-%d or config.'):fmt(BUTTON_GAP_MIN, BUTTON_GAP_MAX));
+            else
+                state.button_gap_override = gap;
+                log_info(('Button gap set to %d px (runtime).'):fmt(gap));
+            end
+        end
     elseif (sub == 'reload') then
         load_config();
         log_info('Config reloaded.');
@@ -2109,7 +2180,7 @@ ashita.events.register('command', 'command_cb', function (e)
         local profile = refresh_profile_context();
         local active = active_group();
         local _, theme_key = current_theme();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s buttonGap=%d buttonGapSource=%s theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
@@ -2118,6 +2189,8 @@ ashita.events.register('command', 'command_cb', function (e)
             visual_group(),
             slot_size(),
             slot_size_source(),
+            button_gap(),
+            button_gap_source(),
             theme_key,
             icon_style(),
             tostring(setting_enabled('show_recasts', true)),

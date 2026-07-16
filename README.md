@@ -65,6 +65,8 @@ Commands:
 /ashitabars mode config
 /ashitabars size 72
 /ashitabars size config
+/ashitabars gap 8
+/ashitabars gap config
 /ashitabars status
 /ashitabars reload
 ```
@@ -98,6 +100,7 @@ settings = {
     weaponskill_tp_threshold = 1000,
     icon_style = 'auto',
     slot_size = 64,
+    button_gap = 6,
 }
 ```
 
@@ -132,6 +135,23 @@ You can tune button size at runtime without editing the config:
 
 `size config` clears the runtime override and returns to `settings.slot_size`.
 `/ashitabars reload` also clears the runtime size override.
+
+Button spacing is controlled by `settings.button_gap`, clamped from `0` to `24`
+pixels. Existing configs that still use `slot_gap` continue to work as a legacy
+fallback.
+
+You can tune button spacing at runtime without editing the config:
+
+```txt
+/ashitabars gap
+/ashitabars gap 4
+/ashitabars gap 8
+/ashitabars gap 12
+/ashitabars gap config
+```
+
+`gap config` clears the runtime override and returns to `settings.button_gap`.
+`/ashitabars reload` also clears the runtime gap override.
 
 Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
 preserves the current brass-and-crystal look; the other themes only change the
@@ -217,7 +237,7 @@ can be tested.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
-display-mode source, button size/source, theme, icon style,
+display-mode source, button size/source, button gap/source, theme, icon style,
 recast/count/availability settings, and weapon-skill TP threshold alongside
 input, profile, and modifier-blocking state.
 

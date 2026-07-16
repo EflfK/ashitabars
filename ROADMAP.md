@@ -21,6 +21,8 @@ most one configured command.
   `show_labels`, and `icon_style`.
 - Done: configurable button sizing through `settings.slot_size` and runtime
   `/ashitabars size`, with a larger sample default for denser slot overlays.
+- Done: configurable button spacing through `settings.button_gap` and runtime
+  `/ashitabars gap`, with legacy `slot_gap` fallback.
 
 ## Later Feature Ideas
 
