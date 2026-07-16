@@ -23,6 +23,12 @@ most one configured command.
   `/ashitabars size`, with a larger sample default for denser slot overlays.
 - Done: configurable button spacing through `settings.button_gap` and runtime
   `/ashitabars gap`, with legacy `slot_gap` fallback.
+- Done: runtime configuration window for display mode, button size, and button
+  gap, with slider controls and a Save button for persistence.
+- Done: optional draggable bar frame, allowing the ImGui title/background to be
+  shown for positioning and hidden for locked frameless action bars.
+- Done: configurable button glow size and opacity, with runtime sliders and
+  saved config values.
 
 ## Later Feature Ideas
 

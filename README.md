@@ -60,6 +60,7 @@ Commands:
 /ashitabars show
 /ashitabars hide
 /ashitabars toggle
+/ashitabars config
 /ashitabars mode single
 /ashitabars mode stacked
 /ashitabars mode config
@@ -101,6 +102,11 @@ settings = {
     icon_style = 'auto',
     slot_size = 64,
     button_gap = 6,
+    slot_glow_size = 100,
+    slot_glow_opacity = 100,
+    show_bar_frame = false,
+    window_x = 820,
+    window_y = 760,
 }
 ```
 
@@ -111,6 +117,7 @@ The setting changes only the visible UI. Key execution remains `1-0`,
 You can switch display modes at runtime without editing the config:
 
 ```txt
+/ashitabars config
 /ashitabars mode single
 /ashitabars mode stacked
 /ashitabars mode config
@@ -118,6 +125,25 @@ You can switch display modes at runtime without editing the config:
 
 `mode config` clears the runtime override and returns to `settings.display_mode`.
 `/ashitabars reload` also clears the runtime override.
+
+`/ashitabars config` opens a configuration window with a General tab for the
+same controls exposed by `/ashitabars mode`, `/ashitabars size`, and
+`/ashitabars gap`. Numeric controls use sliders. Changes apply immediately as
+runtime overrides; click `Save` in the window to persist display mode, button
+size, button gap, button glow, bar frame visibility, and bar position to the
+loaded `ashitabars_config.lua`.
+
+Button glow is controlled by `settings.slot_glow_size` and
+`settings.slot_glow_opacity`. `slot_glow_size = 100` is the original glow size,
+`0` disables the glow, and `200` doubles the original glow size.
+`slot_glow_opacity` is a `0` to `100` percent alpha multiplier.
+
+`show_bar_frame = true` keeps the normal ImGui title bar and background visible
+so the bar can be dragged. `show_bar_frame = false` hides the title bar and
+window background, hides the left row labels, and locks the first action button
+at the saved `window_x` / `window_y` position. To move the frameless bar, open
+`/ashitabars config`, enable `Show Bar Frame`, drag the bar, then click `Save`
+after setting the frame visibility you want.
 
 Button size is controlled by `settings.slot_size`, clamped from `40` to `96`
 pixels. The sample config defaults to `64` so count badges, recast text, and

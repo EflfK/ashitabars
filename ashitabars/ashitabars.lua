@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.14.0';
+addon.version   = '0.17.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -132,6 +132,14 @@ local SLOT_SIZE_MIN = 40;
 local SLOT_SIZE_MAX = 96;
 local BUTTON_GAP_MIN = 0;
 local BUTTON_GAP_MAX = 24;
+local SLOT_GLOW_SIZE_MIN = 0;
+local SLOT_GLOW_SIZE_MAX = 200;
+local SLOT_GLOW_OPACITY_MIN = 0;
+local SLOT_GLOW_OPACITY_MAX = 100;
+local FRAMELESS_WINDOW_PADDING = 4;
+local CONFIG_HEADER_COLOR = { 1.00, 0.70, 0.36, 1.00 };
+local CONFIG_SUCCESS_COLOR = { 0.45, 1.00, 0.58, 1.00 };
+local CONFIG_ERROR_COLOR = { 1.00, 0.36, 0.30, 1.00 };
 
 local THEMES = {
     ffxi = {
@@ -369,6 +377,9 @@ local DEFAULT_CONFIG = {
         icon_style = 'auto',
         slot_size = 64,
         button_gap = 6,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        show_bar_frame = false,
         row_gap = 6,
         window_x = 820,
         window_y = 760,
@@ -391,11 +402,27 @@ local DEFAULT_CONFIG = {
 local state = {
     config = DEFAULT_CONFIG,
     visible = T{ true },
+    config_visible = T{ false },
+    config_save_message = nil,
+    config_save_message_color = CONFIG_SUCCESS_COLOR,
     config_error = nil,
     profile = nil,
     display_mode_override = nil,
     slot_size_override = nil,
     button_gap_override = nil,
+    slot_glow_size_override = nil,
+    slot_glow_opacity_override = nil,
+    bar_frame_override = nil,
+    bar_window_x = nil,
+    bar_window_y = nil,
+    bar_anchor_x = nil,
+    bar_anchor_y = nil,
+    bar_anchor_lock_x = nil,
+    bar_anchor_lock_y = nil,
+    bar_frame_offset_x = nil,
+    bar_frame_offset_y = nil,
+    bar_hidden_offset_x = FRAMELESS_WINDOW_PADDING,
+    bar_hidden_offset_y = FRAMELESS_WINDOW_PADDING,
     recast_cache = {},
     recast_totals = {},
     item_source_cache = {},
@@ -539,6 +566,19 @@ local function load_config()
         state.display_mode_override = nil;
         state.slot_size_override = nil;
         state.button_gap_override = nil;
+        state.slot_glow_size_override = nil;
+        state.slot_glow_opacity_override = nil;
+        state.bar_frame_override = nil;
+        state.bar_window_x = DEFAULT_CONFIG.settings.window_x;
+        state.bar_window_y = DEFAULT_CONFIG.settings.window_y;
+        state.bar_anchor_x = DEFAULT_CONFIG.settings.window_x;
+        state.bar_anchor_y = DEFAULT_CONFIG.settings.window_y;
+        state.bar_anchor_lock_x = nil;
+        state.bar_anchor_lock_y = nil;
+        state.bar_frame_offset_x = nil;
+        state.bar_frame_offset_y = nil;
+        state.bar_hidden_offset_x = FRAMELESS_WINDOW_PADDING;
+        state.bar_hidden_offset_y = FRAMELESS_WINDOW_PADDING;
         state.recast_cache = {};
         state.recast_totals = {};
         state.item_source_cache = {};
@@ -563,6 +603,19 @@ local function load_config()
     state.display_mode_override = nil;
     state.slot_size_override = nil;
     state.button_gap_override = nil;
+    state.slot_glow_size_override = nil;
+    state.slot_glow_opacity_override = nil;
+    state.bar_frame_override = nil;
+    state.bar_window_x = tonumber(state.config.settings.window_x) or DEFAULT_CONFIG.settings.window_x;
+    state.bar_window_y = tonumber(state.config.settings.window_y) or DEFAULT_CONFIG.settings.window_y;
+    state.bar_anchor_x = state.bar_window_x;
+    state.bar_anchor_y = state.bar_window_y;
+    state.bar_anchor_lock_x = nil;
+    state.bar_anchor_lock_y = nil;
+    state.bar_frame_offset_x = nil;
+    state.bar_frame_offset_y = nil;
+    state.bar_hidden_offset_x = FRAMELESS_WINDOW_PADDING;
+    state.bar_hidden_offset_y = FRAMELESS_WINDOW_PADDING;
     state.recast_cache = {};
     state.recast_totals = {};
     state.item_source_cache = {};
@@ -741,6 +794,318 @@ local function button_gap_source()
 
     local _, source = configured_button_gap();
     return source;
+end
+
+local function normalize_percent(value, min_value, max_value)
+    local percent = tonumber(value);
+    if (percent == nil) then
+        return nil;
+    end
+
+    percent = math.floor(percent + 0.5);
+    if (percent < min_value) then
+        return min_value;
+    end
+    if (percent > max_value) then
+        return max_value;
+    end
+
+    return percent;
+end
+
+local function normalize_slot_glow_size(value)
+    return normalize_percent(value, SLOT_GLOW_SIZE_MIN, SLOT_GLOW_SIZE_MAX);
+end
+
+local function normalize_slot_glow_opacity(value)
+    return normalize_percent(value, SLOT_GLOW_OPACITY_MIN, SLOT_GLOW_OPACITY_MAX);
+end
+
+local function slot_glow_size()
+    if (state.slot_glow_size_override ~= nil) then
+        return state.slot_glow_size_override;
+    end
+
+    local settings = state.config.settings or {};
+    return normalize_slot_glow_size(settings.slot_glow_size) or DEFAULT_CONFIG.settings.slot_glow_size;
+end
+
+local function slot_glow_size_source()
+    if (state.slot_glow_size_override ~= nil) then
+        return 'runtime';
+    end
+
+    local settings = state.config.settings or {};
+    if (normalize_slot_glow_size(settings.slot_glow_size) ~= nil) then
+        return 'config';
+    end
+
+    return 'default';
+end
+
+local function slot_glow_opacity()
+    if (state.slot_glow_opacity_override ~= nil) then
+        return state.slot_glow_opacity_override;
+    end
+
+    local settings = state.config.settings or {};
+    return normalize_slot_glow_opacity(settings.slot_glow_opacity) or DEFAULT_CONFIG.settings.slot_glow_opacity;
+end
+
+local function slot_glow_opacity_source()
+    if (state.slot_glow_opacity_override ~= nil) then
+        return 'runtime';
+    end
+
+    local settings = state.config.settings or {};
+    if (normalize_slot_glow_opacity(settings.slot_glow_opacity) ~= nil) then
+        return 'config';
+    end
+
+    return 'default';
+end
+
+local function slot_glow_scale()
+    return slot_glow_size() / 100.0;
+end
+
+local function slot_glow_alpha_scale()
+    return slot_glow_opacity() / 100.0;
+end
+
+local function configured_bar_frame_visible()
+    local settings = state.config.settings or {};
+    if (settings.show_bar_frame ~= nil) then
+        return settings.show_bar_frame ~= false, 'config';
+    end
+
+    return DEFAULT_CONFIG.settings.show_bar_frame ~= false, 'default';
+end
+
+local function bar_frame_visible()
+    if (state.bar_frame_override ~= nil) then
+        return state.bar_frame_override == true;
+    end
+
+    local visible = configured_bar_frame_visible();
+    return visible;
+end
+
+local function bar_frame_source()
+    if (state.bar_frame_override ~= nil) then
+        return 'runtime';
+    end
+
+    local _, source = configured_bar_frame_visible();
+    return source;
+end
+
+local function bar_window_position(settings)
+    local x = tonumber(state.bar_anchor_x) or tonumber(settings.window_x) or DEFAULT_CONFIG.settings.window_x;
+    local y = tonumber(state.bar_anchor_y) or tonumber(settings.window_y) or DEFAULT_CONFIG.settings.window_y;
+    return math.floor(x + 0.5), math.floor(y + 0.5);
+end
+
+local function estimated_frame_offset()
+    local style = safe_read(function () return imgui.GetStyle(); end, nil);
+    local pad_x = 8;
+    local pad_y = 8;
+    local title_h = 22;
+
+    if (style ~= nil) then
+        if (style.WindowPadding ~= nil) then
+            pad_x = tonumber(style.WindowPadding.x) or tonumber(style.WindowPadding[1]) or pad_x;
+            pad_y = tonumber(style.WindowPadding.y) or tonumber(style.WindowPadding[2]) or pad_y;
+        end
+
+        if (style.FramePadding ~= nil) then
+            local frame_y = tonumber(style.FramePadding.y) or tonumber(style.FramePadding[2]);
+            local font_size = safe_read(function () return imgui.GetFontSize(); end, nil);
+            if (frame_y ~= nil and font_size ~= nil) then
+                title_h = font_size + (frame_y * 2);
+            end
+        end
+    end
+
+    return pad_x + 52, pad_y + title_h;
+end
+
+local function frameless_window_padding()
+    return math.max(FRAMELESS_WINDOW_PADDING, math.ceil((3 * slot_glow_scale()) + 1));
+end
+
+local function bar_window_offset(show_frame)
+    if (show_frame) then
+        local fallback_x, fallback_y = estimated_frame_offset();
+        return tonumber(state.bar_frame_offset_x) or fallback_x, tonumber(state.bar_frame_offset_y) or fallback_y;
+    end
+
+    local pad = frameless_window_padding();
+    return pad, pad;
+end
+
+local function lock_bar_anchor()
+    local settings = state.config.settings or {};
+    local anchor_x, anchor_y = bar_window_position(settings);
+    state.bar_anchor_lock_x = anchor_x;
+    state.bar_anchor_lock_y = anchor_y;
+end
+
+local function imgui_wants_keyboard()
+    return safe_read(function ()
+        local io = imgui.GetIO();
+        return io ~= nil and (io.WantCaptureKeyboard == true or io.WantTextInput == true);
+    end, false);
+end
+
+local function config_file_path()
+    local source = safe_read(function ()
+        local info = debug.getinfo(1, 'S');
+        return (info ~= nil) and info.source or nil;
+    end, nil);
+
+    if (type(source) == 'string') then
+        if (source:sub(1, 1) == '@') then
+            source = source:sub(2);
+        end
+
+        local dir = source:match('^(.*[\\/])');
+        if (dir ~= nil) then
+            return dir .. 'ashitabars_config.lua';
+        end
+    end
+
+    return 'ashitabars_config.lua';
+end
+
+local function read_text_file(path)
+    local file, err = io.open(path, 'rb');
+    if (file == nil) then
+        return nil, err;
+    end
+
+    local contents = file:read('*a');
+    file:close();
+    return contents;
+end
+
+local function write_text_file(path, contents)
+    local file, err = io.open(path, 'wb');
+    if (file == nil) then
+        return false, err;
+    end
+
+    local ok, write_err = file:write(contents);
+    file:close();
+    if (not ok) then
+        return false, write_err;
+    end
+
+    return true;
+end
+
+local function find_settings_table(contents)
+    local start_pos, open_pos = contents:find('settings%s*=%s*{');
+    if (start_pos == nil) then
+        return nil, nil;
+    end
+
+    local depth = 0;
+    for i = open_pos, #contents do
+        local char = contents:sub(i, i);
+        if (char == '{') then
+            depth = depth + 1;
+        elseif (char == '}') then
+            depth = depth - 1;
+            if (depth == 0) then
+                return start_pos, i;
+            end
+        end
+    end
+
+    return nil, nil;
+end
+
+local function lua_string_literal(value)
+    local text = tostring(value):gsub('\\', '\\\\'):gsub("'", "\\'");
+    return ("'%s'"):fmt(text);
+end
+
+local function replace_setting(block, key, literal)
+    local escaped_key = key:gsub('([%^%$%(%)%%%.%[%]%*%+%-%?])', '%%%1');
+    local pattern = '([\r\n][ \t]*)(' .. escaped_key .. '%s*=%s*)([^,\r\n]+)(,?)';
+    local updated, count = block:gsub(pattern, function (prefix, assign, _, comma)
+        return prefix .. assign .. literal .. ((comma ~= '') and comma or ',');
+    end, 1);
+
+    if (count > 0) then
+        return updated;
+    end
+
+    local setting_indent = block:match('\n([ \t]*)[%w_]+%s*=') or '        ';
+    local close_indent = block:match('\n([ \t]*)%}%s*$') or '    ';
+    return block:gsub('%s*}$', ('\n%s%s = %s,\n%s}'):fmt(setting_indent, key, literal, close_indent), 1);
+end
+
+local function save_runtime_settings()
+    local mode = display_mode();
+    local size = slot_size();
+    local gap = button_gap();
+    local glow_size = slot_glow_size();
+    local glow_opacity = slot_glow_opacity();
+    local show_frame = bar_frame_visible();
+    local settings = state.config.settings or {};
+    local window_x, window_y = bar_window_position(settings);
+    local path = config_file_path();
+    local contents, read_err = read_text_file(path);
+    if (contents == nil) then
+        return false, ('Save failed: could not read ashitabars_config.lua (%s).'):fmt(tostring(read_err));
+    end
+
+    local start_pos, end_pos = find_settings_table(contents);
+    if (start_pos == nil) then
+        return false, 'Save failed: could not find the settings table in ashitabars_config.lua.';
+    end
+
+    local block = contents:sub(start_pos, end_pos);
+    block = replace_setting(block, 'display_mode', lua_string_literal(mode));
+    block = replace_setting(block, 'slot_size', tostring(size));
+    block = replace_setting(block, 'button_gap', tostring(gap));
+    block = replace_setting(block, 'slot_glow_size', tostring(glow_size));
+    block = replace_setting(block, 'slot_glow_opacity', tostring(glow_opacity));
+    block = replace_setting(block, 'show_bar_frame', tostring(show_frame));
+    block = replace_setting(block, 'window_x', tostring(window_x));
+    block = replace_setting(block, 'window_y', tostring(window_y));
+
+    local updated = contents:sub(1, start_pos - 1) .. block .. contents:sub(end_pos + 1);
+    local ok, write_err = write_text_file(path, updated);
+    if (not ok) then
+        return false, ('Save failed: could not write ashitabars_config.lua (%s).'):fmt(tostring(write_err));
+    end
+
+    if (type(state.config.settings) ~= 'table') then
+        state.config.settings = {};
+    end
+    state.config.settings.display_mode = mode;
+    state.config.settings.slot_size = size;
+    state.config.settings.button_gap = gap;
+    state.config.settings.slot_glow_size = glow_size;
+    state.config.settings.slot_glow_opacity = glow_opacity;
+    state.config.settings.show_bar_frame = show_frame;
+    state.config.settings.window_x = window_x;
+    state.config.settings.window_y = window_y;
+    state.display_mode_override = nil;
+    state.slot_size_override = nil;
+    state.button_gap_override = nil;
+    state.slot_glow_size_override = nil;
+    state.slot_glow_opacity_override = nil;
+    state.bar_frame_override = nil;
+    state.bar_window_x = window_x;
+    state.bar_window_y = window_y;
+    state.bar_anchor_x = window_x;
+    state.bar_anchor_y = window_y;
+
+    return true, ('Saved display mode, button layout, slot glow, bar frame, and bar position to ashitabars_config.lua.');
 end
 
 local function visual_group()
@@ -1883,7 +2248,7 @@ local function draw_unsupported_overlay(draw_list, x, y, slot_size)
     draw_list:AddRectFilled({ cx - 1, cy + 5 }, { cx + 1, cy + 7 }, dim, 0.5);
 end
 
-local function render_slot_button(row, index, slot_size, active, transition_alpha)
+local function render_slot_button(row, index, slot_size, active, transition_alpha, capture_anchor, show_frame)
     local slot = get_slot(row.id, index);
     local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
     local command_supported = has_command and allowed_command(slot.command);
@@ -1892,6 +2257,19 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local pressed = imgui.IsItemActive();
     local x, y = imgui.GetItemRectMin();
     local draw_list = imgui.GetWindowDrawList();
+    if (capture_anchor) then
+        local window_x, window_y = imgui.GetWindowPos();
+        if (show_frame) then
+            state.bar_frame_offset_x = x - window_x;
+            state.bar_frame_offset_y = y - window_y;
+        else
+            state.bar_hidden_offset_x = x - window_x;
+            state.bar_hidden_offset_y = y - window_y;
+        end
+        state.bar_measured_anchor_x = x;
+        state.bar_measured_anchor_y = y;
+    end
+
     local theme = current_theme();
     local row_color = ROW_THEME[row.id] or ROW_THEME.base;
     local family = command_family(slot);
@@ -1906,6 +2284,8 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local rx = x + nudge;
     local ry = y + nudge;
     local rr = 4.0;
+    local glow_scale = slot_glow_scale();
+    local glow_alpha_scale = slot_glow_alpha_scale();
     local inset = math.max(5, math.floor(slot_size * 0.12));
     local ix1 = rx + inset;
     local iy1 = ry + inset;
@@ -1914,19 +2294,24 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     draw_list:AddRectFilled({ x + 2, y + 3 }, { x + slot_size + 2, y + slot_size + 3 }, color_u32(theme.slot_shadow or { 0.00, 0.00, 0.00, 0.58 }), rr);
 
-    if (active or hovered) then
-        local glow_alpha = active and 0.82 or 0.42;
-        draw_list:AddRect({ rx - 2, ry - 2 }, { rx + slot_size + 2, ry + slot_size + 2 }, color_u32(color_with_alpha(row_color, glow_alpha)), rr + 1, ImDrawCornerFlags_All, active and 2.0 or 1.4);
+    if ((active or hovered) and glow_scale > 0 and glow_alpha_scale > 0) then
+        local glow_alpha = (active and 0.82 or 0.42) * glow_alpha_scale;
+        local glow_extent = 2.0 * glow_scale;
+        local glow_thickness = (active and 2.0 or 1.4) * glow_scale;
+        draw_list:AddRect({ rx - glow_extent, ry - glow_extent }, { rx + slot_size + glow_extent, ry + slot_size + glow_extent }, color_u32(color_with_alpha(row_color, glow_alpha)), rr + (glow_extent * 0.5), ImDrawCornerFlags_All, glow_thickness);
     end
 
     draw_list:AddRectFilled({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32(theme.slot_bg or { 0.035, 0.030, 0.028, 0.98 }), rr);
     draw_list:AddRect({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32(theme.slot_border or { 0.02, 0.02, 0.02, 1.00 }), rr, ImDrawCornerFlags_All, 2.0);
 
     local flash = tonumber(transition_alpha) or 0;
-    if (flash > 0) then
-        draw_list:AddRectFilled({ rx + 2, ry + 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(color_with_alpha(row_color, flash * 0.11)), rr - 1);
-        draw_list:AddRect({ rx - 3, ry - 3 }, { rx + slot_size + 3, ry + slot_size + 3 }, color_u32(color_with_alpha(row_color, flash * 0.76)), rr + 2, ImDrawCornerFlags_All, 2.2);
-        draw_list:AddRect({ rx + 4, ry + 4 }, { rx + slot_size - 4, ry + slot_size - 4 }, color_u32(color_with_alpha(row_color, flash * 0.32)), 2.0, ImDrawCornerFlags_All, 1.0);
+    if (flash > 0 and glow_scale > 0 and glow_alpha_scale > 0) then
+        local flash_alpha = flash * glow_alpha_scale;
+        local flash_extent = 3.0 * glow_scale;
+        local inner_inset = math.max(1.0, 4.0 * glow_scale);
+        draw_list:AddRectFilled({ rx + 2, ry + 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(color_with_alpha(row_color, flash_alpha * 0.11)), rr - 1);
+        draw_list:AddRect({ rx - flash_extent, ry - flash_extent }, { rx + slot_size + flash_extent, ry + slot_size + flash_extent }, color_u32(color_with_alpha(row_color, flash_alpha * 0.76)), rr + flash_extent - 1, ImDrawCornerFlags_All, 2.2 * glow_scale);
+        draw_list:AddRect({ rx + inner_inset, ry + inner_inset }, { rx + slot_size - inner_inset, ry + slot_size - inner_inset }, color_u32(color_with_alpha(row_color, flash_alpha * 0.32)), 2.0, ImDrawCornerFlags_All, 1.0 * glow_scale);
     end
 
     draw_list:AddLine({ rx + 2, ry + 2 }, { rx + slot_size - 3, ry + 2 }, color_u32(theme.bevel_light or { 0.88, 0.78, 0.48, 0.46 }), 1.0);
@@ -1973,8 +2358,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_unsupported_overlay(draw_list, rx, ry, slot_size);
     end
 
-    if (hovered) then
-        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32(theme.hover_border or { 1.00, 0.96, 0.72, 0.52 }), rr, ImDrawCornerFlags_All, 1.3);
+    if (hovered and glow_scale > 0 and glow_alpha_scale > 0) then
+        local hover_color = theme.hover_border or { 1.00, 0.96, 0.72, 0.52 };
+        local hover_alpha = (hover_color[4] or 1.00) * glow_alpha_scale;
+        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32(color_with_alpha(hover_color, hover_alpha)), rr, ImDrawCornerFlags_All, 1.3 * glow_scale);
     end
 
     return clicked;
@@ -2018,19 +2405,22 @@ local function render_tooltip(row, index)
     imgui.EndTooltip();
 end
 
-local function render_row(row, active, transition_alpha)
+local function render_row(row, active, transition_alpha, show_row_label, capture_anchor, show_frame)
     local current_slot_size = slot_size();
     local gap = button_gap();
 
-    imgui.Text(row.label);
-    imgui.SameLine(52, gap);
+    if (show_row_label) then
+        imgui.Text(row.label);
+        imgui.SameLine(52, gap);
+    end
 
     for index = 1, 10 do
         if (index > 1) then
             imgui.SameLine(0, gap);
         end
 
-        if (render_slot_button(row, index, current_slot_size, active, transition_alpha)) then
+        local should_capture_anchor = capture_anchor and index == 1;
+        if (render_slot_button(row, index, current_slot_size, active, transition_alpha, should_capture_anchor, show_frame)) then
             execute_slot(row.id, index, 'click');
         end
         render_tooltip(row, index);
@@ -2049,19 +2439,45 @@ local function render_bars()
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local mode = display_mode();
     local theme = current_theme();
+    local show_frame = bar_frame_visible();
     local row_count = (mode == 'single') and 1 or #ROWS;
-    local width = 58 + (current_slot_size * 10) + (gap * 9) + 20;
-    local height = (current_slot_size * row_count) + (row_gap * (row_count - 1)) + 48;
+    local label_width = show_frame and 58 or 0;
+    local content_width = label_width + (current_slot_size * 10) + (gap * 9);
+    local content_height = (current_slot_size * row_count) + (row_gap * (row_count - 1));
+    local hidden_pad = show_frame and 0 or frameless_window_padding();
+    local width = content_width + (show_frame and 20 or (hidden_pad * 2));
+    local height = content_height + (show_frame and 48 or (hidden_pad * 2));
     local active = active_group();
     local visual = visual_group();
+    local anchor_x, anchor_y = bar_window_position(settings);
+    local offset_x, offset_y = bar_window_offset(show_frame);
+    local window_x = anchor_x - offset_x;
+    local window_y = anchor_y - offset_y;
+    local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
+    local style_var_count = 0;
+    local anchor_locked = state.bar_anchor_lock_x ~= nil and state.bar_anchor_lock_y ~= nil;
 
-    imgui.SetNextWindowPos({ tonumber(settings.window_x) or 820, tonumber(settings.window_y) or 760 }, ImGuiCond_FirstUseEver);
+    state.bar_measured_anchor_x = nil;
+    state.bar_measured_anchor_y = nil;
+
+    if (show_frame) then
+        imgui.SetNextWindowPos({ window_x, window_y }, anchor_locked and ImGuiCond_Always or ImGuiCond_FirstUseEver);
+    else
+        imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_Always);
+        window_flags = bit.bor(window_flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
+        imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
+        imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
+        style_var_count = 2;
+    end
+
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
     imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
     imgui.PushStyleColor(ImGuiCol_Border,   theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
 
     local window_title = ('AshitaBars [%s %s]###AshitaBars'):fmt(profile.key or 'DEFAULT', mode);
-    if (imgui.Begin(window_title, state.visible, bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse))) then
+    if (imgui.Begin(window_title, state.visible, window_flags)) then
+        state.bar_window_x, state.bar_window_y = imgui.GetWindowPos();
+
         if (state.config_error ~= nil) then
             imgui.Text('Config load failed. Using defaults.');
         end
@@ -2069,25 +2485,142 @@ local function render_bars()
         if (mode == 'single') then
             local row = ROW_BY_ID[visual] or ROW_BY_ID.base;
             local transition_alpha = row_transition_alpha(row.id, mode);
-            render_row(row, active == row.id, transition_alpha);
+            render_row(row, active == row.id, transition_alpha, show_frame, true, show_frame);
         else
             row_transition_alpha(visual, mode);
             for i, row in ipairs(ROWS) do
-                render_row(row, active == row.id, 0);
+                render_row(row, active == row.id, 0, show_frame, i == 1, show_frame);
                 if (i < #ROWS) then
                     imgui.Dummy({ 1, row_gap });
                 end
             end
         end
+
+        if (state.bar_measured_anchor_x ~= nil and state.bar_measured_anchor_y ~= nil) then
+            if (state.bar_anchor_lock_x ~= nil and state.bar_anchor_lock_y ~= nil) then
+                local dx = state.bar_anchor_lock_x - state.bar_measured_anchor_x;
+                local dy = state.bar_anchor_lock_y - state.bar_measured_anchor_y;
+                if (math.abs(dx) > 0.01 or math.abs(dy) > 0.01) then
+                    local current_x, current_y = imgui.GetWindowPos();
+                    imgui.SetWindowPos({ current_x + dx, current_y + dy });
+                    state.bar_window_x = current_x + dx;
+                    state.bar_window_y = current_y + dy;
+                end
+                state.bar_anchor_x = state.bar_anchor_lock_x;
+                state.bar_anchor_y = state.bar_anchor_lock_y;
+                state.bar_anchor_lock_x = nil;
+                state.bar_anchor_lock_y = nil;
+            else
+                state.bar_anchor_x = state.bar_measured_anchor_x;
+                state.bar_anchor_y = state.bar_measured_anchor_y;
+            end
+        end
     end
     imgui.End();
     imgui.PopStyleColor(2);
+    if (style_var_count > 0) then
+        imgui.PopStyleVar(style_var_count);
+    end
+end
+
+local function render_runtime_int_control(label, id, value, source, min_value, max_value, apply_value, unit)
+    unit = unit or 'px';
+    local text = (unit == '%') and ('%d%% (%s)'):fmt(value, source) or ('%d %s (%s)'):fmt(value, unit, source);
+    local slider_format = (unit == '%') and '%d%%' or ('%d ' .. unit);
+
+    imgui.TextColored(CONFIG_HEADER_COLOR, label);
+    imgui.SameLine(160);
+    imgui.Text(text);
+
+    local buffer = { value };
+    imgui.PushItemWidth(340);
+    local changed = imgui.SliderInt(('##ashitabars_%s_slider'):fmt(id), buffer, min_value, max_value, slider_format, ImGuiSliderFlags_AlwaysClamp);
+    imgui.PopItemWidth();
+    if (changed) then
+        apply_value(buffer[1]);
+    end
+end
+
+local function render_config_window()
+    if (not state.config_visible[1]) then
+        return;
+    end
+
+    imgui.SetNextWindowSize({ 440, 0 }, ImGuiCond_FirstUseEver);
+    if (imgui.Begin(('AshitaBars v%s Configuration###AshitaBarsConfig'):fmt(addon.version), state.config_visible, ImGuiWindowFlags_AlwaysAutoResize)) then
+        if (imgui.BeginTabBar('##ashitabars_config_tabs', ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) then
+            if (imgui.BeginTabItem('General##ashitabars_config_general', nil)) then
+                imgui.TextColored(CONFIG_HEADER_COLOR, 'Display Mode');
+                local mode = display_mode();
+                if (imgui.RadioButton('Single##ashitabars_config_mode_single', mode == 'single')) then
+                    state.display_mode_override = 'single';
+                end
+                imgui.SameLine(0, 8);
+                if (imgui.RadioButton('Stacked##ashitabars_config_mode_stacked', mode == 'stacked')) then
+                    state.display_mode_override = 'stacked';
+                end
+                imgui.SameLine(0, 8);
+                imgui.Text(('(%s)'):fmt(display_mode_source()));
+
+                imgui.Separator();
+                imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Layout');
+                render_runtime_int_control('Button Size', 'slot_size', slot_size(), slot_size_source(), SLOT_SIZE_MIN, SLOT_SIZE_MAX, function (value)
+                    state.slot_size_override = normalize_slot_size(value);
+                end);
+
+                render_runtime_int_control('Button Gap', 'button_gap', button_gap(), button_gap_source(), BUTTON_GAP_MIN, BUTTON_GAP_MAX, function (value)
+                    state.button_gap_override = normalize_button_gap(value);
+                end);
+
+                imgui.Separator();
+                imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Glow');
+                render_runtime_int_control('Glow Size', 'slot_glow_size', slot_glow_size(), slot_glow_size_source(), SLOT_GLOW_SIZE_MIN, SLOT_GLOW_SIZE_MAX, function (value)
+                    state.slot_glow_size_override = normalize_slot_glow_size(value);
+                end, '%');
+
+                render_runtime_int_control('Glow Opacity', 'slot_glow_opacity', slot_glow_opacity(), slot_glow_opacity_source(), SLOT_GLOW_OPACITY_MIN, SLOT_GLOW_OPACITY_MAX, function (value)
+                    state.slot_glow_opacity_override = normalize_slot_glow_opacity(value);
+                end, '%');
+
+                imgui.Separator();
+                imgui.TextColored(CONFIG_HEADER_COLOR, 'Bar Window');
+                local show_frame = bar_frame_visible();
+                if (imgui.Checkbox('Show Bar Frame##ashitabars_config_show_bar_frame', { show_frame })) then
+                    lock_bar_anchor();
+                    state.bar_frame_override = not show_frame;
+                end
+                imgui.SameLine(0, 8);
+                imgui.Text(('(%s)'):fmt(bar_frame_source()));
+
+                imgui.Separator();
+                if (imgui.Button('Save##ashitabars_config_save')) then
+                    local ok, message = save_runtime_settings();
+                    state.config_save_message = ok and 'Saved.' or 'Save failed. See chat log.';
+                    state.config_save_message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+                    if (ok) then
+                        log_info(message);
+                    else
+                        log_warn(message);
+                    end
+                end
+                if (state.config_save_message ~= nil) then
+                    imgui.SameLine(0, 8);
+                    imgui.TextColored(state.config_save_message_color, state.config_save_message);
+                end
+
+                imgui.EndTabItem();
+            end
+            imgui.EndTabBar();
+        end
+    end
+    imgui.End();
 end
 
 local function print_help()
     log_info('/ashitabars toggle - Show or hide the bars.');
     log_info('/ashitabars show - Show the bars.');
     log_info('/ashitabars hide - Hide the bars.');
+    log_info('/ashitabars config - Toggle the runtime configuration window.');
     log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
     log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(SLOT_SIZE_MIN, SLOT_SIZE_MAX));
     log_info(('/ashitabars gap %d-%d|config - Change button spacing until config reload.'):fmt(BUTTON_GAP_MIN, BUTTON_GAP_MAX));
@@ -2123,6 +2656,9 @@ ashita.events.register('command', 'command_cb', function (e)
     elseif (sub == 'hide') then
         state.visible[1] = false;
         log_info('Hidden.');
+    elseif (sub == 'config' or sub == 'settings') then
+        state.config_visible[1] = not state.config_visible[1];
+        log_info(state.config_visible[1] and 'Configuration shown.' or 'Configuration hidden.');
     elseif (sub == 'mode') then
         local requested = (#args >= 3) and args[3]:lower() or nil;
         if (requested == nil) then
@@ -2180,7 +2716,8 @@ ashita.events.register('command', 'command_cb', function (e)
         local profile = refresh_profile_context();
         local active = active_group();
         local _, theme_key = current_theme();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s buttonGap=%d buttonGapSource=%s theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        local window_x, window_y = bar_window_position(settings);
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s buttonGap=%d buttonGapSource=%s glowSize=%d glowSizeSource=%s glowOpacity=%d glowOpacitySource=%s barFrame=%s barFrameSource=%s barAnchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
@@ -2191,6 +2728,14 @@ ashita.events.register('command', 'command_cb', function (e)
             slot_size_source(),
             button_gap(),
             button_gap_source(),
+            slot_glow_size(),
+            slot_glow_size_source(),
+            slot_glow_opacity(),
+            slot_glow_opacity_source(),
+            tostring(bar_frame_visible()),
+            bar_frame_source(),
+            window_x,
+            window_y,
             theme_key,
             icon_style(),
             tostring(setting_enabled('show_recasts', true)),
@@ -2226,6 +2771,10 @@ ashita.events.register('key', 'key_cb', function (e)
         return;
     end
 
+    if (imgui_wants_keyboard()) then
+        return;
+    end
+
     local index = VK.DIGITS[e.wparam];
     if (index == nil) then
         return;
@@ -2250,4 +2799,5 @@ end);
 
 ashita.events.register('d3d_present', 'present_cb', function ()
     render_bars();
+    render_config_window();
 end);
