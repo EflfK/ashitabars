@@ -31,6 +31,9 @@ most one configured command.
   saved config values.
 - Done: configurable button label vertical placement, with label text drawn
   directly over the icon instead of on a filled strip.
+- Done: in-game button editor, opened from a small frame-mode edit corner and
+  persisted as per-profile button overrides, with a built-in icon selector and
+  live icon preview.
 
 ## Later Feature Ideas
 
@@ -44,5 +47,4 @@ most one configured command.
   available and semantics are clear.
 - Display-only range or usability dimming if it can be implemented without
   automated action choice.
-- Drag-to-reorder or config editing UI, guarded so it only changes static
-  profile configuration.
+- Drag-to-reorder UI, guarded so it only changes static profile configuration.

@@ -28,6 +28,8 @@ text input is open.
   spell, item, and weapon-skill slots.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
+- When the bar frame is visible, each button shows a small edit corner that
+  opens an in-game editor for that button's label, command, and optional icon.
 - Ships default test commands that only `/echo`.
 
 ## Safety Boundary
@@ -36,6 +38,8 @@ This addon can send real FFXI slash commands when configured to do so. Keep it
 to one intentional keypress or click producing one command. Static per-job
 profiles are fine; do not add timers, loops, reactive combat-state action
 choice, packet injection, unattended behavior, or detection-evasion behavior.
+The in-game button editor follows the same boundary: each saved button stores
+one allowed slash command line, not a multi-line script.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
@@ -47,6 +51,12 @@ From this repository:
 ```powershell
 .\install.ps1
 ```
+
+The installer does not overwrite saved runtime visuals or button edits under
+`Ashita/config/addons/ashitabars/`. On first install after older versions, it
+also migrates known visual settings from the currently installed
+`ashitabars_config.lua` into `visual_settings.lua` before replacing the addon
+folder.
 
 In game:
 
@@ -125,15 +135,23 @@ You can switch display modes at runtime without editing the config:
 /ashitabars mode config
 ```
 
-`mode config` clears the runtime override and returns to `settings.display_mode`.
-`/ashitabars reload` also clears the runtime override.
+`mode config` clears the runtime override and returns to the saved visual
+setting when present, otherwise `settings.display_mode`. `/ashitabars reload`
+also clears runtime overrides and reapplies saved visual settings.
 
 `/ashitabars config` opens a configuration window with a General tab for the
 same controls exposed by `/ashitabars mode`, `/ashitabars size`, and
 `/ashitabars gap`. Numeric controls use sliders. Changes apply immediately as
 runtime overrides; click `Save` in the window to persist display mode, button
-size, button gap, button glow, bar frame visibility, and bar position to the
-loaded `ashitabars_config.lua`.
+size, button gap, button glow, label placement, bar frame visibility, and bar
+position to:
+
+```txt
+Ashita/config/addons/ashitabars/visual_settings.lua
+```
+
+That file lives outside the addon folder, so running `install.ps1` for a new
+test build does not reset placement, size, spacing, or glow settings.
 
 Button labels are drawn as shadowed text without a background strip.
 `settings.label_vertical_position` controls their vertical placement from `0`
@@ -165,8 +183,9 @@ You can tune button size at runtime without editing the config:
 /ashitabars size config
 ```
 
-`size config` clears the runtime override and returns to `settings.slot_size`.
-`/ashitabars reload` also clears the runtime size override.
+`size config` clears the runtime override and returns to the saved visual
+setting when present, otherwise `settings.slot_size`. `/ashitabars reload` also
+clears the runtime size override.
 
 Button spacing is controlled by `settings.button_gap`, clamped from `0` to `24`
 pixels. Existing configs that still use `slot_gap` continue to work as a legacy
@@ -182,8 +201,9 @@ You can tune button spacing at runtime without editing the config:
 /ashitabars gap config
 ```
 
-`gap config` clears the runtime override and returns to `settings.button_gap`.
-`/ashitabars reload` also clears the runtime gap override.
+`gap config` clears the runtime override and returns to the saved visual
+setting when present, otherwise `settings.button_gap`. `/ashitabars reload` also
+clears the runtime gap override.
 
 Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
 preserves the current brass-and-crystal look; the other themes only change the
@@ -217,6 +237,23 @@ Each slot has a label and command, and may also include an `icon` token:
 ```lua
 [1] = { label = 'Cure', icon = 'cure', command = '/ma "Cure" <stpt>' },
 ```
+
+You can edit visible buttons in game while the bar frame is shown. Open
+`/ashitabars config`, enable `Show Bar Frame`, then click the small top-left
+corner of a button. The editor can save a label, one allowed slash command, and
+an optional icon chosen from a built-in selector. The edited button previews the
+selected icon in the editor preview tile, and previews hovered icon presets
+while the selector is open. These runtime edits are stored outside the addon
+folder in:
+
+```txt
+Ashita/config/addons/ashitabars/button_overrides.lua
+```
+
+Saved button edits are overlaid on top of the current job-aware profile and
+persist across addon reloads and game sessions. `Clear` saves an empty button
+for that slot, while `Reset` removes the saved edit and returns to the
+configured profile slot.
 
 `icon_style = 'auto'` uses the configured icon when present and otherwise
 infers a built-in icon from the command. Use `icon_style = 'configured'` to
