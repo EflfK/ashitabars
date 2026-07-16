@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.5.0';
+addon.version   = '0.6.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -146,13 +146,23 @@ local ICON_ALIASES = {
     dia = 'holy',
     banish = 'holy',
     holy = 'holy',
+    light = 'light',
     protect = 'buff',
     shell = 'buff',
     barspell = 'buff',
     buff = 'buff',
     status = 'status',
+    cleanse = 'status',
     na = 'status',
     erase = 'status',
+    debuff = 'debuff',
+    enfeeble = 'debuff',
+    paralyze = 'debuff',
+    slow = 'debuff',
+    blind = 'debuff',
+    silence = 'debuff',
+    sleep = 'debuff',
+    poison = 'debuff',
     raise = 'raise',
     reraise = 'raise',
     sneak = 'stealth',
@@ -163,11 +173,32 @@ local ICON_ALIASES = {
     white_magic = 'white_magic',
     black_magic = 'black_magic',
     nuke = 'black_magic',
+    fire = 'fire',
+    flame = 'fire',
+    blizzard = 'ice',
+    ice = 'ice',
+    aero = 'wind',
+    wind = 'wind',
+    stone = 'earth',
+    earth = 'earth',
+    thunder = 'lightning',
+    lightning = 'lightning',
+    water = 'water',
+    dark = 'dark',
+    darkness = 'dark',
     ability = 'ability',
     ja = 'ability',
+    song = 'song',
+    bard = 'song',
+    summon = 'summon',
+    avatar = 'summon',
     weapon = 'weapon',
     weaponskill = 'weapon',
+    weapon_skill = 'weapon',
     ws = 'weapon',
+    ranged = 'ranged',
+    range = 'ranged',
+    shoot = 'ranged',
     item = 'item',
     target = 'target',
     assist = 'assist',
@@ -188,8 +219,20 @@ local ICON_DEFS = {
     stealth     = { family = 'white_magic', mark = 'diamond', accent = { 0.74, 0.84, 1.00, 1.00 } },
     white_magic = { family = 'white_magic', mark = 'diamond', accent = { 0.70, 0.94, 1.00, 1.00 } },
     black_magic = { family = 'black_magic', mark = 'burst',   accent = { 0.78, 0.56, 1.00, 1.00 } },
+    fire        = { family = 'black_magic', mark = 'flame',   accent = { 1.00, 0.38, 0.18, 1.00 } },
+    ice         = { family = 'black_magic', mark = 'snow',    accent = { 0.70, 0.92, 1.00, 1.00 } },
+    wind        = { family = 'black_magic', mark = 'wind',    accent = { 0.62, 1.00, 0.74, 1.00 } },
+    earth       = { family = 'black_magic', mark = 'stone',   accent = { 0.82, 0.66, 0.38, 1.00 } },
+    lightning   = { family = 'black_magic', mark = 'bolt',    accent = { 1.00, 0.88, 0.26, 1.00 } },
+    water       = { family = 'black_magic', mark = 'wave',    accent = { 0.42, 0.80, 1.00, 1.00 } },
+    light       = { family = 'white_magic', mark = 'ray',     accent = { 1.00, 0.96, 0.66, 1.00 } },
+    dark        = { family = 'black_magic', mark = 'moon',    accent = { 0.62, 0.48, 0.90, 1.00 } },
+    debuff      = { family = 'black_magic', mark = 'snare',   accent = { 0.86, 0.48, 1.00, 1.00 } },
     ability     = { family = 'ability',     mark = 'spark',   accent = { 1.00, 0.76, 0.32, 1.00 } },
+    song        = { family = 'ability',     mark = 'note',    accent = { 1.00, 0.82, 0.46, 1.00 } },
+    summon      = { family = 'ability',     mark = 'avatar',  accent = { 0.64, 0.92, 1.00, 1.00 } },
     weapon      = { family = 'weapon',      mark = 'blade',   accent = { 1.00, 0.48, 0.36, 1.00 } },
+    ranged      = { family = 'weapon',      mark = 'ranged',  accent = { 0.98, 0.64, 0.34, 1.00 } },
     item        = { family = 'item',        mark = 'bag',     accent = { 0.54, 0.94, 0.54, 1.00 } },
     target      = { family = 'target',      mark = 'reticle', accent = { 0.62, 0.86, 1.00, 1.00 } },
     assist      = { family = 'target',      mark = 'arrow',   accent = { 0.62, 0.86, 1.00, 1.00 } },
@@ -558,6 +601,16 @@ local function command_family(slot)
     return 'command';
 end
 
+local function command_has_any(command, hints)
+    for _, hint in ipairs(hints) do
+        if (command:find(hint, 1, true) ~= nil) then
+            return true;
+        end
+    end
+
+    return false;
+end
+
 local function infer_icon_token(slot, family)
     if (slot == nil or type(slot.command) ~= 'string') then
         return family;
@@ -572,28 +625,39 @@ local function infer_icon_token(slot, family)
     if (prefix == '/check') then return 'check'; end
     if (prefix == '/item') then return 'item'; end
     if (prefix == '/ja' or prefix == '/jobability') then return 'ability'; end
-    if (prefix == '/ws' or prefix == '/weaponskill' or prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then return 'weapon'; end
+    if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then return 'ranged'; end
+    if (prefix == '/ws' or prefix == '/weaponskill') then return 'weapon'; end
     if (prefix == '/echo' or prefix == '/p' or prefix == '/party' or prefix == '/l' or prefix == '/linkshell' or prefix == '/say' or prefix == '/tell') then return 'chat'; end
 
     if (prefix == '/ma' or prefix == '/magic') then
-        if (command:find('cure', 1, true) ~= nil or command:find('curaga', 1, true) ~= nil) then
+        if (command_has_any(command, { 'cure', 'curaga' })) then
             return 'cure';
         end
-        if (command:find('dia', 1, true) ~= nil or command:find('banish', 1, true) ~= nil) then
+        if (command_has_any(command, { 'dia', 'banish', 'holy' })) then
             return 'holy';
         end
-        if (command:find('protect', 1, true) ~= nil or command:find('shell', 1, true) ~= nil or command:find('bar', 1, true) ~= nil or command:find('regen', 1, true) ~= nil) then
+        if (command_has_any(command, { 'protect', 'shell', 'bar', 'regen', 'haste', 'aquaveil', 'stoneskin' })) then
             return 'buff';
         end
-        if (command:find('raise', 1, true) ~= nil or command:find('reraise', 1, true) ~= nil) then
+        if (command_has_any(command, { 'raise', 'reraise' })) then
             return 'raise';
         end
-        if (command:find('sneak', 1, true) ~= nil or command:find('invisible', 1, true) ~= nil or command:find('deodorize', 1, true) ~= nil) then
+        if (command_has_any(command, { 'sneak', 'invisible', 'deodorize' })) then
             return 'stealth';
         end
-        if (command:find('erase', 1, true) ~= nil or command:find('poisona', 1, true) ~= nil or command:find('paralyna', 1, true) ~= nil or command:find('silena', 1, true) ~= nil) then
+        if (command_has_any(command, { 'erase', 'poisona', 'paralyna', 'silena', 'blindna', 'stona', 'viruna', 'cursna' })) then
             return 'status';
         end
+        if (command_has_any(command, { 'fire', 'flare' })) then return 'fire'; end
+        if (command_has_any(command, { 'blizzard', 'freeze', 'ice' })) then return 'ice'; end
+        if (command_has_any(command, { 'aero', 'tornado', 'wind' })) then return 'wind'; end
+        if (command_has_any(command, { 'stone', 'quake', 'earth' })) then return 'earth'; end
+        if (command_has_any(command, { 'thunder', 'burst', 'lightning' })) then return 'lightning'; end
+        if (command_has_any(command, { 'water', 'flood' })) then return 'water'; end
+        if (command_has_any(command, { 'drain', 'aspir', 'bio', 'dark' })) then return 'dark'; end
+        if (command_has_any(command, { 'paralyze', 'slow', 'blind', 'silence', 'sleep', 'poison', 'bind', 'gravity', 'dispel' })) then return 'debuff'; end
+        if (command_has_any(command, { 'minuet', 'madrigal', 'march', 'ballad', 'requiem', 'lullaby', 'threnody', 'elegy', 'paeon', 'carol' })) then return 'song'; end
+        if (command_has_any(command, { 'carbuncle', 'ifrit', 'shiva', 'garuda', 'titan', 'ramuh', 'leviathan', 'fenrir', 'diabolos', 'avatar' })) then return 'summon'; end
     end
 
     return family;
@@ -735,6 +799,91 @@ local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
         return;
     end
 
+    if (mark == 'flame') then
+        draw_list:AddLine({ x, y - size }, { x + size * 0.55, y - size * 0.16 }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.55, y - size * 0.16 }, { x + size * 0.30, y + size * 0.70 }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.30, y + size * 0.70 }, { x - size * 0.38, y + size * 0.72 }, dim, 1.8);
+        draw_list:AddLine({ x - size * 0.38, y + size * 0.72 }, { x - size * 0.60, y - size * 0.04 }, dim, 1.8);
+        draw_list:AddLine({ x - size * 0.60, y - size * 0.04 }, { x, y - size }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.10, y + size * 0.48 }, { x + size * 0.18, y - size * 0.18 }, col, 1.1);
+        return;
+    end
+
+    if (mark == 'snow') then
+        draw_list:AddLine({ x, y - size }, { x, y + size }, col, 1.4);
+        draw_list:AddLine({ x - size, y }, { x + size, y }, col, 1.4);
+        draw_list:AddLine({ x - size * 0.70, y - size * 0.70 }, { x + size * 0.70, y + size * 0.70 }, dim, 1.2);
+        draw_list:AddLine({ x + size * 0.70, y - size * 0.70 }, { x - size * 0.70, y + size * 0.70 }, dim, 1.2);
+        draw_list:AddRectFilled({ x - thick * 0.35, y - thick * 0.35 }, { x + thick * 0.35, y + thick * 0.35 }, col, 1.0);
+        return;
+    end
+
+    if (mark == 'wind') then
+        draw_list:AddLine({ x - size, y - size * 0.42 }, { x + size * 0.66, y - size * 0.42 }, col, 1.5);
+        draw_list:AddLine({ x + size * 0.66, y - size * 0.42 }, { x + size * 0.36, y - size * 0.12 }, dim, 1.2);
+        draw_list:AddLine({ x - size * 0.74, y }, { x + size, y }, col, 1.5);
+        draw_list:AddLine({ x + size, y }, { x + size * 0.68, y + size * 0.28 }, dim, 1.2);
+        draw_list:AddLine({ x - size * 0.46, y + size * 0.42 }, { x + size * 0.62, y + size * 0.42 }, col, 1.5);
+        return;
+    end
+
+    if (mark == 'stone') then
+        draw_list:AddLine({ x, y - size }, { x + size * 0.78, y - size * 0.18 }, col, 1.7);
+        draw_list:AddLine({ x + size * 0.78, y - size * 0.18 }, { x + size * 0.42, y + size * 0.72 }, col, 1.7);
+        draw_list:AddLine({ x + size * 0.42, y + size * 0.72 }, { x - size * 0.58, y + size * 0.62 }, dim, 1.7);
+        draw_list:AddLine({ x - size * 0.58, y + size * 0.62 }, { x - size * 0.78, y - size * 0.22 }, dim, 1.7);
+        draw_list:AddLine({ x - size * 0.78, y - size * 0.22 }, { x, y - size }, col, 1.7);
+        draw_list:AddLine({ x - size * 0.44, y - size * 0.10 }, { x + size * 0.42, y - size * 0.18 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'bolt') then
+        draw_list:AddLine({ x + size * 0.26, y - size }, { x - size * 0.26, y - size * 0.10 }, col, 2.0);
+        draw_list:AddLine({ x - size * 0.26, y - size * 0.10 }, { x + size * 0.18, y - size * 0.10 }, col, 2.0);
+        draw_list:AddLine({ x + size * 0.18, y - size * 0.10 }, { x - size * 0.30, y + size }, col, 2.0);
+        draw_list:AddLine({ x - size * 0.05, y - size * 0.02 }, { x + size * 0.52, y - size * 0.02 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'wave') then
+        draw_list:AddLine({ x - size, y - size * 0.30 }, { x - size * 0.44, y - size * 0.52 }, col, 1.5);
+        draw_list:AddLine({ x - size * 0.44, y - size * 0.52 }, { x + size * 0.10, y - size * 0.30 }, col, 1.5);
+        draw_list:AddLine({ x + size * 0.10, y - size * 0.30 }, { x + size * 0.64, y - size * 0.52 }, col, 1.5);
+        draw_list:AddLine({ x - size * 0.82, y + size * 0.12 }, { x - size * 0.28, y - size * 0.10 }, dim, 1.5);
+        draw_list:AddLine({ x - size * 0.28, y - size * 0.10 }, { x + size * 0.28, y + size * 0.12 }, dim, 1.5);
+        draw_list:AddLine({ x + size * 0.28, y + size * 0.12 }, { x + size * 0.82, y - size * 0.10 }, dim, 1.5);
+        draw_list:AddLine({ x - size * 0.64, y + size * 0.54 }, { x + size * 0.66, y + size * 0.54 }, col, 1.1);
+        return;
+    end
+
+    if (mark == 'ray') then
+        draw_list:AddLine({ x, y - size }, { x, y + size }, col, 1.6);
+        draw_list:AddLine({ x - size, y }, { x + size, y }, col, 1.6);
+        draw_list:AddLine({ x - size * 0.62, y - size * 0.62 }, { x + size * 0.62, y + size * 0.62 }, dim, 1.2);
+        draw_list:AddLine({ x + size * 0.62, y - size * 0.62 }, { x - size * 0.62, y + size * 0.62 }, dim, 1.2);
+        draw_crystal_mark(draw_list, x, y, size * 0.32, color, 0.82);
+        return;
+    end
+
+    if (mark == 'moon') then
+        draw_list:AddLine({ x + size * 0.38, y - size }, { x - size * 0.30, y - size * 0.56 }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.30, y - size * 0.56 }, { x - size * 0.52, y + size * 0.12 }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.52, y + size * 0.12 }, { x - size * 0.08, y + size * 0.78 }, dim, 1.8);
+        draw_list:AddLine({ x - size * 0.08, y + size * 0.78 }, { x + size * 0.42, y + size * 0.94 }, dim, 1.8);
+        draw_list:AddLine({ x + size * 0.04, y - size * 0.48 }, { x + size * 0.40, y + size * 0.48 }, col, 1.1);
+        return;
+    end
+
+    if (mark == 'snare') then
+        draw_list:AddLine({ x - size * 0.70, y - size * 0.70 }, { x + size * 0.70, y + size * 0.70 }, col, 1.7);
+        draw_list:AddLine({ x + size * 0.70, y - size * 0.70 }, { x - size * 0.70, y + size * 0.70 }, col, 1.7);
+        draw_list:AddLine({ x - size, y }, { x - size * 0.34, y }, dim, 1.2);
+        draw_list:AddLine({ x + size * 0.34, y }, { x + size, y }, dim, 1.2);
+        draw_list:AddLine({ x, y - size }, { x, y - size * 0.34 }, dim, 1.2);
+        draw_list:AddLine({ x, y + size * 0.34 }, { x, y + size }, dim, 1.2);
+        return;
+    end
+
     if (mark == 'shield') then
         draw_list:AddLine({ x, y - size }, { x + size * 0.75, y - size * 0.48 }, col, 1.8);
         draw_list:AddLine({ x + size * 0.75, y - size * 0.48 }, { x + size * 0.56, y + size * 0.50 }, col, 1.8);
@@ -751,6 +900,16 @@ local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
         draw_list:AddLine({ x + size * 0.18, y - size * 0.18 }, { x + size * 0.70, y - size * 0.70 }, dim, 1.1);
         draw_list:AddLine({ x - size * 0.62, y + size * 0.20 }, { x - size * 0.18, y + size * 0.62 }, col, 1.7);
         draw_list:AddLine({ x - size * 0.40, y + size * 0.38 }, { x - size * 0.72, y + size * 0.74 }, dim, 1.6);
+        return;
+    end
+
+    if (mark == 'ranged') then
+        draw_list:AddLine({ x - size * 0.80, y - size * 0.72 }, { x - size * 0.80, y + size * 0.72 }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.80, y - size * 0.72 }, { x - size * 0.34, y }, dim, 1.3);
+        draw_list:AddLine({ x - size * 0.80, y + size * 0.72 }, { x - size * 0.34, y }, dim, 1.3);
+        draw_list:AddLine({ x - size * 0.54, y }, { x + size * 0.86, y }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.86, y }, { x + size * 0.50, y - size * 0.30 }, col, 1.5);
+        draw_list:AddLine({ x + size * 0.86, y }, { x + size * 0.50, y + size * 0.30 }, col, 1.5);
         return;
     end
 
@@ -788,6 +947,24 @@ local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
         draw_list:AddLine({ x - size * 0.48, y + size * 0.78 }, { x + size * 0.08, y + size * 0.42 }, dim, 1.5);
         draw_list:AddLine({ x - size * 0.46, y - size * 0.18 }, { x + size * 0.46, y - size * 0.18 }, dim, 1.0);
         draw_list:AddLine({ x - size * 0.46, y + size * 0.08 }, { x + size * 0.26, y + size * 0.08 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'note') then
+        draw_list:AddLine({ x + size * 0.24, y - size * 0.86 }, { x + size * 0.24, y + size * 0.48 }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.24, y - size * 0.86 }, { x + size * 0.72, y - size * 0.62 }, dim, 1.4);
+        draw_list:AddLine({ x + size * 0.72, y - size * 0.62 }, { x + size * 0.72, y - size * 0.20 }, dim, 1.4);
+        draw_list:AddLine({ x - size * 0.48, y + size * 0.46 }, { x + size * 0.24, y + size * 0.28 }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.48, y + size * 0.46 }, { x - size * 0.16, y + size * 0.78 }, col, 1.8);
+        return;
+    end
+
+    if (mark == 'avatar') then
+        draw_crystal_mark(draw_list, x, y, size * 0.58, color, 0.82);
+        draw_list:AddLine({ x - size, y }, { x - size * 0.38, y - size * 0.34 }, dim, 1.2);
+        draw_list:AddLine({ x - size * 0.38, y - size * 0.34 }, { x + size * 0.56, y - size * 0.12 }, dim, 1.2);
+        draw_list:AddLine({ x + size * 0.56, y - size * 0.12 }, { x + size, y + size * 0.24 }, dim, 1.2);
+        draw_list:AddLine({ x - size * 0.70, y + size * 0.54 }, { x + size * 0.54, y + size * 0.70 }, col, 1.1);
         return;
     end
 

@@ -123,10 +123,17 @@ infers a built-in icon from the command. Use `icon_style = 'configured'` to
 draw icons only for slots that explicitly set `icon`, or `icon_style = 'none'`
 for label-only slots.
 
-Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `raise`,
-`stealth`, `white_magic`, `black_magic`, `ability`, `weapon`, `item`, `target`,
-`assist`, `check`, `chat`, `rest`, `test`, and `command`. Unknown icon tokens
-fall back to a small two-letter text glyph.
+Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
+`raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,
+`earth`, `lightning`, `water`, `light`, `dark`, `ability`, `song`, `summon`,
+`weapon`, `ranged`, `item`, `target`, `assist`, `check`, `chat`, `rest`,
+`test`, and `command`. Unknown icon tokens fall back to a small two-letter text
+glyph.
+
+In `auto` mode, common FFXI spell names infer matching icons. For example,
+`Fire`/`Blizzard`/`Aero` use elemental glyphs, `Drain`/`Aspir`/`Bio` use dark,
+common enfeebles use `debuff`, songs use `song`, and avatar names use
+`summon`.
 
 Existing configs that still use a top-level `bars = { ... }` table continue to
 work as a legacy fallback.

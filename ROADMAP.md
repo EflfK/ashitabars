@@ -10,7 +10,7 @@ most one configured command.
   bevel, inner border, hover state, pressed state, and active-row glow.
 - Done: per-slot built-in icon support through config, with inferred icons in
   `auto` mode and a text-only fallback when icons are disabled or absent.
-- Final Fantasy-inspired icon set for common action types such as white magic,
+- Done: Final Fantasy-inspired icon set for common action types such as white magic,
   black magic, job abilities, weapon skills, items, targeting, assist, healing,
   and test actions.
 - Slot overlays for hotkey text, action label text, empty-slot dimming, and
