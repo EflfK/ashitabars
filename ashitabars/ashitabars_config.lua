@@ -84,6 +84,7 @@ return {
     settings = {
         visible = true,
         display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+        theme = 'ffxi', -- Other built-in options: 'jeuno', 'sandoria'.
         show_hotkeys = true,
         show_labels = true,
         icon_style = 'auto',

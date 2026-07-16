@@ -17,7 +17,7 @@ most one configured command.
   readable text shadowing.
 - Done: single-row modifier transition polish, such as a quick glow or color shift
   when the visible row changes between base, Ctrl, and Alt.
-- Theme settings for visual preferences, such as `theme`, `show_hotkeys`,
+- Done: theme settings for visual preferences, such as `theme`, `show_hotkeys`,
   `show_labels`, and `icon_style`.
 
 ## Later Feature Ideas

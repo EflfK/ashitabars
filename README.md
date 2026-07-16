@@ -80,6 +80,7 @@ Visual display mode is controlled in `settings`:
 settings = {
     visible = true,
     display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+    theme = 'ffxi',
     show_hotkeys = true,
     show_labels = true,
     icon_style = 'auto',
@@ -89,6 +90,10 @@ settings = {
 The setting changes only the visible UI. Key execution remains `1-0`,
 `Ctrl+1-0`, and `Alt+1-0` in both modes. Existing configs without
 `display_mode` keep the original stacked view.
+
+Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
+preserves the current brass-and-crystal look; the other themes only change the
+window, frame, and overlay palette.
 
 Profiles are keyed by main-job abbreviation. `DEFAULT` is used when the current
 job does not have a configured profile:
@@ -147,7 +152,7 @@ can be tested.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
-and icon style alongside input, profile, and modifier-blocking state.
+theme, and icon style alongside input, profile, and modifier-blocking state.
 
 If modifier blocking conflicts with another hotkey, disable it:
 

@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.8.0';
+addon.version   = '0.9.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -127,6 +127,87 @@ local ROW_THEME = {
 
 local ROW_TRANSITION_SECONDS = 0.24;
 
+local THEMES = {
+    ffxi = {
+        window_bg = { 0.025, 0.022, 0.018, 0.72 },
+        window_border = { 0.58, 0.44, 0.20, 0.88 },
+        slot_shadow = { 0.00, 0.00, 0.00, 0.58 },
+        slot_bg = { 0.035, 0.030, 0.028, 0.98 },
+        slot_border = { 0.02, 0.02, 0.02, 1.00 },
+        bevel_light = { 0.88, 0.78, 0.48, 0.46 },
+        bevel_mid = { 0.86, 0.76, 0.48, 0.34 },
+        bevel_shadow = { 0.00, 0.00, 0.00, 0.72 },
+        icon_border = { 1.00, 0.86, 0.54, 1.00 },
+        icon_highlight = { 1.00, 1.00, 1.00, 1.00 },
+        empty_bg = { 0.03, 0.03, 0.04, 0.82 },
+        empty_line = { 0.36, 0.36, 0.40, 0.40 },
+        empty_dim = { 0.22, 0.22, 0.25, 0.44 },
+        empty_crystal = { 0.50, 0.48, 0.42, 1.00 },
+        hotkey_bg = { 0.00, 0.00, 0.00, 1.00 },
+        hotkey_dim_text = { 0.62, 0.62, 0.66, 0.88 },
+        label_bg = { 0.00, 0.00, 0.00, 0.70 },
+        label_text = { 0.96, 0.93, 0.84, 1.00 },
+        text_shadow = { 0.00, 0.00, 0.00, 0.90 },
+        unsupported = { 1.00, 0.24, 0.18, 1.00 },
+        hover_border = { 1.00, 0.96, 0.72, 0.52 },
+    },
+    jeuno = {
+        window_bg = { 0.020, 0.026, 0.034, 0.74 },
+        window_border = { 0.45, 0.62, 0.76, 0.86 },
+        slot_shadow = { 0.00, 0.00, 0.00, 0.60 },
+        slot_bg = { 0.030, 0.036, 0.046, 0.98 },
+        slot_border = { 0.01, 0.02, 0.03, 1.00 },
+        bevel_light = { 0.58, 0.74, 0.88, 0.42 },
+        bevel_mid = { 0.40, 0.56, 0.70, 0.34 },
+        bevel_shadow = { 0.00, 0.00, 0.00, 0.74 },
+        icon_border = { 0.70, 0.86, 1.00, 1.00 },
+        icon_highlight = { 1.00, 1.00, 1.00, 1.00 },
+        empty_bg = { 0.025, 0.030, 0.040, 0.84 },
+        empty_line = { 0.34, 0.42, 0.50, 0.40 },
+        empty_dim = { 0.18, 0.24, 0.30, 0.46 },
+        empty_crystal = { 0.38, 0.48, 0.56, 1.00 },
+        hotkey_bg = { 0.00, 0.00, 0.00, 1.00 },
+        hotkey_dim_text = { 0.60, 0.66, 0.72, 0.88 },
+        label_bg = { 0.00, 0.00, 0.00, 0.70 },
+        label_text = { 0.88, 0.94, 1.00, 1.00 },
+        text_shadow = { 0.00, 0.00, 0.00, 0.90 },
+        unsupported = { 1.00, 0.24, 0.18, 1.00 },
+        hover_border = { 0.80, 0.94, 1.00, 0.54 },
+    },
+    sandoria = {
+        window_bg = { 0.034, 0.018, 0.018, 0.74 },
+        window_border = { 0.72, 0.42, 0.30, 0.88 },
+        slot_shadow = { 0.00, 0.00, 0.00, 0.60 },
+        slot_bg = { 0.040, 0.026, 0.022, 0.98 },
+        slot_border = { 0.02, 0.01, 0.01, 1.00 },
+        bevel_light = { 0.92, 0.62, 0.42, 0.44 },
+        bevel_mid = { 0.74, 0.42, 0.32, 0.34 },
+        bevel_shadow = { 0.00, 0.00, 0.00, 0.74 },
+        icon_border = { 1.00, 0.68, 0.48, 1.00 },
+        icon_highlight = { 1.00, 1.00, 1.00, 1.00 },
+        empty_bg = { 0.04, 0.025, 0.026, 0.84 },
+        empty_line = { 0.48, 0.34, 0.34, 0.40 },
+        empty_dim = { 0.28, 0.18, 0.18, 0.46 },
+        empty_crystal = { 0.58, 0.42, 0.36, 1.00 },
+        hotkey_bg = { 0.00, 0.00, 0.00, 1.00 },
+        hotkey_dim_text = { 0.70, 0.60, 0.58, 0.88 },
+        label_bg = { 0.00, 0.00, 0.00, 0.70 },
+        label_text = { 1.00, 0.90, 0.82, 1.00 },
+        text_shadow = { 0.00, 0.00, 0.00, 0.90 },
+        unsupported = { 1.00, 0.24, 0.18, 1.00 },
+        hover_border = { 1.00, 0.78, 0.58, 0.54 },
+    },
+};
+
+local THEME_ALIASES = {
+    default = 'ffxi',
+    classic = 'ffxi',
+    bastok = 'jeuno',
+    dark = 'jeuno',
+    sandy = 'sandoria',
+    san_doria = 'sandoria',
+};
+
 local COMMAND_THEME = {
     empty       = { 0.14, 0.14, 0.16, 1.00 },
     white_magic = { 0.70, 0.94, 1.00, 1.00 },
@@ -248,6 +329,7 @@ local DEFAULT_CONFIG = {
     settings = {
         visible = true,
         display_mode = 'stacked',
+        theme = 'ffxi',
         show_hotkeys = true,
         show_labels = true,
         icon_style = 'auto',
@@ -576,6 +658,30 @@ local function icon_style()
     return DEFAULT_CONFIG.settings.icon_style;
 end
 
+local function normalize_theme_key(value)
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    local key = value:lower():gsub('[%s%-]+', '_'):gsub('[^%w_]+', ''):gsub('_+', '_'):gsub('^_', ''):gsub('_$', '');
+    if (key == '') then
+        return nil;
+    end
+
+    return THEME_ALIASES[key] or key;
+end
+
+local function current_theme()
+    local settings = state.config.settings or {};
+    local key = normalize_theme_key(settings.theme);
+    if (key ~= nil and THEMES[key] ~= nil) then
+        return THEMES[key], key;
+    end
+
+    local default_key = normalize_theme_key(DEFAULT_CONFIG.settings.theme) or 'ffxi';
+    return THEMES[default_key] or THEMES.ffxi, default_key;
+end
+
 local function normalize_icon_token(value)
     if (type(value) ~= 'string') then
         return nil;
@@ -764,7 +870,8 @@ local function draw_text_shadow(draw_list, x, y, color, text)
         return;
     end
 
-    local shadow = color_u32({ 0.00, 0.00, 0.00, 0.90 });
+    local theme = current_theme();
+    local shadow = color_u32(theme.text_shadow or { 0.00, 0.00, 0.00, 0.90 });
     draw_list:AddText({ x + 1, y + 1 }, shadow, text);
     draw_list:AddText({ x - 1, y }, shadow, text);
     draw_list:AddText({ x + 1, y }, shadow, text);
@@ -1017,6 +1124,7 @@ local function draw_hotkey_badge(draw_list, x, y, slot_size, hotkey, color, dimm
         return;
     end
 
+    local theme = current_theme();
     local tw, th = imgui.CalcTextSize(hotkey);
     tw = tonumber(tw) or 0;
     th = tonumber(th) or 0;
@@ -1026,14 +1134,16 @@ local function draw_hotkey_badge(draw_list, x, y, slot_size, hotkey, color, dimm
     local by1 = y + 3;
     local bx2 = math.min(x + slot_size - 4, bx1 + tw + (pad_x * 2));
     local by2 = by1 + th + 3;
-    local text_color = dimmed and { 0.62, 0.62, 0.66, 0.88 } or color_with_alpha(color, 1.00);
+    local bg = theme.hotkey_bg or { 0.00, 0.00, 0.00, 1.00 };
+    local text_color = dimmed and (theme.hotkey_dim_text or { 0.62, 0.62, 0.66, 0.88 }) or color_with_alpha(color, 1.00);
 
-    draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32({ 0.00, 0.00, 0.00, dimmed and 0.54 or 0.74 }), 1.5);
+    draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(bg, dimmed and 0.54 or 0.74)), 1.5);
     draw_list:AddRect({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(color, dimmed and 0.24 or 0.55)), 1.5, ImDrawCornerFlags_All, 1.0);
     draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, text_color, hotkey);
 end
 
 local function draw_label_overlay(draw_list, x, y, slot_size, label, color)
+    local theme = current_theme();
     local fitted = fit_text(label, slot_size - 8);
     if (fitted == '') then
         return;
@@ -1047,28 +1157,30 @@ local function draw_label_overlay(draw_list, x, y, slot_size, label, color)
     local y1 = y + slot_size - strip_h - 3;
     local y2 = y + slot_size - 3;
 
-    draw_list:AddRectFilled({ x + 3, y1 }, { x + slot_size - 3, y2 }, color_u32({ 0.00, 0.00, 0.00, 0.70 }), 1.5);
+    draw_list:AddRectFilled({ x + 3, y1 }, { x + slot_size - 3, y2 }, color_u32(theme.label_bg or { 0.00, 0.00, 0.00, 0.70 }), 1.5);
     draw_list:AddLine({ x + 5, y1 + 1 }, { x + slot_size - 5, y1 + 1 }, color_u32(color_with_alpha(color, 0.36)), 1.0);
-    draw_text_shadow(draw_list, x + math.floor((slot_size - tw) * 0.5), y1 + math.floor((strip_h - th) * 0.5), { 0.96, 0.93, 0.84, 1.00 }, fitted);
+    draw_text_shadow(draw_list, x + math.floor((slot_size - tw) * 0.5), y1 + math.floor((strip_h - th) * 0.5), theme.label_text or { 0.96, 0.93, 0.84, 1.00 }, fitted);
 end
 
 local function draw_empty_slot_overlay(draw_list, x, y, slot_size)
+    local theme = current_theme();
     local inset = math.max(8, math.floor(slot_size * 0.18));
     local x1 = x + inset;
     local y1 = y + inset;
     local x2 = x + slot_size - inset;
     local y2 = y + slot_size - inset;
-    local line = color_u32({ 0.36, 0.36, 0.40, 0.40 });
-    local dim = color_u32({ 0.22, 0.22, 0.25, 0.44 });
+    local line = color_u32(theme.empty_line or { 0.36, 0.36, 0.40, 0.40 });
+    local dim = color_u32(theme.empty_dim or { 0.22, 0.22, 0.25, 0.44 });
 
     draw_list:AddRect({ x1, y1 }, { x2, y2 }, dim, 2.0, ImDrawCornerFlags_All, 1.0);
     draw_list:AddLine({ x1 + 4, y1 + 4 }, { x2 - 4, y2 - 4 }, line, 1.0);
     draw_list:AddLine({ x2 - 4, y1 + 4 }, { x1 + 4, y2 - 4 }, line, 1.0);
-    draw_crystal_mark(draw_list, x + slot_size * 0.50, y + slot_size * 0.48, slot_size * 0.10, { 0.50, 0.48, 0.42, 1.00 }, 0.28);
+    draw_crystal_mark(draw_list, x + slot_size * 0.50, y + slot_size * 0.48, slot_size * 0.10, theme.empty_crystal or { 0.50, 0.48, 0.42, 1.00 }, 0.28);
 end
 
 local function draw_unsupported_overlay(draw_list, x, y, slot_size)
-    local warn = { 1.00, 0.24, 0.18, 1.00 };
+    local theme = current_theme();
+    local warn = theme.unsupported or { 1.00, 0.24, 0.18, 1.00 };
     local col = color_u32(color_with_alpha(warn, 0.88));
     local dim = color_u32(color_with_alpha(warn, 0.34));
     local cx = x + slot_size - 9;
@@ -1089,6 +1201,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local pressed = imgui.IsItemActive();
     local x, y = imgui.GetItemRectMin();
     local draw_list = imgui.GetWindowDrawList();
+    local theme = current_theme();
     local row_color = ROW_THEME[row.id] or ROW_THEME.base;
     local family = command_family(slot);
     local icon_def = slot_icon(slot, family);
@@ -1104,15 +1217,15 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local ix2 = rx + slot_size - inset;
     local iy2 = ry + slot_size - inset;
 
-    draw_list:AddRectFilled({ x + 2, y + 3 }, { x + slot_size + 2, y + slot_size + 3 }, color_u32({ 0.00, 0.00, 0.00, 0.58 }), rr);
+    draw_list:AddRectFilled({ x + 2, y + 3 }, { x + slot_size + 2, y + slot_size + 3 }, color_u32(theme.slot_shadow or { 0.00, 0.00, 0.00, 0.58 }), rr);
 
     if (active or hovered) then
         local glow_alpha = active and 0.82 or 0.42;
         draw_list:AddRect({ rx - 2, ry - 2 }, { rx + slot_size + 2, ry + slot_size + 2 }, color_u32(color_with_alpha(row_color, glow_alpha)), rr + 1, ImDrawCornerFlags_All, active and 2.0 or 1.4);
     end
 
-    draw_list:AddRectFilled({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32({ 0.035, 0.030, 0.028, 0.98 }), rr);
-    draw_list:AddRect({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32({ 0.02, 0.02, 0.02, 1.00 }), rr, ImDrawCornerFlags_All, 2.0);
+    draw_list:AddRectFilled({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32(theme.slot_bg or { 0.035, 0.030, 0.028, 0.98 }), rr);
+    draw_list:AddRect({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32(theme.slot_border or { 0.02, 0.02, 0.02, 1.00 }), rr, ImDrawCornerFlags_All, 2.0);
 
     local flash = tonumber(transition_alpha) or 0;
     if (flash > 0) then
@@ -1121,22 +1234,23 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_list:AddRect({ rx + 4, ry + 4 }, { rx + slot_size - 4, ry + slot_size - 4 }, color_u32(color_with_alpha(row_color, flash * 0.32)), 2.0, ImDrawCornerFlags_All, 1.0);
     end
 
-    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + slot_size - 3, ry + 2 }, color_u32({ 0.88, 0.78, 0.48, 0.46 }), 1.0);
-    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + 2, ry + slot_size - 3 }, color_u32({ 0.86, 0.76, 0.48, 0.34 }), 1.0);
-    draw_list:AddLine({ rx + slot_size - 2, ry + 3 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32({ 0.00, 0.00, 0.00, 0.72 }), 1.0);
-    draw_list:AddLine({ rx + 3, ry + slot_size - 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32({ 0.00, 0.00, 0.00, 0.72 }), 1.0);
+    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + slot_size - 3, ry + 2 }, color_u32(theme.bevel_light or { 0.88, 0.78, 0.48, 0.46 }), 1.0);
+    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + 2, ry + slot_size - 3 }, color_u32(theme.bevel_mid or { 0.86, 0.76, 0.48, 0.34 }), 1.0);
+    draw_list:AddLine({ rx + slot_size - 2, ry + 3 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(theme.bevel_shadow or { 0.00, 0.00, 0.00, 0.72 }), 1.0);
+    draw_list:AddLine({ rx + 3, ry + slot_size - 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(theme.bevel_shadow or { 0.00, 0.00, 0.00, 0.72 }), 1.0);
 
     if (has_command) then
         local icon_alpha = command_supported and 0.96 or 0.64;
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, icon_alpha }), 2.5);
-        draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32({ 1.00, 1.00, 1.00, command_supported and 0.05 or 0.02 }), 2.0);
+        local highlight = theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 };
+        draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(highlight, command_supported and 0.05 or 0.02)), 2.0);
         draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, icon_color);
     else
-        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 0.03, 0.03, 0.04, 0.82 }), 2.5);
+        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32(theme.empty_bg or { 0.03, 0.03, 0.04, 0.82 }), 2.5);
         draw_empty_slot_overlay(draw_list, rx, ry, slot_size);
     end
 
-    draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 1.00, 0.86, 0.54, has_command and 0.35 or 0.18 }), 2.5, ImDrawCornerFlags_All, 1.0);
+    draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32(color_with_alpha(theme.icon_border or { 1.00, 0.86, 0.54, 1.00 }, has_command and 0.35 or 0.18)), 2.5, ImDrawCornerFlags_All, 1.0);
 
     if (setting_enabled('show_hotkeys', true)) then
         local hotkey = row.keyPrefix .. DIGIT_LABELS[index];
@@ -1153,7 +1267,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     if (hovered) then
-        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32({ 1.00, 0.96, 0.72, 0.52 }), rr, ImDrawCornerFlags_All, 1.3);
+        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32(theme.hover_border or { 1.00, 0.96, 0.72, 0.52 }), rr, ImDrawCornerFlags_All, 1.3);
     end
 
     return clicked;
@@ -1217,6 +1331,7 @@ local function render_bars()
     local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local mode = display_mode();
+    local theme = current_theme();
     local row_count = (mode == 'single') and 1 or #ROWS;
     local width = 58 + (slot_size * 10) + (gap * 9) + 20;
     local height = (slot_size * row_count) + (row_gap * (row_count - 1)) + 48;
@@ -1225,8 +1340,8 @@ local function render_bars()
 
     imgui.SetNextWindowPos({ tonumber(settings.window_x) or 820, tonumber(settings.window_y) or 760 }, ImGuiCond_FirstUseEver);
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
-    imgui.PushStyleColor(ImGuiCol_WindowBg, { 0.025, 0.022, 0.018, 0.72 });
-    imgui.PushStyleColor(ImGuiCol_Border,   { 0.58, 0.44, 0.20, 0.88 });
+    imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
+    imgui.PushStyleColor(ImGuiCol_Border,   theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
 
     local window_title = ('AshitaBars [%s %s]###AshitaBars'):fmt(profile.key or 'DEFAULT', mode);
     if (imgui.Begin(window_title, state.visible, bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse))) then
@@ -1296,12 +1411,14 @@ ashita.events.register('command', 'command_cb', function (e)
         local settings = state.config.settings or {};
         local profile = refresh_profile_context();
         local active = active_group();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s visualRow=%s iconStyle=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        local _, theme_key = current_theme();
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s visualRow=%s theme=%s iconStyle=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
             display_mode(),
             visual_group(),
+            theme_key,
             icon_style(),
             profile.job_key or 'unknown',
             tostring(profile.key),
