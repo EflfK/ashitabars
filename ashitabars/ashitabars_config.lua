@@ -83,6 +83,7 @@ local whm_profile = {
 return {
     settings = {
         visible = true,
+        display_mode = 'single', -- Use 'stacked' for the existing three-row view.
         slot_size = 48,
         slot_gap = 4,
         row_gap = 6,
