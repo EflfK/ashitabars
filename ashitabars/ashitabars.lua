@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.2.0';
+addon.version   = '0.3.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -45,6 +45,10 @@ local ROWS              = {
     { id = 'ctrl', label = 'Ctrl', keyPrefix = 'C' },
     { id = 'alt',  label = 'Alt',  keyPrefix = 'A' },
 };
+local ROW_BY_ID         = {};
+for _, row in ipairs(ROWS) do
+    ROW_BY_ID[row.id] = row;
+end
 local JOB_ABBRS         = T{
     [1]  = 'WAR',
     [2]  = 'MNK',
@@ -98,6 +102,7 @@ local ALLOWED_PREFIXES = T{
 local DEFAULT_CONFIG = {
     settings = {
         visible = true,
+        display_mode = 'stacked',
         slot_size = 48,
         slot_gap = 4,
         row_gap = 6,
@@ -320,6 +325,23 @@ local function active_group()
     return nil;
 end
 
+local function display_mode()
+    local settings = state.config.settings or {};
+    local mode = settings.display_mode;
+    if (type(mode) == 'string') then
+        mode = mode:lower():gsub('%s+', '');
+        if (mode == 'stacked' or mode == 'single') then
+            return mode;
+        end
+    end
+
+    return DEFAULT_CONFIG.settings.display_mode;
+end
+
+local function visual_group()
+    return active_group() or 'base';
+end
+
 local function get_slot(group, index)
     local profile = state.profile or refresh_profile_context();
     local bars = profile.bars or {};
@@ -456,25 +478,33 @@ local function render_bars()
     local slot_size = tonumber(settings.slot_size) or DEFAULT_CONFIG.settings.slot_size;
     local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
+    local mode = display_mode();
+    local row_count = (mode == 'single') and 1 or #ROWS;
     local width = 58 + (slot_size * 10) + (gap * 9) + 20;
-    local height = (slot_size * 3) + (row_gap * 2) + 48;
+    local height = (slot_size * row_count) + (row_gap * (row_count - 1)) + 48;
     local active = active_group();
+    local visual = visual_group();
 
     imgui.SetNextWindowPos({ tonumber(settings.window_x) or 820, tonumber(settings.window_y) or 760 }, ImGuiCond_FirstUseEver);
-    imgui.SetNextWindowSize({ width, height }, ImGuiCond_FirstUseEver);
+    imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
     imgui.PushStyleColor(ImGuiCol_WindowBg, { 0.03, 0.03, 0.04, 0.78 });
     imgui.PushStyleColor(ImGuiCol_Border,   { 0.38, 0.38, 0.42, 0.90 });
 
-    local window_title = ('AshitaBars [%s]###AshitaBars'):fmt(profile.key or 'DEFAULT');
+    local window_title = ('AshitaBars [%s %s]###AshitaBars'):fmt(profile.key or 'DEFAULT', mode);
     if (imgui.Begin(window_title, state.visible, bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse))) then
         if (state.config_error ~= nil) then
             imgui.Text('Config load failed. Using defaults.');
         end
 
-        for i, row in ipairs(ROWS) do
+        if (mode == 'single') then
+            local row = ROW_BY_ID[visual] or ROW_BY_ID.base;
             render_row(row, active == row.id);
-            if (i < #ROWS) then
-                imgui.Dummy({ 1, row_gap });
+        else
+            for i, row in ipairs(ROWS) do
+                render_row(row, active == row.id);
+                if (i < #ROWS) then
+                    imgui.Dummy({ 1, row_gap });
+                end
             end
         end
     end
@@ -525,10 +555,13 @@ ashita.events.register('command', 'command_cb', function (e)
         local input_state = AshitaCore:GetChatManager():IsInputOpen();
         local settings = state.config.settings or {};
         local profile = refresh_profile_context();
-        log_info(('visible=%s input=0x%02X active=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        local active = active_group();
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s visualRow=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
-            tostring(active_group()),
+            active or 'none',
+            display_mode(),
+            visual_group(),
             profile.job_key or 'unknown',
             tostring(profile.key),
             tostring(profile.source),

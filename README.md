@@ -9,10 +9,10 @@ text input is open.
 
 ## Current Scope
 
-- Shows three action rows:
-  - `1-0`
-  - `Ctrl+1-0`
-  - `Alt+1-0`
+- Shows configurable action-bar visuals:
+  - `stacked`: three rows for `1-0`, `Ctrl+1-0`, and `Alt+1-0`
+  - `single`: one visible row that switches between base, Ctrl, and Alt while
+    the modifier is held
 - Captures those keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is
@@ -70,6 +70,19 @@ Edit:
 ashitabars/ashitabars_config.lua
 ```
 
+Visual display mode is controlled in `settings`:
+
+```lua
+settings = {
+    visible = true,
+    display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+}
+```
+
+The setting changes only the visible UI. Key execution remains `1-0`,
+`Ctrl+1-0`, and `Alt+1-0` in both modes. Existing configs without
+`display_mode` keep the original stacked view.
+
 Profiles are keyed by main-job abbreviation. `DEFAULT` is used when the current
 job does not have a configured profile:
 
@@ -106,6 +119,9 @@ The sample config includes a `WHM` test profile. It intentionally mixes common
 WHM spells with `/heal`, `/target`, `/assist`, `/check`, `/echo`, and one
 `/ja` slot so different command paths and target forms can be tested.
 
+`/ashitabars status` prints the normalized display mode and current visual row
+alongside input, profile, and modifier-blocking state.
+
 If modifier blocking conflicts with another hotkey, disable it:
 
 ```lua
@@ -118,6 +134,6 @@ commands.
 
 ## Notes
 
-V1 uses three rows. A later version can collapse this into one visible row that
-changes display while `Ctrl` or `Alt` is held.
+Single-row mode is visual only. It does not add timers, alternate command
+selection, or unattended behavior.
 
