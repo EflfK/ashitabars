@@ -26,8 +26,10 @@ most one configured command.
   editing `ashitabars_config.lua` and reloading.
 - Done: display-only cooldown or recast overlays for spell and job-ability slots
   when the local Ashita recast timer can be resolved safely.
-- Display-only charge/count text for items or abilities where safe state is
-  available.
+- Done: display-only item count badges and basic low-resource dimming for item,
+  spell, and weapon-skill slots where safe local state is available.
+- Display-only charge/count text for abilities where safe charge state is
+  available and semantics are clear.
 - Display-only range or usability dimming if it can be implemented without
   automated action choice.
 - Drag-to-reorder or config editing UI, guarded so it only changes static

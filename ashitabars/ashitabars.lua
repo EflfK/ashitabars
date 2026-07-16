@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.11.0';
+addon.version   = '0.12.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -126,6 +126,8 @@ local ROW_THEME = {
 };
 
 local ROW_TRANSITION_SECONDS = 0.24;
+local ITEM_COUNT_CONTAINER_IDS = { 0, 3 };
+local ITEM_COUNT_CACHE_SECONDS = 0.40;
 
 local THEMES = {
     ffxi = {
@@ -150,6 +152,11 @@ local THEMES = {
         recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
         recast_text = { 1.00, 0.96, 0.78, 1.00 },
         recast_line = { 1.00, 0.86, 0.54, 0.70 },
+        count_bg = { 0.00, 0.00, 0.00, 0.78 },
+        count_text = { 1.00, 0.97, 0.84, 1.00 },
+        unavailable_overlay = { 0.00, 0.00, 0.00, 0.58 },
+        unavailable_text = { 1.00, 0.42, 0.32, 1.00 },
+        unavailable_line = { 1.00, 0.28, 0.18, 0.66 },
         text_shadow = { 0.00, 0.00, 0.00, 0.90 },
         unsupported = { 1.00, 0.24, 0.18, 1.00 },
         hover_border = { 1.00, 0.96, 0.72, 0.52 },
@@ -176,6 +183,11 @@ local THEMES = {
         recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
         recast_text = { 0.90, 0.96, 1.00, 1.00 },
         recast_line = { 0.70, 0.86, 1.00, 0.70 },
+        count_bg = { 0.00, 0.00, 0.00, 0.78 },
+        count_text = { 0.92, 0.97, 1.00, 1.00 },
+        unavailable_overlay = { 0.00, 0.00, 0.00, 0.58 },
+        unavailable_text = { 1.00, 0.46, 0.36, 1.00 },
+        unavailable_line = { 1.00, 0.30, 0.22, 0.66 },
         text_shadow = { 0.00, 0.00, 0.00, 0.90 },
         unsupported = { 1.00, 0.24, 0.18, 1.00 },
         hover_border = { 0.80, 0.94, 1.00, 0.54 },
@@ -202,6 +214,11 @@ local THEMES = {
         recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
         recast_text = { 1.00, 0.90, 0.80, 1.00 },
         recast_line = { 1.00, 0.68, 0.48, 0.70 },
+        count_bg = { 0.00, 0.00, 0.00, 0.78 },
+        count_text = { 1.00, 0.92, 0.84, 1.00 },
+        unavailable_overlay = { 0.00, 0.00, 0.00, 0.58 },
+        unavailable_text = { 1.00, 0.48, 0.38, 1.00 },
+        unavailable_line = { 1.00, 0.30, 0.20, 0.66 },
         text_shadow = { 0.00, 0.00, 0.00, 0.90 },
         unsupported = { 1.00, 0.24, 0.18, 1.00 },
         hover_border = { 1.00, 0.78, 0.58, 0.54 },
@@ -342,6 +359,9 @@ local DEFAULT_CONFIG = {
         show_hotkeys = true,
         show_labels = true,
         show_recasts = true,
+        show_counts = true,
+        show_availability = true,
+        weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
         slot_size = 48,
         slot_gap = 4,
@@ -372,6 +392,8 @@ local state = {
     display_mode_override = nil,
     recast_cache = {},
     recast_totals = {},
+    item_source_cache = {},
+    item_count_cache = {},
     visual = {
         row = 'base',
         changed_at = 0,
@@ -511,6 +533,8 @@ local function load_config()
         state.display_mode_override = nil;
         state.recast_cache = {};
         state.recast_totals = {};
+        state.item_source_cache = {};
+        state.item_count_cache = {};
         return;
     end
 
@@ -531,6 +555,8 @@ local function load_config()
     state.display_mode_override = nil;
     state.recast_cache = {};
     state.recast_totals = {};
+    state.item_source_cache = {};
+    state.item_count_cache = {};
 end
 
 local function key_down(vk)
@@ -691,7 +717,17 @@ local function setting_enabled(name, fallback)
     return settings[name] ~= false;
 end
 
-local function command_recast_action(command)
+local function setting_number(name, fallback)
+    local settings = state.config.settings or {};
+    local value = tonumber(settings[name]);
+    if (value == nil) then
+        return fallback;
+    end
+
+    return value;
+end
+
+local function command_prefix_and_name(command)
     if (type(command) ~= 'string') then
         return nil, nil;
     end
@@ -701,7 +737,16 @@ local function command_recast_action(command)
         return nil, nil;
     end
 
-    prefix = prefix:lower();
+    local name = rest:match('^"([^"]+)"') or rest:match("^'([^']+)'") or rest:match('^(%S+)');
+    return prefix:lower(), name;
+end
+
+local function command_recast_action(command)
+    local prefix, name = command_prefix_and_name(command);
+    if (prefix == nil) then
+        return nil, nil;
+    end
+
     local kind = nil;
     if (prefix == '/ma' or prefix == '/magic') then
         kind = 'spell';
@@ -711,7 +756,6 @@ local function command_recast_action(command)
         return nil, nil;
     end
 
-    local name = rest:match('^"([^"]+)"') or rest:match("^'([^']+)'") or rest:match('^(%S+)');
     if (type(name) ~= 'string' or name == '') then
         return nil, nil;
     end
@@ -745,12 +789,19 @@ local function spell_recast_source(resources, name)
         total = recast_delay * 15;
     end
 
+    local mp_cost = tonumber(safe_read(function ()
+        return spell.ManaCost;
+    end, safe_read(function ()
+        return spell.MpCost;
+    end, nil)));
+
     return {
         kind = 'spell',
         key = ('spell:%d'):fmt(math.floor(spell_id)),
         id = math.floor(spell_id),
         name = name,
         total = total,
+        mp_cost = mp_cost,
     };
 end
 
@@ -935,6 +986,194 @@ local function slot_recast(slot)
         seconds = seconds,
         label = format_recast_seconds(seconds),
     };
+end
+
+local function item_source_for_command(command)
+    if (type(command) ~= 'string' or command == '') then
+        return nil;
+    end
+
+    local cached = state.item_source_cache[command];
+    if (cached ~= nil) then
+        if (cached == false) then
+            return nil;
+        end
+        return cached;
+    end
+
+    local prefix, name = command_prefix_and_name(command);
+    if (prefix ~= '/item' or type(name) ~= 'string' or name == '') then
+        state.item_source_cache[command] = false;
+        return nil;
+    end
+
+    local resources = safe_read(function ()
+        return AshitaCore:GetResourceManager();
+    end, nil);
+    if (resources == nil) then
+        state.item_source_cache[command] = false;
+        return nil;
+    end
+
+    local item = safe_read(function ()
+        return resources:GetItemByName(name, 0);
+    end, nil) or safe_read(function ()
+        return resources:GetItemByName(name);
+    end, nil);
+    if (item == nil) then
+        state.item_source_cache[command] = false;
+        return nil;
+    end
+
+    local item_id = tonumber(safe_read(function ()
+        return item.Id;
+    end, safe_read(function ()
+        return item.Index;
+    end, nil)));
+    if (item_id == nil or item_id <= 0) then
+        state.item_source_cache[command] = false;
+        return nil;
+    end
+
+    local source = {
+        kind = 'item',
+        key = ('item:%d'):fmt(math.floor(item_id)),
+        id = math.floor(item_id),
+        name = name,
+    };
+    state.item_source_cache[command] = source;
+    return source;
+end
+
+local function item_count(item_id)
+    item_id = tonumber(item_id);
+    if (item_id == nil or item_id <= 0) then
+        return nil;
+    end
+
+    local now = os.clock();
+    local cached = state.item_count_cache[item_id];
+    if (cached ~= nil and (now - cached.at) <= ITEM_COUNT_CACHE_SECONDS) then
+        return cached.count;
+    end
+
+    local inventory = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetInventory();
+    end, nil);
+    if (inventory == nil) then
+        return nil;
+    end
+
+    local total = 0;
+    for _, container_id in ipairs(ITEM_COUNT_CONTAINER_IDS) do
+        local max = tonumber(safe_read(function ()
+            return inventory:GetContainerCountMax(container_id);
+        end, 0)) or 0;
+
+        for slot = 0, max, 1 do
+            local item = safe_read(function ()
+                return inventory:GetContainerItem(container_id, slot);
+            end, nil);
+            local id = item ~= nil and tonumber(item.Id) or nil;
+            if (id == item_id) then
+                local count = tonumber(item.Count) or 1;
+                total = total + math.max(1, count);
+            end
+        end
+    end
+
+    state.item_count_cache[item_id] = {
+        at = now,
+        count = total,
+    };
+    return total;
+end
+
+local function current_mp()
+    return tonumber(safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetParty():GetMemberMP(0);
+    end, nil));
+end
+
+local function current_tp()
+    return tonumber(safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetParty():GetMemberTP(0);
+    end, nil));
+end
+
+local function format_count(value)
+    value = math.max(0, math.floor(tonumber(value) or 0));
+    if (value >= 1000000) then
+        return ('%dm'):fmt(math.floor(value / 1000000));
+    end
+    if (value >= 10000) then
+        return ('%dk'):fmt(math.floor(value / 1000));
+    end
+    if (value >= 1000) then
+        local compact = ('%.1fk'):fmt(value / 1000);
+        return compact:gsub('%.0k$', 'k');
+    end
+
+    return tostring(value);
+end
+
+local function slot_visual_state(slot)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+        return nil;
+    end
+
+    local show_counts = setting_enabled('show_counts', true) and slot.count ~= false;
+    local show_availability = setting_enabled('show_availability', true) and slot.availability ~= false;
+    if (not show_counts and not show_availability) then
+        return nil;
+    end
+
+    local prefix = command_prefix_and_name(slot.command);
+    local state_info = {
+        available = true,
+    };
+
+    if (prefix == '/item') then
+        local source = item_source_for_command(slot.command);
+        if (source ~= nil) then
+            local count = item_count(source.id);
+            if (count ~= nil) then
+                state_info.kind = 'item';
+                state_info.count = count;
+                state_info.count_label = show_counts and format_count(count) or nil;
+                if (show_availability and count <= 0) then
+                    state_info.available = false;
+                    state_info.reason = 'item count is 0';
+                    state_info.reason_label = '0';
+                end
+            end
+        end
+    elseif (prefix == '/ma' or prefix == '/magic') then
+        local source = recast_source_for_command(slot.command);
+        local cost = source ~= nil and tonumber(source.mp_cost) or nil;
+        local mp = current_mp();
+        if (show_availability and cost ~= nil and cost > 0 and mp ~= nil and mp < cost) then
+            state_info.kind = 'spell';
+            state_info.available = false;
+            state_info.reason = ('MP %d/%d'):fmt(mp, cost);
+            state_info.reason_label = 'MP';
+        end
+    elseif (prefix == '/ws' or prefix == '/weaponskill') then
+        local threshold = tonumber(slot.tp_threshold) or setting_number('weaponskill_tp_threshold', 1000);
+        local tp = current_tp();
+        if (show_availability and threshold ~= nil and threshold > 0 and tp ~= nil and tp < threshold) then
+            state_info.kind = 'weaponskill';
+            state_info.available = false;
+            state_info.reason = ('TP %d/%d'):fmt(tp, threshold);
+            state_info.reason_label = 'TP';
+        end
+    end
+
+    if (state_info.kind == nil and state_info.count_label == nil and state_info.available == true) then
+        return nil;
+    end
+
+    return state_info;
 end
 
 local function icon_style()
@@ -1496,6 +1735,41 @@ local function draw_recast_overlay(draw_list, x1, y1, x2, y2, recast_info)
     draw_centered_text(draw_list, x1 + (width * 0.5), y1 + (height * 0.48), theme.recast_text or { 1.00, 0.96, 0.78, 1.00 }, recast_info.label);
 end
 
+local function draw_availability_overlay(draw_list, x1, y1, x2, y2, visual_state, show_reason)
+    if (visual_state == nil or visual_state.available ~= false) then
+        return;
+    end
+
+    local theme = current_theme();
+    draw_list:AddRectFilled({ x1, y1 }, { x2, y2 }, color_u32(theme.unavailable_overlay or { 0.00, 0.00, 0.00, 0.58 }), 2.0);
+    draw_list:AddLine({ x1 + 3, y2 - 3 }, { x2 - 3, y1 + 3 }, color_u32(theme.unavailable_line or { 1.00, 0.28, 0.18, 0.66 }), 2.0);
+
+    if (show_reason and visual_state.reason_label ~= nil) then
+        draw_centered_text(draw_list, x1 + ((x2 - x1) * 0.5), y1 + ((y2 - y1) * 0.48), theme.unavailable_text or { 1.00, 0.42, 0.32, 1.00 }, visual_state.reason_label);
+    end
+end
+
+local function draw_count_badge(draw_list, x, y, slot_size, label)
+    if (label == nil or label == '') then
+        return;
+    end
+
+    local theme = current_theme();
+    local tw, th = imgui.CalcTextSize(label);
+    tw = tonumber(tw) or 0;
+    th = tonumber(th) or 0;
+
+    local pad_x = 3;
+    local by2 = y + slot_size - 18;
+    local by1 = by2 - th - 3;
+    local bx2 = x + slot_size - 5;
+    local bx1 = math.max(x + 5, bx2 - tw - (pad_x * 2));
+
+    draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32(theme.count_bg or { 0.00, 0.00, 0.00, 0.78 }), 1.5);
+    draw_list:AddRect({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(theme.icon_border or { 1.00, 0.86, 0.54, 1.00 }, 0.34)), 1.5, ImDrawCornerFlags_All, 1.0);
+    draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, theme.count_text or { 1.00, 0.97, 0.84, 1.00 }, label);
+end
+
 local function draw_unsupported_overlay(draw_list, x, y, slot_size)
     local theme = current_theme();
     local warn = theme.unsupported or { 1.00, 0.24, 0.18, 1.00 };
@@ -1526,6 +1800,9 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local icon_family = (icon_def and icon_def.family) or family;
     local icon_color = (icon_def and icon_def.accent) or COMMAND_THEME[icon_family] or COMMAND_THEME.command;
     local recast_info = slot_recast(slot);
+    local visual_state = slot_visual_state(slot);
+    local available = visual_state == nil or visual_state.available ~= false;
+    local draw_icon_color = available and icon_color or { icon_color[1] * 0.52, icon_color[2] * 0.52, icon_color[3] * 0.52, icon_color[4] or 1.00 };
     local nudge = pressed and 1 or 0;
     local rx = x + nudge;
     local ry = y + nudge;
@@ -1559,17 +1836,21 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     draw_list:AddLine({ rx + 3, ry + slot_size - 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(theme.bevel_shadow or { 0.00, 0.00, 0.00, 0.72 }), 1.0);
 
     if (has_command) then
-        local icon_alpha = command_supported and 0.96 or 0.64;
-        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, icon_alpha }), 2.5);
+        local icon_alpha = command_supported and (available and 0.96 or 0.56) or 0.64;
+        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ draw_icon_color[1] * 0.20, draw_icon_color[2] * 0.20, draw_icon_color[3] * 0.20, icon_alpha }), 2.5);
         local highlight = theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 };
         draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(highlight, command_supported and 0.05 or 0.02)), 2.0);
-        draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, icon_color);
+        draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, draw_icon_color);
     else
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32(theme.empty_bg or { 0.03, 0.03, 0.04, 0.82 }), 2.5);
         draw_empty_slot_overlay(draw_list, rx, ry, slot_size);
     end
 
     draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32(color_with_alpha(theme.icon_border or { 1.00, 0.86, 0.54, 1.00 }, has_command and 0.35 or 0.18)), 2.5, ImDrawCornerFlags_All, 1.0);
+
+    if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
+        draw_availability_overlay(draw_list, ix1, iy1, ix2, iy2, visual_state, recast_info == nil);
+    end
 
     if (has_command and command_supported and recast_info ~= nil) then
         draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, recast_info);
@@ -1582,7 +1863,11 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     if (setting_enabled('show_labels', true) and has_command and slot.label ~= nil) then
-        draw_label_overlay(draw_list, rx, ry, slot_size, slot.label, command_supported and icon_color or { 1.00, 0.30, 0.24, 1.00 });
+        draw_label_overlay(draw_list, rx, ry, slot_size, slot.label, command_supported and draw_icon_color or { 1.00, 0.30, 0.24, 1.00 });
+    end
+
+    if (has_command and command_supported and visual_state ~= nil and visual_state.count_label ~= nil) then
+        draw_count_badge(draw_list, rx, ry, slot_size, visual_state.count_label);
     end
 
     if (has_command and not command_supported) then
@@ -1614,7 +1899,14 @@ local function render_tooltip(row, index)
     end
     if (slot and slot.command) then
         local recast_info = slot_recast(slot);
+        local visual_state = slot_visual_state(slot);
         imgui.Text(slot.command);
+        if (visual_state ~= nil and visual_state.count ~= nil) then
+            imgui.Text(('count: %d'):fmt(visual_state.count));
+        end
+        if (visual_state ~= nil and visual_state.available == false and visual_state.reason ~= nil) then
+            imgui.Text('availability: ' .. visual_state.reason);
+        end
         if (recast_info ~= nil) then
             imgui.Text(('recast: %s'):fmt(recast_info.label));
         end
@@ -1756,7 +2048,7 @@ ashita.events.register('command', 'command_cb', function (e)
         local profile = refresh_profile_context();
         local active = active_group();
         local _, theme_key = current_theme();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s theme=%s iconStyle=%s showRecasts=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
@@ -1766,6 +2058,9 @@ ashita.events.register('command', 'command_cb', function (e)
             theme_key,
             icon_style(),
             tostring(setting_enabled('show_recasts', true)),
+            tostring(setting_enabled('show_counts', true)),
+            tostring(setting_enabled('show_availability', true)),
+            setting_number('weaponskill_tp_threshold', 1000),
             profile.job_key or 'unknown',
             tostring(profile.key),
             tostring(profile.source),

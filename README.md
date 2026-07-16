@@ -23,6 +23,8 @@ text input is open.
   text outlines, empty-slot dimming, and unsupported-command markers.
 - Draws display-only recast overlays for configured spell and job-ability slots
   when Ashita exposes a matching recast timer.
+- Draws display-only item count badges and low-resource dimming for supported
+  spell, item, and weapon-skill slots.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - Ships default test commands that only `/echo`.
@@ -89,6 +91,9 @@ settings = {
     show_hotkeys = true,
     show_labels = true,
     show_recasts = true,
+    show_counts = true,
+    show_availability = true,
+    weaponskill_tp_threshold = 1000,
     icon_style = 'auto',
 }
 ```
@@ -152,6 +157,23 @@ This is display-only; key and click execution still runs the configured command
 exactly as before. Set `show_recasts = false` globally, or `recast = false` on
 an individual slot, to hide the overlay.
 
+`show_counts = true` draws a compact count badge for `/item` slots when the item
+can be resolved in the local Ashita resource table. Counts are read from
+Inventory and Temporary item containers.
+
+`show_availability = true` dims slots when safe local state shows the configured
+action is currently short on a basic resource:
+
+- `/item` slots dim when the resolved item count is `0`.
+- `/ma` and `/magic` slots dim when current MP is lower than the spell MP cost.
+- `/ws` and `/weaponskill` slots dim when current TP is lower than
+  `weaponskill_tp_threshold`, defaulting to `1000`.
+
+This dimming is display-only. It does not block the keypress, pick alternate
+actions, or change the configured command. Set `show_availability = false`
+globally, or `availability = false` on an individual slot, to hide the dimming.
+Set `count = false` on an individual slot to hide only its count badge.
+
 Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
 `raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,
 `earth`, `lightning`, `water`, `light`, `dark`, `ability`, `song`, `summon`,
@@ -175,8 +197,8 @@ can be tested.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
-display-mode source, theme, icon style, and recast overlay setting alongside
-input, profile, and modifier-blocking state.
+display-mode source, theme, icon style, recast/count/availability settings, and
+weapon-skill TP threshold alongside input, profile, and modifier-blocking state.
 
 If modifier blocking conflicts with another hotkey, disable it:
 
