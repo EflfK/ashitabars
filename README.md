@@ -18,7 +18,8 @@ text input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is
   closed by default, so FFXI should not also show or execute native macro rows.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
-- Clicks on visible slots also execute one configured command.
+- Clicks on visible slots also execute one configured command or static
+  multi-line macro.
 - Draws image-first action-button slots with hotkey badges, configurable label
   placement, readable text outlines, empty-slot dimming, and unsupported-command
   markers.
@@ -29,17 +30,20 @@ text input is open.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - When the bar frame is visible, each button shows a small edit corner that
-  opens an in-game editor for that button's label, command, and optional icon.
+  opens an in-game editor for that button's label, command mode, command text,
+  and optional icon.
 - Ships default test commands that only `/echo`.
 
 ## Safety Boundary
 
 This addon can send real FFXI slash commands when configured to do so. Keep it
-to one intentional keypress or click producing one command. Static per-job
-profiles are fine; do not add timers, loops, reactive combat-state action
-choice, packet injection, unattended behavior, or detection-evasion behavior.
-The in-game button editor follows the same boundary: each saved button stores
-one allowed slash command line, not a multi-line script.
+to one intentional keypress or click producing one configured action: either
+one command line or one static multi-line macro. Static per-job profiles are
+fine; do not add timers, waits, loops, reactive combat-state action choice,
+packet injection, unattended behavior, or detection-evasion behavior. The
+in-game button editor follows the same boundary: each saved macro is a fixed
+list of allowed slash command lines and only runs from the attended button
+press.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
@@ -238,13 +242,29 @@ Each slot has a label and command, and may also include an `icon` token:
 [1] = { label = 'Cure', icon = 'cure', command = '/ma "Cure" <stpt>' },
 ```
 
+Slots can also store a static multi-line macro. Each line is validated against
+the same allowed prefix list and is queued only from the attended key press or
+click:
+
+```lua
+[2] = {
+    label = 'Buffs',
+    icon = 'buff',
+    macro_mode = 'multi',
+    commands = {
+        '/ma "Protect" <me>',
+        '/ma "Shell" <me>',
+    },
+},
+```
+
 You can edit visible buttons in game while the bar frame is shown. Open
 `/ashitabars config`, enable `Show Bar Frame`, then click the small top-left
-corner of a button. The editor can save a label, one allowed slash command, and
-an optional icon chosen from a built-in selector. The edited button previews the
-selected icon in the editor preview tile, and previews hovered icon presets
-while the selector is open. These runtime edits are stored outside the addon
-folder in:
+corner of a button. The editor can save a label, a single-command or
+multi-line macro mode, and an optional icon chosen from a built-in selector.
+The edited button previews the selected icon in the editor preview tile, and
+previews hovered icon presets while the selector is open. These runtime edits
+are stored outside the addon folder in:
 
 ```txt
 Ashita/config/addons/ashitabars/button_overrides.lua
@@ -253,7 +273,8 @@ Ashita/config/addons/ashitabars/button_overrides.lua
 Saved button edits are overlaid on top of the current job-aware profile and
 persist across addon reloads and game sessions. `Clear` saves an empty button
 for that slot, while `Reset` removes the saved edit and returns to the
-configured profile slot.
+configured profile slot. `Validate & Run` validates the current editor command
+or macro lines and queues them immediately without saving the button.
 
 `icon_style = 'auto'` uses the configured icon when present and otherwise
 infers a built-in icon from the command. Use `icon_style = 'configured'` to
@@ -262,8 +283,9 @@ for label-only slots.
 
 `show_recasts = true` draws a dark cooldown wipe and remaining time on slots
 whose commands resolve to `/ma`, `/magic`, `/ja`, or `/jobability` recast data.
-This is display-only; key and click execution still runs the configured command
-exactly as before. Set `show_recasts = false` globally, or `recast = false` on
+For multi-line macros, recast display is based on the first command. This is
+display-only; key and click execution still runs the configured command or
+macro exactly as saved. Set `show_recasts = false` globally, or `recast = false` on
 an individual slot, to hide the overlay.
 
 `show_counts = true` draws a compact count badge for `/item` slots when the item
@@ -318,8 +340,8 @@ block_native_macro_modifiers = false,
 
 Allowed command prefixes are intentionally narrow. Ashita control commands such
 as `/addon`, `/bind`, `/unbind`, `/exec`, and `/alias` are not accepted as slot
-commands. Slots with unsupported prefixes draw a red warning corner and are
-still rejected when clicked or pressed.
+commands or macro lines. Slots with unsupported prefixes draw a red warning
+corner and are still rejected when clicked or pressed.
 
 ## Notes
 

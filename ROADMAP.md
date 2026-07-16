@@ -2,7 +2,7 @@
 
 This is a working list for later AshitaBars improvements. Keep changes within
 the attended-action boundary: one intentional keypress or click produces at
-most one configured command.
+most one configured action or static macro.
 
 ## Visual Polish
 
@@ -34,6 +34,9 @@ most one configured command.
 - Done: in-game button editor, opened from a small frame-mode edit corner and
   persisted as per-profile button overrides, with a built-in icon selector and
   live icon preview.
+- Done: single-command and multi-line macro modes in the button editor, with
+  per-line command-prefix validation, a Validate & Run editor button, and
+  attended execution only.
 
 ## Later Feature Ideas
 

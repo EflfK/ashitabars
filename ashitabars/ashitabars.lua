@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.19.0';
+addon.version   = '0.20.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -140,6 +140,10 @@ local LABEL_VERTICAL_POSITION_MIN = 0;
 local LABEL_VERTICAL_POSITION_MAX = 100;
 local MACRO_LABEL_MAX = 32;
 local MACRO_COMMAND_MAX = 256;
+local MACRO = {
+    COMMANDS_MAX = 6,
+    COMMANDS_TEXT_MAX = (MACRO_COMMAND_MAX + 1) * 6,
+};
 local MACRO_ICON_MAX = 32;
 local FRAMELESS_WINDOW_PADDING = 4;
 local CONFIG_HEADER_COLOR = { 1.00, 0.70, 0.36, 1.00 };
@@ -459,8 +463,10 @@ local state = {
         group = nil,
         index = nil,
         source = nil,
+        macro_mode = 'single',
         label_buffer = T{ '' },
         command_buffer = T{ '' },
+        commands_buffer = T{ '' },
         icon_buffer = T{ '' },
         preview_icon = nil,
         message = nil,
@@ -509,6 +515,88 @@ end
 
 local function valid_row_id(value)
     return type(value) == 'string' and ROW_BY_ID[value] ~= nil;
+end
+
+function MACRO.normalize_mode(value)
+    if (type(value) ~= 'string') then
+        return 'single';
+    end
+
+    local mode = value:lower():gsub('%s+', ''):gsub('_', '-');
+    if (mode == 'multi' or mode == 'multiline' or mode == 'multi-line' or mode == 'macro') then
+        return 'multi';
+    end
+
+    return 'single';
+end
+
+function MACRO.normalize_line_endings(value)
+    if (type(value) ~= 'string') then
+        return '';
+    end
+
+    return value:gsub('\r\n', '\n'):gsub('\r', '\n');
+end
+
+function MACRO.sanitize_command_line(value)
+    return trim_one_line(value, MACRO_COMMAND_MAX);
+end
+
+function MACRO.commands_from_text(value, max_commands)
+    local commands = {};
+    local too_many = false;
+    local text = MACRO.normalize_line_endings(value);
+    max_commands = tonumber(max_commands) or MACRO.COMMANDS_MAX;
+
+    if (text == '') then
+        return commands, false;
+    end
+
+    if (text:sub(-1) ~= '\n') then
+        text = text .. '\n';
+    end
+
+    for line in text:gmatch('([^\n]*)\n') do
+        local command = MACRO.sanitize_command_line(line);
+        if (command ~= '') then
+            if (#commands >= max_commands) then
+                too_many = true;
+            else
+                table.insert(commands, command);
+            end
+        end
+    end
+
+    return commands, too_many;
+end
+
+function MACRO.commands_from_table(value, max_commands)
+    local commands = {};
+    max_commands = tonumber(max_commands) or MACRO.COMMANDS_MAX;
+
+    if (type(value) ~= 'table') then
+        return commands;
+    end
+
+    for _, line in ipairs(value) do
+        local command = MACRO.sanitize_command_line(line);
+        if (command ~= '') then
+            table.insert(commands, command);
+            if (#commands >= max_commands) then
+                break;
+            end
+        end
+    end
+
+    return commands;
+end
+
+function MACRO.commands_to_text(commands)
+    if (type(commands) ~= 'table' or #commands == 0) then
+        return '';
+    end
+
+    return table.concat(commands, '\n');
 end
 
 local load_button_overrides = nil;
@@ -1133,7 +1221,7 @@ local function find_settings_table(contents)
 end
 
 local function lua_string_literal(value)
-    local text = tostring(value):gsub('\\', '\\\\'):gsub("'", "\\'");
+    local text = tostring(value):gsub('\\', '\\\\'):gsub('\r', '\\r'):gsub('\n', '\\n'):gsub("'", "\\'");
     return ("'%s'"):fmt(text);
 end
 
@@ -1348,13 +1436,35 @@ local function sanitize_slot_override(slot)
         sanitized.label = trim_one_line(slot.label, MACRO_LABEL_MAX);
     end
     if (slot.command ~= nil) then
-        sanitized.command = trim_one_line(slot.command, MACRO_COMMAND_MAX);
+        sanitized.command = MACRO.sanitize_command_line(slot.command);
+    end
+    if (slot.commands ~= nil) then
+        sanitized.commands = MACRO.commands_from_table(slot.commands, MACRO.COMMANDS_MAX);
+        if (#sanitized.commands == 0) then
+            sanitized.commands = nil;
+        end
+    end
+    if (slot.macro_mode ~= nil or sanitized.commands ~= nil) then
+        sanitized.macro_mode = MACRO.normalize_mode(slot.macro_mode);
+        if (sanitized.commands ~= nil and slot.macro_mode == nil) then
+            sanitized.macro_mode = 'multi';
+        end
+        if (sanitized.macro_mode == 'multi' and sanitized.commands == nil and sanitized.command ~= nil and sanitized.command ~= '') then
+            sanitized.commands = { sanitized.command };
+        end
+        if (sanitized.macro_mode == 'multi' and sanitized.commands ~= nil and sanitized.command == nil) then
+            sanitized.command = sanitized.commands[1] or '';
+        end
+        if (sanitized.macro_mode ~= 'multi') then
+            sanitized.macro_mode = nil;
+            sanitized.commands = nil;
+        end
     end
     if (slot.icon ~= nil) then
         sanitized.icon = trim_one_line(slot.icon, MACRO_ICON_MAX);
     end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.icon == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil) then
         return nil;
     end
 
@@ -1423,7 +1533,7 @@ end
 local function serialize_button_overrides()
     local lines = {
         '-- Generated by AshitaBars. Runtime button edits are stored here.',
-        '-- Each saved button still executes at most one allowed slash command.',
+        '-- Each saved button executes only from an attended key press or click.',
         'return {',
         '    profiles = {',
     };
@@ -1449,6 +1559,16 @@ local function serialize_button_overrides()
                             end
                             if (slot.command ~= nil) then
                                 table.insert(parts, ('command = %s'):fmt(lua_string_literal(slot.command)));
+                            end
+                            if (slot.macro_mode == 'multi') then
+                                table.insert(parts, "macro_mode = 'multi'");
+                            end
+                            if (type(slot.commands) == 'table' and #slot.commands > 0) then
+                                local command_literals = {};
+                                for _, command in ipairs(slot.commands) do
+                                    table.insert(command_literals, lua_string_literal(command));
+                                end
+                                table.insert(parts, ('commands = { %s }'):fmt(table.concat(command_literals, ', ')));
                             end
                             if (#parts > 0) then
                                 table.insert(lines, ('                [%d] = { %s },'):fmt(index, table.concat(parts, ', ')));
@@ -1580,6 +1700,12 @@ local function apply_slot_override(base_slot, override)
     if (override.command ~= nil) then
         slot.command = override.command;
     end
+    if (override.macro_mode ~= nil) then
+        slot.macro_mode = override.macro_mode;
+    end
+    if (override.commands ~= nil) then
+        slot.commands = MACRO.commands_from_table(override.commands, MACRO.COMMANDS_MAX);
+    end
     if (override.icon ~= nil) then
         slot.icon = override.icon;
     end
@@ -1589,6 +1715,69 @@ local function apply_slot_override(base_slot, override)
     end
 
     return slot;
+end
+
+function MACRO.normalize_slot_runtime(slot)
+    if (type(slot) ~= 'table') then
+        return nil;
+    end
+
+    local normalized = copy_slot(slot);
+    local mode = MACRO.normalize_mode(normalized.macro_mode);
+    local commands = MACRO.commands_from_table(normalized.commands, MACRO.COMMANDS_MAX);
+    local command = MACRO.sanitize_command_line(normalized.command);
+
+    if (mode == 'multi' or #commands > 0) then
+        if (#commands == 0 and command ~= '') then
+            commands = { command };
+        end
+        normalized.macro_mode = 'multi';
+        normalized.commands = commands;
+        normalized.command = commands[1] or command;
+    else
+        normalized.macro_mode = 'single';
+        normalized.commands = nil;
+        normalized.command = command;
+    end
+
+    return normalized;
+end
+
+function MACRO.slot_mode(slot)
+    if (type(slot) ~= 'table') then
+        return 'single';
+    end
+
+    if (MACRO.normalize_mode(slot.macro_mode) == 'multi' or type(slot.commands) == 'table') then
+        return 'multi';
+    end
+
+    return 'single';
+end
+
+function MACRO.slot_commands(slot)
+    if (type(slot) ~= 'table') then
+        return {};
+    end
+
+    if (MACRO.slot_mode(slot) == 'multi') then
+        local commands = MACRO.commands_from_table(slot.commands, MACRO.COMMANDS_MAX);
+        if (#commands == 0) then
+            local fallback = MACRO.sanitize_command_line(slot.command);
+            if (fallback ~= '') then
+                commands = { fallback };
+            end
+        end
+        return commands;
+    end
+
+    local command = MACRO.sanitize_command_line(slot.command);
+    return (command ~= '') and { command } or {};
+end
+
+function MACRO.primary_command(slot)
+    local commands = MACRO.slot_commands(slot);
+    return commands[1] or '';
 end
 
 local function apply_editor_preview(slot, profile_key, group, index)
@@ -1648,6 +1837,7 @@ local function get_slot(group, index)
     local override = get_slot_override(profile_key, group, index);
     slot = apply_slot_override(slot, override);
     slot = apply_editor_preview(slot, profile_key, group, index);
+    slot = MACRO.normalize_slot_runtime(slot);
     if (type(slot) ~= 'table') then
         return nil;
     end
@@ -1677,20 +1867,103 @@ local function command_validation_error(command)
     return nil;
 end
 
+function MACRO.commands_validation_error(commands)
+    if (type(commands) ~= 'table' or #commands == 0) then
+        return nil;
+    end
+
+    if (#commands > MACRO.COMMANDS_MAX) then
+        return ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
+    end
+
+    for index, command in ipairs(commands) do
+        local error = command_validation_error(command);
+        if (error ~= nil) then
+            return ('Line %d: %s'):fmt(index, error);
+        end
+    end
+
+    return nil;
+end
+
+function MACRO.editor_commands()
+    local editor = state.macro_editor;
+    if (editor == nil) then
+        return 'single', '', {}, false;
+    end
+
+    local mode = MACRO.normalize_mode(editor.macro_mode);
+    if (mode == 'multi') then
+        local commands, too_many = MACRO.commands_from_text(editor.commands_buffer[1], MACRO.COMMANDS_MAX);
+        return mode, commands[1] or '', commands, too_many;
+    end
+
+    local command = MACRO.sanitize_command_line(editor.command_buffer[1]);
+    return mode, command, (command ~= '') and { command } or {}, false;
+end
+
+function MACRO.editor_validation_error()
+    local mode, command, commands, too_many = MACRO.editor_commands();
+    if (too_many) then
+        return ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
+    end
+
+    if (mode == 'multi') then
+        return MACRO.commands_validation_error(commands);
+    end
+
+    return command_validation_error(command);
+end
+
+function MACRO.run_editor_commands()
+    local editor = state.macro_editor;
+    if (editor == nil or editor.profile_key == nil or editor.group == nil or editor.index == nil) then
+        return false, 'No button selected.';
+    end
+
+    local mode, _, commands, too_many = MACRO.editor_commands();
+    if (too_many) then
+        return false, ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
+    end
+
+    if (#commands == 0) then
+        return false, 'Nothing to run.';
+    end
+
+    local validation_error = MACRO.commands_validation_error(commands);
+    if (validation_error ~= nil) then
+        return false, validation_error;
+    end
+
+    for _, command in ipairs(commands) do
+        AshitaCore:GetChatManager():QueueCommand(1, command);
+    end
+
+    if (mode == 'multi') then
+        return true, ('Validated and ran %d commands.'):fmt(#commands);
+    end
+
+    return true, 'Validated and ran command.';
+end
+
 local function execute_slot(group, index, source)
     refresh_profile_context();
 
     local slot = get_slot(group, index);
-    if (slot == nil or slot.command == nil or slot.command == '') then
+    local commands = MACRO.slot_commands(slot);
+    if (#commands == 0) then
         return false;
     end
 
-    if (not allowed_command(slot.command)) then
-        log_warn(('Rejected %s slot %s command from %s: unsupported command prefix.'):fmt(group, DIGIT_LABELS[index], source));
+    local validation_error = MACRO.commands_validation_error(commands);
+    if (validation_error ~= nil) then
+        log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, DIGIT_LABELS[index], source, validation_error));
         return false;
     end
 
-    AshitaCore:GetChatManager():QueueCommand(1, slot.command);
+    for _, command in ipairs(commands) do
+        AshitaCore:GetChatManager():QueueCommand(1, command);
+    end
     return true;
 end
 
@@ -1714,7 +1987,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > 10) then
         return false, 'Invalid button selection.';
@@ -1733,9 +2006,20 @@ local function set_slot_override(profile_key, group, index, label, command, icon
 
     local slot = {
         label = trim_one_line(label, MACRO_LABEL_MAX),
-        command = trim_one_line(command, MACRO_COMMAND_MAX),
+        command = MACRO.sanitize_command_line(command),
     };
     slot.icon = trim_one_line(icon, MACRO_ICON_MAX);
+    slot.macro_mode = MACRO.normalize_mode(macro_mode);
+    if (slot.macro_mode == 'multi') then
+        slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
+        if (#slot.commands == 0 and slot.command ~= '') then
+            slot.commands = { slot.command };
+        end
+        slot.command = slot.commands[1] or '';
+    else
+        slot.macro_mode = 'single';
+        slot.commands = nil;
+    end
 
     profiles[profile_key][group][index] = slot;
     prune_button_overrides();
@@ -1775,8 +2059,10 @@ local function open_macro_editor(row, index)
     editor.group = row.id;
     editor.index = index;
     editor.source = (override ~= nil) and 'saved edit' or profile.source;
+    editor.macro_mode = MACRO.slot_mode(slot);
     buffer_set(editor.label_buffer, slot.label or '');
-    buffer_set(editor.command_buffer, slot.command or '');
+    buffer_set(editor.command_buffer, MACRO.primary_command(slot));
+    buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
     editor.message = nil;
 end
@@ -1789,17 +2075,19 @@ local function save_macro_editor(clear_slot)
         return false;
     end
 
+    local mode, command, commands, too_many = MACRO.editor_commands();
     local label = clear_slot and '' or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX);
-    local command = clear_slot and '' or trim_one_line(editor.command_buffer[1], MACRO_COMMAND_MAX);
+    command = clear_slot and '' or command;
+    commands = clear_slot and {} or commands;
     local icon = clear_slot and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
-    local validation_error = command_validation_error(command);
+    local validation_error = too_many and ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX) or MACRO.commands_validation_error(commands);
     if (validation_error ~= nil) then
         editor.message = validation_error;
         editor.message_color = CONFIG_ERROR_COLOR;
         return false;
     end
 
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon);
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = CONFIG_ERROR_COLOR;
@@ -1816,6 +2104,8 @@ local function save_macro_editor(clear_slot)
 
     buffer_set(editor.label_buffer, label);
     buffer_set(editor.command_buffer, command);
+    buffer_set(editor.commands_buffer, MACRO.commands_to_text(commands));
+    editor.macro_mode = mode;
     buffer_set(editor.icon_buffer, icon);
     editor.source = 'saved edit';
     editor.message = clear_slot and 'Cleared.' or 'Saved.';
@@ -1840,9 +2130,11 @@ local function reset_macro_editor()
     end
 
     local profile = refresh_profile_context();
-    local slot = get_raw_config_slot(profile, editor.group, editor.index) or {};
+    local slot = MACRO.normalize_slot_runtime(get_raw_config_slot(profile, editor.group, editor.index)) or {};
+    editor.macro_mode = MACRO.slot_mode(slot);
     buffer_set(editor.label_buffer, slot.label or '');
-    buffer_set(editor.command_buffer, slot.command or '');
+    buffer_set(editor.command_buffer, MACRO.primary_command(slot));
+    buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
     editor.source = profile.source;
     editor.message = 'Reset to config.';
@@ -3022,8 +3314,9 @@ end
 local function render_editor_icon_preview(editor)
     local preview_size = 54;
     local x, y = imgui.GetCursorScreenPos();
+    local _, command = MACRO.editor_commands();
     local slot = {
-        command = trim_one_line(editor.command_buffer[1], MACRO_COMMAND_MAX),
+        command = command,
         icon = editor.preview_icon ~= nil and editor.preview_icon or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX),
     };
 
@@ -3035,10 +3328,28 @@ local function render_editor_icon_preview(editor)
     draw_icon_preview_tile(imgui.GetWindowDrawList(), x, y, preview_size, slot);
 end
 
+function MACRO.render_multiline_input(label, buffer, max_length, size)
+    if (type(imgui.InputTextMultiline) == 'function') then
+        local ok, changed = pcall(imgui.InputTextMultiline, label, buffer, max_length, size);
+        if (ok) then
+            return changed;
+        end
+    end
+
+    local flags = rawget(_G, 'ImGuiInputTextFlags_Multiline') or ImGuiInputTextFlags_None;
+    local ok, changed = pcall(imgui.InputText, label, buffer, max_length, flags);
+    if (ok) then
+        return changed;
+    end
+
+    return imgui.InputText(label, buffer, max_length);
+end
+
 local function render_slot_button(row, index, slot_size, active, transition_alpha, capture_anchor, show_frame)
     local slot = get_slot(row.id, index);
-    local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
-    local command_supported = has_command and allowed_command(slot.command);
+    local commands = MACRO.slot_commands(slot);
+    local has_command = #commands > 0;
+    local command_supported = has_command and MACRO.commands_validation_error(commands) == nil;
     local clicked = imgui.InvisibleButton(('##ashitabars_%s_%d'):fmt(row.id, index), { slot_size, slot_size });
     local hovered = imgui.IsItemHovered();
     local pressed = imgui.IsItemActive();
@@ -3170,9 +3481,17 @@ local function render_tooltip(row, index)
         imgui.Text('icon: ' .. icon_token);
     end
     if (slot and slot.command) then
+        local commands = MACRO.slot_commands(slot);
         local recast_info = slot_recast(slot);
         local visual_state = slot_visual_state(slot);
-        imgui.Text(slot.command);
+        if (MACRO.slot_mode(slot) == 'multi' and #commands > 1) then
+            imgui.Text(('macro: %d commands'):fmt(#commands));
+            for line_index, command in ipairs(commands) do
+                imgui.Text(('%d. %s'):fmt(line_index, command));
+            end
+        else
+            imgui.Text(slot.command);
+        end
         if (visual_state ~= nil and visual_state.count ~= nil) then
             imgui.Text(('count: %d'):fmt(visual_state.count));
         end
@@ -3182,8 +3501,9 @@ local function render_tooltip(row, index)
         if (recast_info ~= nil) then
             imgui.Text(('recast: %s'):fmt(recast_info.label));
         end
-        if (not allowed_command(slot.command)) then
-            imgui.Text('unsupported command prefix');
+        local validation_error = MACRO.commands_validation_error(commands);
+        if (validation_error ~= nil) then
+            imgui.Text(validation_error);
         end
     else
         imgui.Text('(empty)');
@@ -3417,23 +3737,45 @@ local function render_macro_editor_window()
     local row_label = editor_row_label(editor.group);
     local digit = DIGIT_LABELS[editor.index or 1] or '?';
     local title = ('AshitaBars Button Editor###AshitaBarsButtonEditor');
-    imgui.SetNextWindowSize({ 520, 0 }, ImGuiCond_FirstUseEver);
+    imgui.SetNextWindowSize({ 560, 0 }, ImGuiCond_FirstUseEver);
     if (imgui.Begin(title, editor.visible, ImGuiWindowFlags_AlwaysAutoResize)) then
         imgui.TextColored(CONFIG_HEADER_COLOR, ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, digit));
         imgui.SameLine(0, 8);
         imgui.Text(('(%s)'):fmt(editor.source or 'config'));
 
         imgui.Separator();
+        local mode = MACRO.normalize_mode(editor.macro_mode);
+        imgui.TextColored(CONFIG_HEADER_COLOR, 'Command Mode');
+        if (imgui.RadioButton('Single Command##ashitabars_button_mode_single', mode == 'single')) then
+            editor.macro_mode = 'single';
+            if (MACRO.sanitize_command_line(editor.command_buffer[1]) == '') then
+                local commands = MACRO.commands_from_text(editor.commands_buffer[1], MACRO.COMMANDS_MAX);
+                buffer_set(editor.command_buffer, commands[1] or '');
+            end
+        end
+        imgui.SameLine(0, 8);
+        if (imgui.RadioButton('Multi-Line Macro##ashitabars_button_mode_multi', mode == 'multi')) then
+            editor.macro_mode = 'multi';
+            if (trim_string(editor.commands_buffer[1]) == '') then
+                buffer_set(editor.commands_buffer, MACRO.sanitize_command_line(editor.command_buffer[1]));
+            end
+        end
+
+        mode = MACRO.normalize_mode(editor.macro_mode);
+
         imgui.PushItemWidth(360);
         imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, MACRO_LABEL_MAX);
-        imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, MACRO_COMMAND_MAX);
+        if (mode == 'multi') then
+            MACRO.render_multiline_input('Commands##ashitabars_button_commands', editor.commands_buffer, MACRO.COMMANDS_TEXT_MAX, { 360, 122 });
+        else
+            imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, MACRO_COMMAND_MAX);
+        end
         imgui.PopItemWidth();
         render_icon_selector(editor);
         imgui.SameLine(0, 10);
         render_editor_icon_preview(editor);
 
-        local command = trim_one_line(editor.command_buffer[1], MACRO_COMMAND_MAX);
-        local validation_error = command_validation_error(command);
+        local validation_error = MACRO.editor_validation_error();
         if (validation_error ~= nil) then
             imgui.TextColored(CONFIG_ERROR_COLOR, validation_error);
         end
@@ -3441,6 +3783,15 @@ local function render_macro_editor_window()
         imgui.Separator();
         if (imgui.Button('Save##ashitabars_button_save')) then
             save_macro_editor(false);
+        end
+        imgui.SameLine(0, 8);
+        if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
+            local ok, message = MACRO.run_editor_commands();
+            editor.message = message;
+            editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+            if (not ok) then
+                log_warn(message);
+            end
         end
         imgui.SameLine(0, 8);
         if (imgui.Button('Clear##ashitabars_button_clear')) then
