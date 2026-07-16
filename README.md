@@ -17,15 +17,16 @@ text input is open.
 - Passes keys through while chat/input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is
   closed by default, so FFXI should not also show or execute native macro rows.
+- Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command.
 - Ships default test commands that only `/echo`.
 
 ## Safety Boundary
 
 This addon can send real FFXI slash commands when configured to do so. Keep it
-to one intentional keypress or click producing one command. Do not add timers,
-loops, state-driven action choice, packet injection, unattended behavior, or
-detection-evasion behavior.
+to one intentional keypress or click producing one command. Static per-job
+profiles are fine; do not add timers, loops, reactive combat-state action
+choice, packet injection, unattended behavior, or detection-evasion behavior.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
@@ -52,6 +53,7 @@ Commands:
 /ashitabars hide
 /ashitabars toggle
 /ashitabars status
+/ashitabars reload
 ```
 
 Short alias:
@@ -68,11 +70,37 @@ Edit:
 ashitabars/ashitabars_config.lua
 ```
 
+Profiles are keyed by main-job abbreviation. `DEFAULT` is used when the current
+job does not have a configured profile:
+
+```lua
+profiles = {
+    DEFAULT = {
+        base = {
+            [1] = { label = 'Cure', command = '/ma "Cure" <stpt>' },
+        },
+        ctrl = {},
+        alt = {},
+    },
+
+    WAR = {
+        base = {
+            [1] = { label = 'Provoke', command = '/ja "Provoke" <t>' },
+        },
+        ctrl = {},
+        alt = {},
+    },
+}
+```
+
 Each slot has a label and command:
 
 ```lua
 [1] = { label = 'Cure', command = '/ma "Cure" <stpt>' },
 ```
+
+Existing configs that still use a top-level `bars = { ... }` table continue to
+work as a legacy fallback.
 
 If modifier blocking conflicts with another hotkey, disable it:
 

@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.1.0';
+addon.version   = '0.2.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -45,6 +45,30 @@ local ROWS              = {
     { id = 'ctrl', label = 'Ctrl', keyPrefix = 'C' },
     { id = 'alt',  label = 'Alt',  keyPrefix = 'A' },
 };
+local JOB_ABBRS         = T{
+    [1]  = 'WAR',
+    [2]  = 'MNK',
+    [3]  = 'WHM',
+    [4]  = 'BLM',
+    [5]  = 'RDM',
+    [6]  = 'THF',
+    [7]  = 'PLD',
+    [8]  = 'DRK',
+    [9]  = 'BST',
+    [10] = 'BRD',
+    [11] = 'RNG',
+    [12] = 'SAM',
+    [13] = 'NIN',
+    [14] = 'DRG',
+    [15] = 'SMN',
+    [16] = 'BLU',
+    [17] = 'COR',
+    [18] = 'PUP',
+    [19] = 'DNC',
+    [20] = 'SCH',
+    [21] = 'GEO',
+    [22] = 'RUN',
+};
 
 local ALLOWED_PREFIXES = T{
     ['/ma'] = true,
@@ -81,6 +105,13 @@ local DEFAULT_CONFIG = {
         window_y = 760,
         block_native_macro_modifiers = true,
     },
+    profiles = {
+        DEFAULT = {
+            base = {},
+            ctrl = {},
+            alt = {},
+        },
+    },
     bars = {
         base = {},
         ctrl = {},
@@ -92,6 +123,7 @@ local state = {
     config = DEFAULT_CONFIG,
     visible = T{ true },
     config_error = nil,
+    profile = nil,
 };
 
 local function log_info(message)
@@ -102,6 +134,119 @@ local function log_warn(message)
     print(chat.header(addon.name):append(chat.warning(message)));
 end
 
+local function safe_read(callback, fallback)
+    local ok, result = pcall(callback);
+    if (not ok) then
+        return fallback;
+    end
+
+    return result;
+end
+
+local function normalize_profile_key(value)
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    local key = value:upper():gsub('%s+', '');
+    if (key == '') then
+        return nil;
+    end
+
+    return key;
+end
+
+local function current_main_job_id()
+    local job_id = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetPlayer():GetMainJob();
+    end, nil);
+
+    if (type(job_id) ~= 'number' or job_id <= 0) then
+        return nil;
+    end
+
+    return job_id;
+end
+
+local function job_abbr(job_id)
+    if (type(job_id) ~= 'number' or job_id <= 0) then
+        return nil;
+    end
+
+    local resource_abbr = safe_read(function ()
+        return AshitaCore:GetResourceManager():GetString('jobs.names_abbr', job_id);
+    end, nil);
+
+    if (type(resource_abbr) == 'string' and resource_abbr ~= '') then
+        return resource_abbr:upper();
+    end
+
+    return JOB_ABBRS[job_id];
+end
+
+local function get_profile_by_key(profiles, key)
+    local normalized = normalize_profile_key(key);
+    if (type(profiles) ~= 'table' or normalized == nil) then
+        return nil, nil;
+    end
+
+    if (type(profiles[normalized]) == 'table') then
+        return profiles[normalized], normalized;
+    end
+
+    for profile_key, profile in pairs(profiles) do
+        if (type(profile) == 'table' and normalize_profile_key(profile_key) == normalized) then
+            return profile, tostring(profile_key);
+        end
+    end
+
+    return nil, nil;
+end
+
+local function refresh_profile_context()
+    local config = state.config or DEFAULT_CONFIG;
+    local profiles = config.profiles;
+    local legacy_bars = config.bars;
+    local job_id = current_main_job_id();
+    local job_key = job_abbr(job_id);
+    local bars = nil;
+    local profile_key = nil;
+    local source = 'built-in';
+
+    bars, profile_key = get_profile_by_key(profiles, job_key);
+    if (bars ~= nil) then
+        source = 'job';
+    end
+
+    if (bars == nil) then
+        bars, profile_key = get_profile_by_key(profiles, 'DEFAULT');
+        if (bars ~= nil) then
+            source = 'default';
+        end
+    end
+
+    if (bars == nil and type(legacy_bars) == 'table') then
+        bars = legacy_bars;
+        profile_key = 'bars';
+        source = 'legacy';
+    end
+
+    if (bars == nil) then
+        bars = DEFAULT_CONFIG.profiles.DEFAULT;
+        profile_key = 'DEFAULT';
+    end
+
+    state.profile = {
+        bars = bars,
+        key = profile_key or 'DEFAULT',
+        job_id = job_id,
+        job_key = job_key,
+        source = source,
+    };
+
+    return state.profile;
+end
+
 local function load_config()
     package.loaded.ashitabars_config = nil;
 
@@ -110,6 +255,7 @@ local function load_config()
         state.config_error = tostring(config);
         state.config = DEFAULT_CONFIG;
         state.visible[1] = true;
+        state.profile = nil;
         return;
     end
 
@@ -118,11 +264,15 @@ local function load_config()
     if (type(state.config.settings) ~= 'table') then
         state.config.settings = DEFAULT_CONFIG.settings;
     end
+    if (type(state.config.profiles) ~= 'table') then
+        state.config.profiles = nil;
+    end
     if (type(state.config.bars) ~= 'table') then
         state.config.bars = DEFAULT_CONFIG.bars;
     end
 
     state.visible[1] = (state.config.settings.visible ~= false);
+    state.profile = nil;
 end
 
 local function key_down(vk)
@@ -171,7 +321,8 @@ local function active_group()
 end
 
 local function get_slot(group, index)
-    local bars = state.config.bars or {};
+    local profile = state.profile or refresh_profile_context();
+    local bars = profile.bars or {};
     local row = bars[group] or {};
     local slot = row[index];
     if (type(slot) ~= 'table') then
@@ -187,6 +338,8 @@ local function allowed_command(command)
 end
 
 local function execute_slot(group, index, source)
+    refresh_profile_context();
+
     local slot = get_slot(group, index);
     if (slot == nil or slot.command == nil or slot.command == '') then
         return false;
@@ -298,6 +451,7 @@ local function render_bars()
         return;
     end
 
+    local profile = refresh_profile_context();
     local settings = state.config.settings or {};
     local slot_size = tonumber(settings.slot_size) or DEFAULT_CONFIG.settings.slot_size;
     local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
@@ -311,7 +465,8 @@ local function render_bars()
     imgui.PushStyleColor(ImGuiCol_WindowBg, { 0.03, 0.03, 0.04, 0.78 });
     imgui.PushStyleColor(ImGuiCol_Border,   { 0.38, 0.38, 0.42, 0.90 });
 
-    if (imgui.Begin('AshitaBars', state.visible, bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse))) then
+    local window_title = ('AshitaBars [%s]###AshitaBars'):fmt(profile.key or 'DEFAULT');
+    if (imgui.Begin(window_title, state.visible, bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse))) then
         if (state.config_error ~= nil) then
             imgui.Text('Config load failed. Using defaults.');
         end
@@ -369,10 +524,14 @@ ashita.events.register('command', 'command_cb', function (e)
     elseif (sub == 'status') then
         local input_state = AshitaCore:GetChatManager():IsInputOpen();
         local settings = state.config.settings or {};
-        log_info(('visible=%s input=0x%02X active=%s blockModifiers=%s'):fmt(
+        local profile = refresh_profile_context();
+        log_info(('visible=%s input=0x%02X active=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             tostring(active_group()),
+            profile.job_key or 'unknown',
+            tostring(profile.key),
+            tostring(profile.source),
             tostring(settings.block_native_macro_modifiers ~= false)));
     else
         print_help();
