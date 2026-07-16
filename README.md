@@ -102,6 +102,10 @@ Each slot has a label and command:
 Existing configs that still use a top-level `bars = { ... }` table continue to
 work as a legacy fallback.
 
+The sample config includes a `WHM` test profile. It intentionally mixes common
+WHM spells with `/heal`, `/target`, `/assist`, `/check`, `/echo`, and one
+`/ja` slot so different command paths and target forms can be tested.
+
 If modifier blocking conflicts with another hotkey, disable it:
 
 ```lua
