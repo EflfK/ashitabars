@@ -92,7 +92,7 @@ return {
         show_availability = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
-        slot_size = 48,
+        slot_size = 64,
         slot_gap = 4,
         row_gap = 6,
         window_x = 820,

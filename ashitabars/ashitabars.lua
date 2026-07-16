@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.12.0';
+addon.version   = '0.13.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -128,6 +128,8 @@ local ROW_THEME = {
 local ROW_TRANSITION_SECONDS = 0.24;
 local ITEM_COUNT_CONTAINER_IDS = { 0, 3 };
 local ITEM_COUNT_CACHE_SECONDS = 0.40;
+local SLOT_SIZE_MIN = 40;
+local SLOT_SIZE_MAX = 96;
 
 local THEMES = {
     ffxi = {
@@ -363,7 +365,7 @@ local DEFAULT_CONFIG = {
         show_availability = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
-        slot_size = 48,
+        slot_size = 64,
         slot_gap = 4,
         row_gap = 6,
         window_x = 820,
@@ -390,6 +392,7 @@ local state = {
     config_error = nil,
     profile = nil,
     display_mode_override = nil,
+    slot_size_override = nil,
     recast_cache = {},
     recast_totals = {},
     item_source_cache = {},
@@ -531,6 +534,7 @@ local function load_config()
         state.visible[1] = true;
         state.profile = nil;
         state.display_mode_override = nil;
+        state.slot_size_override = nil;
         state.recast_cache = {};
         state.recast_totals = {};
         state.item_source_cache = {};
@@ -553,6 +557,7 @@ local function load_config()
     state.visible[1] = (state.config.settings.visible ~= false);
     state.profile = nil;
     state.display_mode_override = nil;
+    state.slot_size_override = nil;
     state.recast_cache = {};
     state.recast_totals = {};
     state.item_source_cache = {};
@@ -642,6 +647,45 @@ local function display_mode_source()
 
     local _, source = configured_display_mode();
     return source;
+end
+
+local function normalize_slot_size(value)
+    local size = tonumber(value);
+    if (size == nil) then
+        return nil;
+    end
+
+    size = math.floor(size + 0.5);
+    if (size < SLOT_SIZE_MIN) then
+        return SLOT_SIZE_MIN;
+    end
+    if (size > SLOT_SIZE_MAX) then
+        return SLOT_SIZE_MAX;
+    end
+
+    return size;
+end
+
+local function slot_size()
+    if (state.slot_size_override ~= nil) then
+        return state.slot_size_override;
+    end
+
+    local settings = state.config.settings or {};
+    return normalize_slot_size(settings.slot_size) or DEFAULT_CONFIG.settings.slot_size;
+end
+
+local function slot_size_source()
+    if (state.slot_size_override ~= nil) then
+        return 'runtime';
+    end
+
+    local settings = state.config.settings or {};
+    if (normalize_slot_size(settings.slot_size) ~= nil) then
+        return 'config';
+    end
+
+    return 'default';
 end
 
 local function visual_group()
@@ -1921,7 +1965,7 @@ end
 
 local function render_row(row, active, transition_alpha)
     local settings = state.config.settings or {};
-    local slot_size = tonumber(settings.slot_size) or DEFAULT_CONFIG.settings.slot_size;
+    local current_slot_size = slot_size();
     local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
 
     imgui.Text(row.label);
@@ -1932,7 +1976,7 @@ local function render_row(row, active, transition_alpha)
             imgui.SameLine(0, gap);
         end
 
-        if (render_slot_button(row, index, slot_size, active, transition_alpha)) then
+        if (render_slot_button(row, index, current_slot_size, active, transition_alpha)) then
             execute_slot(row.id, index, 'click');
         end
         render_tooltip(row, index);
@@ -1946,14 +1990,14 @@ local function render_bars()
 
     local profile = refresh_profile_context();
     local settings = state.config.settings or {};
-    local slot_size = tonumber(settings.slot_size) or DEFAULT_CONFIG.settings.slot_size;
+    local current_slot_size = slot_size();
     local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local mode = display_mode();
     local theme = current_theme();
     local row_count = (mode == 'single') and 1 or #ROWS;
-    local width = 58 + (slot_size * 10) + (gap * 9) + 20;
-    local height = (slot_size * row_count) + (row_gap * (row_count - 1)) + 48;
+    local width = 58 + (current_slot_size * 10) + (gap * 9) + 20;
+    local height = (current_slot_size * row_count) + (row_gap * (row_count - 1)) + 48;
     local active = active_group();
     local visual = visual_group();
 
@@ -1991,6 +2035,7 @@ local function print_help()
     log_info('/ashitabars show - Show the bars.');
     log_info('/ashitabars hide - Hide the bars.');
     log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
+    log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(SLOT_SIZE_MIN, SLOT_SIZE_MAX));
     log_info('/ashitabars reload - Reload ashitabars_config.lua.');
     log_info('/ashitabars status - Print input status.');
 end
@@ -2039,6 +2084,22 @@ ashita.events.register('command', 'command_cb', function (e)
                 log_info(('Display mode set to %s (runtime).'):fmt(mode));
             end
         end
+    elseif (sub == 'size') then
+        local requested = (#args >= 3) and args[3]:lower() or nil;
+        if (requested == nil) then
+            log_info(('Button size is %d px (%s).'):fmt(slot_size(), slot_size_source()));
+        elseif (requested == 'config' or requested == 'default') then
+            state.slot_size_override = nil;
+            log_info(('Button size override cleared. Using %d px (%s).'):fmt(slot_size(), slot_size_source()));
+        else
+            local size = normalize_slot_size(requested);
+            if (size == nil) then
+                log_warn(('/ashitabars size expects %d-%d or config.'):fmt(SLOT_SIZE_MIN, SLOT_SIZE_MAX));
+            else
+                state.slot_size_override = size;
+                log_info(('Button size set to %d px (runtime).'):fmt(size));
+            end
+        end
     elseif (sub == 'reload') then
         load_config();
         log_info('Config reloaded.');
@@ -2048,13 +2109,15 @@ ashita.events.register('command', 'command_cb', function (e)
         local profile = refresh_profile_context();
         local active = active_group();
         local _, theme_key = current_theme();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
             display_mode(),
             display_mode_source(),
             visual_group(),
+            slot_size(),
+            slot_size_source(),
             theme_key,
             icon_style(),
             tostring(setting_enabled('show_recasts', true)),

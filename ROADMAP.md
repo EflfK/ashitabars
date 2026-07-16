@@ -19,6 +19,8 @@ most one configured command.
   when the visible row changes between base, Ctrl, and Alt.
 - Done: theme settings for visual preferences, such as `theme`, `show_hotkeys`,
   `show_labels`, and `icon_style`.
+- Done: configurable button sizing through `settings.slot_size` and runtime
+  `/ashitabars size`, with a larger sample default for denser slot overlays.
 
 ## Later Feature Ideas
 

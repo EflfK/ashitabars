@@ -63,6 +63,8 @@ Commands:
 /ashitabars mode single
 /ashitabars mode stacked
 /ashitabars mode config
+/ashitabars size 72
+/ashitabars size config
 /ashitabars status
 /ashitabars reload
 ```
@@ -95,6 +97,7 @@ settings = {
     show_availability = true,
     weaponskill_tp_threshold = 1000,
     icon_style = 'auto',
+    slot_size = 64,
 }
 ```
 
@@ -112,6 +115,23 @@ You can switch display modes at runtime without editing the config:
 
 `mode config` clears the runtime override and returns to `settings.display_mode`.
 `/ashitabars reload` also clears the runtime override.
+
+Button size is controlled by `settings.slot_size`, clamped from `40` to `96`
+pixels. The sample config defaults to `64` so count badges, recast text, and
+labels have room to breathe.
+
+You can tune button size at runtime without editing the config:
+
+```txt
+/ashitabars size
+/ashitabars size 56
+/ashitabars size 64
+/ashitabars size 72
+/ashitabars size config
+```
+
+`size config` clears the runtime override and returns to `settings.slot_size`.
+`/ashitabars reload` also clears the runtime size override.
 
 Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
 preserves the current brass-and-crystal look; the other themes only change the
@@ -197,8 +217,9 @@ can be tested.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
-display-mode source, theme, icon style, recast/count/availability settings, and
-weapon-skill TP threshold alongside input, profile, and modifier-blocking state.
+display-mode source, button size/source, theme, icon style,
+recast/count/availability settings, and weapon-skill TP threshold alongside
+input, profile, and modifier-blocking state.
 
 If modifier blocking conflicts with another hotkey, disable it:
 
