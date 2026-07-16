@@ -84,6 +84,8 @@ return {
     settings = {
         visible = true,
         display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+        show_hotkeys = true,
+        show_labels = true,
         slot_size = 48,
         slot_gap = 4,
         row_gap = 6,

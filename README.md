@@ -19,6 +19,7 @@ text input is open.
   closed by default, so FFXI should not also show or execute native macro rows.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command.
+- Draws custom action-button slots with hotkey and label overlays.
 - Ships default test commands that only `/echo`.
 
 ## Safety Boundary
@@ -76,6 +77,8 @@ Visual display mode is controlled in `settings`:
 settings = {
     visible = true,
     display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+    show_hotkeys = true,
+    show_labels = true,
 }
 ```
 
@@ -118,6 +121,8 @@ work as a legacy fallback.
 The sample config includes a `WHM` test profile. It intentionally mixes common
 WHM spells with `/heal`, `/target`, `/assist`, `/check`, `/echo`, and one
 `/ja` slot so different command paths and target forms can be tested.
+
+Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode and current visual row
 alongside input, profile, and modifier-blocking state.

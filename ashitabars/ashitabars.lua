@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.3.0';
+addon.version   = '0.4.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -99,10 +99,50 @@ local ALLOWED_PREFIXES = T{
     ['/tell'] = true,
 };
 
+local WHITE_MAGIC_HINTS = {
+    'bar',
+    'banish',
+    'cure',
+    'curaga',
+    'deodorize',
+    'dia',
+    'erase',
+    'invisible',
+    'paralyna',
+    'poisona',
+    'protect',
+    'raise',
+    'regen',
+    'reraise',
+    'shell',
+    'silena',
+    'sneak',
+};
+
+local ROW_THEME = {
+    base = { 0.92, 0.74, 0.32, 1.00 },
+    ctrl = { 0.35, 0.70, 1.00, 1.00 },
+    alt  = { 1.00, 0.55, 0.26, 1.00 },
+};
+
+local COMMAND_THEME = {
+    empty       = { 0.14, 0.14, 0.16, 1.00 },
+    white_magic = { 0.70, 0.94, 1.00, 1.00 },
+    black_magic = { 0.60, 0.45, 0.92, 1.00 },
+    ability     = { 1.00, 0.74, 0.30, 1.00 },
+    weapon      = { 0.95, 0.38, 0.30, 1.00 },
+    item        = { 0.48, 0.84, 0.48, 1.00 },
+    target      = { 0.58, 0.80, 0.98, 1.00 },
+    chat        = { 0.82, 0.82, 0.88, 1.00 },
+    command     = { 0.72, 0.66, 0.52, 1.00 },
+};
+
 local DEFAULT_CONFIG = {
     settings = {
         visible = true,
         display_mode = 'stacked',
+        show_hotkeys = true,
+        show_labels = true,
         slot_size = 48,
         slot_gap = 4,
         row_gap = 6,
@@ -376,52 +416,171 @@ local function execute_slot(group, index, source)
     return true;
 end
 
-local function short_label(text, fallback)
-    if (type(text) ~= 'string' or text == '') then
+local function setting_enabled(name, fallback)
+    local settings = state.config.settings or {};
+    if (settings[name] == nil) then
         return fallback;
     end
 
-    if (#text <= 8) then
+    return settings[name] ~= false;
+end
+
+local function color_with_alpha(color, alpha)
+    return { color[1], color[2], color[3], alpha };
+end
+
+local function color_u32(color)
+    return imgui.GetColorU32(color);
+end
+
+local function command_family(slot)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+        return 'empty';
+    end
+
+    local command = slot.command:lower();
+    local prefix = command:match('^%s*(/%S+)') or '';
+
+    if (prefix == '/ma' or prefix == '/magic') then
+        for _, hint in ipairs(WHITE_MAGIC_HINTS) do
+            if (command:find(hint, 1, true) ~= nil) then
+                return 'white_magic';
+            end
+        end
+        return 'black_magic';
+    end
+
+    if (prefix == '/ja' or prefix == '/jobability') then
+        return 'ability';
+    end
+    if (prefix == '/ws' or prefix == '/weaponskill' or prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then
+        return 'weapon';
+    end
+    if (prefix == '/item' or prefix == '/heal') then
+        return 'item';
+    end
+    if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
+        return 'target';
+    end
+    if (prefix == '/echo' or prefix == '/p' or prefix == '/party' or prefix == '/l' or prefix == '/linkshell' or prefix == '/say' or prefix == '/tell') then
+        return 'chat';
+    end
+
+    return 'command';
+end
+
+local function fit_text(text, max_width)
+    if (type(text) ~= 'string' or text == '' or max_width <= 0) then
+        return '';
+    end
+
+    local width = imgui.CalcTextSize(text);
+    if (width <= max_width) then
         return text;
     end
 
-    return text:sub(1, 7) .. '.';
+    local trimmed = text;
+    while (#trimmed > 1) do
+        trimmed = trimmed:sub(1, #trimmed - 1);
+        local candidate = trimmed .. '.';
+        width = imgui.CalcTextSize(candidate);
+        if (width <= max_width) then
+            return candidate;
+        end
+    end
+
+    return '';
 end
 
-local function slot_button_label(row, index)
-    local key = row.keyPrefix .. DIGIT_LABELS[index];
+local function draw_text_shadow(draw_list, x, y, color, text)
+    if (text == nil or text == '') then
+        return;
+    end
+
+    draw_list:AddText({ x + 1, y + 1 }, color_u32({ 0.00, 0.00, 0.00, 0.88 }), text);
+    draw_list:AddText({ x, y }, color_u32(color), text);
+end
+
+local function draw_crystal_mark(draw_list, x, y, size, color, alpha)
+    local col = color_u32(color_with_alpha(color, alpha));
+    local dim = color_u32(color_with_alpha(color, alpha * 0.55));
+
+    draw_list:AddLine({ x, y - size }, { x + size, y }, col, 1.35);
+    draw_list:AddLine({ x + size, y }, { x, y + size }, col, 1.35);
+    draw_list:AddLine({ x, y + size }, { x - size, y }, dim, 1.35);
+    draw_list:AddLine({ x - size, y }, { x, y - size }, dim, 1.35);
+    draw_list:AddLine({ x - size * 0.55, y }, { x + size * 0.55, y }, dim, 1.00);
+    draw_list:AddLine({ x, y - size * 0.55 }, { x, y + size * 0.55 }, dim, 1.00);
+end
+
+local function render_slot_button(row, index, slot_size, active)
     local slot = get_slot(row.id, index);
-    local label = slot and short_label(slot.label, '') or '';
+    local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
+    local clicked = imgui.InvisibleButton(('##ashitabars_%s_%d'):fmt(row.id, index), { slot_size, slot_size });
+    local hovered = imgui.IsItemHovered();
+    local pressed = imgui.IsItemActive();
+    local x, y = imgui.GetItemRectMin();
+    local draw_list = imgui.GetWindowDrawList();
+    local row_color = ROW_THEME[row.id] or ROW_THEME.base;
+    local family = command_family(slot);
+    local icon_color = COMMAND_THEME[family] or COMMAND_THEME.command;
+    local nudge = pressed and 1 or 0;
+    local rx = x + nudge;
+    local ry = y + nudge;
+    local rr = 4.0;
+    local inset = math.max(5, math.floor(slot_size * 0.12));
+    local ix1 = rx + inset;
+    local iy1 = ry + inset;
+    local ix2 = rx + slot_size - inset;
+    local iy2 = ry + slot_size - inset;
 
-    if (label == '') then
-        return key;
+    draw_list:AddRectFilled({ x + 2, y + 3 }, { x + slot_size + 2, y + slot_size + 3 }, color_u32({ 0.00, 0.00, 0.00, 0.58 }), rr);
+
+    if (active or hovered) then
+        local glow_alpha = active and 0.82 or 0.42;
+        draw_list:AddRect({ rx - 2, ry - 2 }, { rx + slot_size + 2, ry + slot_size + 2 }, color_u32(color_with_alpha(row_color, glow_alpha)), rr + 1, ImDrawCornerFlags_All, active and 2.0 or 1.4);
     end
 
-    return key .. '\n' .. label;
-end
+    draw_list:AddRectFilled({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32({ 0.035, 0.030, 0.028, 0.98 }), rr);
+    draw_list:AddRect({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32({ 0.02, 0.02, 0.02, 1.00 }), rr, ImDrawCornerFlags_All, 2.0);
+    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + slot_size - 3, ry + 2 }, color_u32({ 0.88, 0.78, 0.48, 0.46 }), 1.0);
+    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + 2, ry + slot_size - 3 }, color_u32({ 0.86, 0.76, 0.48, 0.34 }), 1.0);
+    draw_list:AddLine({ rx + slot_size - 2, ry + 3 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32({ 0.00, 0.00, 0.00, 0.72 }), 1.0);
+    draw_list:AddLine({ rx + 3, ry + slot_size - 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32({ 0.00, 0.00, 0.00, 0.72 }), 1.0);
 
-local function push_slot_colors(row_id, has_command, is_active)
-    if (is_active) then
-        imgui.PushStyleColor(ImGuiCol_Button,        { 0.22, 0.42, 0.58, 0.95 });
-        imgui.PushStyleColor(ImGuiCol_ButtonHovered, { 0.30, 0.54, 0.74, 1.00 });
-        imgui.PushStyleColor(ImGuiCol_ButtonActive,  { 0.36, 0.62, 0.82, 1.00 });
-    elseif (has_command) then
-        imgui.PushStyleColor(ImGuiCol_Button,        { 0.10, 0.10, 0.12, 0.92 });
-        imgui.PushStyleColor(ImGuiCol_ButtonHovered, { 0.18, 0.20, 0.24, 0.96 });
-        imgui.PushStyleColor(ImGuiCol_ButtonActive,  { 0.22, 0.26, 0.32, 1.00 });
+    if (has_command) then
+        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, 0.96 }), 2.5);
+        draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32({ 1.00, 1.00, 1.00, 0.05 }), 2.0);
+        draw_crystal_mark(draw_list, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, icon_color, 0.86);
     else
-        imgui.PushStyleColor(ImGuiCol_Button,        { 0.05, 0.05, 0.06, 0.74 });
-        imgui.PushStyleColor(ImGuiCol_ButtonHovered, { 0.08, 0.08, 0.10, 0.78 });
-        imgui.PushStyleColor(ImGuiCol_ButtonActive,  { 0.10, 0.10, 0.12, 0.84 });
+        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 0.03, 0.03, 0.04, 0.82 }), 2.5);
+        draw_list:AddLine({ ix1 + 5, iy1 + 5 }, { ix2 - 5, iy2 - 5 }, color_u32({ 0.32, 0.32, 0.36, 0.38 }), 1.0);
+        draw_list:AddLine({ ix2 - 5, iy1 + 5 }, { ix1 + 5, iy2 - 5 }, color_u32({ 0.32, 0.32, 0.36, 0.30 }), 1.0);
     end
 
-    if (row_id == 'ctrl') then
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.78, 0.93, 1.00, 1.00 });
-    elseif (row_id == 'alt') then
-        imgui.PushStyleColor(ImGuiCol_Text, { 1.00, 0.88, 0.66, 1.00 });
-    else
-        imgui.PushStyleColor(ImGuiCol_Text, { 0.94, 0.94, 0.96, 1.00 });
+    draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 1.00, 0.86, 0.54, has_command and 0.35 or 0.18 }), 2.5, ImDrawCornerFlags_All, 1.0);
+
+    if (setting_enabled('show_hotkeys', true)) then
+        local hotkey = row.keyPrefix .. DIGIT_LABELS[index];
+        local key_color = has_command and color_with_alpha(row_color, 0.96) or { 0.54, 0.54, 0.58, 0.80 };
+        draw_text_shadow(draw_list, rx + 5, ry + 3, key_color, hotkey);
     end
+
+    if (setting_enabled('show_labels', true) and has_command and slot.label ~= nil) then
+        local label = fit_text(slot.label, slot_size - 8);
+        if (label ~= '') then
+            local tw, th = imgui.CalcTextSize(label);
+            local label_y = ry + slot_size - th - 4;
+            draw_list:AddRectFilled({ rx + 3, label_y - 1 }, { rx + slot_size - 3, ry + slot_size - 3 }, color_u32({ 0.00, 0.00, 0.00, 0.58 }), 1.5);
+            draw_text_shadow(draw_list, rx + math.floor((slot_size - tw) * 0.5), label_y, { 0.96, 0.93, 0.84, 1.00 }, label);
+        end
+    end
+
+    if (hovered) then
+        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32({ 1.00, 0.96, 0.72, 0.52 }), rr, ImDrawCornerFlags_All, 1.3);
+    end
+
+    return clicked;
 end
 
 local function render_tooltip(row, index)
@@ -456,14 +615,9 @@ local function render_row(row, active)
             imgui.SameLine(0, gap);
         end
 
-        local slot = get_slot(row.id, index);
-        local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
-        push_slot_colors(row.id, has_command, active);
-        local label = slot_button_label(row, index) .. ('##ashitabars_%s_%d'):fmt(row.id, index);
-        if (imgui.Button(label, { slot_size, slot_size })) then
+        if (render_slot_button(row, index, slot_size, active)) then
             execute_slot(row.id, index, 'click');
         end
-        imgui.PopStyleColor(4);
         render_tooltip(row, index);
     end
 end
@@ -487,8 +641,8 @@ local function render_bars()
 
     imgui.SetNextWindowPos({ tonumber(settings.window_x) or 820, tonumber(settings.window_y) or 760 }, ImGuiCond_FirstUseEver);
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
-    imgui.PushStyleColor(ImGuiCol_WindowBg, { 0.03, 0.03, 0.04, 0.78 });
-    imgui.PushStyleColor(ImGuiCol_Border,   { 0.38, 0.38, 0.42, 0.90 });
+    imgui.PushStyleColor(ImGuiCol_WindowBg, { 0.025, 0.022, 0.018, 0.72 });
+    imgui.PushStyleColor(ImGuiCol_Border,   { 0.58, 0.44, 0.20, 0.88 });
 
     local window_title = ('AshitaBars [%s %s]###AshitaBars'):fmt(profile.key or 'DEFAULT', mode);
     if (imgui.Begin(window_title, state.visible, bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse))) then
