@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.10.0';
+addon.version   = '0.11.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -147,6 +147,9 @@ local THEMES = {
         hotkey_dim_text = { 0.62, 0.62, 0.66, 0.88 },
         label_bg = { 0.00, 0.00, 0.00, 0.70 },
         label_text = { 0.96, 0.93, 0.84, 1.00 },
+        recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
+        recast_text = { 1.00, 0.96, 0.78, 1.00 },
+        recast_line = { 1.00, 0.86, 0.54, 0.70 },
         text_shadow = { 0.00, 0.00, 0.00, 0.90 },
         unsupported = { 1.00, 0.24, 0.18, 1.00 },
         hover_border = { 1.00, 0.96, 0.72, 0.52 },
@@ -170,6 +173,9 @@ local THEMES = {
         hotkey_dim_text = { 0.60, 0.66, 0.72, 0.88 },
         label_bg = { 0.00, 0.00, 0.00, 0.70 },
         label_text = { 0.88, 0.94, 1.00, 1.00 },
+        recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
+        recast_text = { 0.90, 0.96, 1.00, 1.00 },
+        recast_line = { 0.70, 0.86, 1.00, 0.70 },
         text_shadow = { 0.00, 0.00, 0.00, 0.90 },
         unsupported = { 1.00, 0.24, 0.18, 1.00 },
         hover_border = { 0.80, 0.94, 1.00, 0.54 },
@@ -193,6 +199,9 @@ local THEMES = {
         hotkey_dim_text = { 0.70, 0.60, 0.58, 0.88 },
         label_bg = { 0.00, 0.00, 0.00, 0.70 },
         label_text = { 1.00, 0.90, 0.82, 1.00 },
+        recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
+        recast_text = { 1.00, 0.90, 0.80, 1.00 },
+        recast_line = { 1.00, 0.68, 0.48, 0.70 },
         text_shadow = { 0.00, 0.00, 0.00, 0.90 },
         unsupported = { 1.00, 0.24, 0.18, 1.00 },
         hover_border = { 1.00, 0.78, 0.58, 0.54 },
@@ -332,6 +341,7 @@ local DEFAULT_CONFIG = {
         theme = 'ffxi',
         show_hotkeys = true,
         show_labels = true,
+        show_recasts = true,
         icon_style = 'auto',
         slot_size = 48,
         slot_gap = 4,
@@ -360,6 +370,8 @@ local state = {
     config_error = nil,
     profile = nil,
     display_mode_override = nil,
+    recast_cache = {},
+    recast_totals = {},
     visual = {
         row = 'base',
         changed_at = 0,
@@ -497,6 +509,8 @@ local function load_config()
         state.visible[1] = true;
         state.profile = nil;
         state.display_mode_override = nil;
+        state.recast_cache = {};
+        state.recast_totals = {};
         return;
     end
 
@@ -515,6 +529,8 @@ local function load_config()
     state.visible[1] = (state.config.settings.visible ~= false);
     state.profile = nil;
     state.display_mode_override = nil;
+    state.recast_cache = {};
+    state.recast_totals = {};
 end
 
 local function key_down(vk)
@@ -673,6 +689,252 @@ local function setting_enabled(name, fallback)
     end
 
     return settings[name] ~= false;
+end
+
+local function command_recast_action(command)
+    if (type(command) ~= 'string') then
+        return nil, nil;
+    end
+
+    local prefix, rest = command:match('^%s*(/%S+)%s*(.*)$');
+    if (prefix == nil) then
+        return nil, nil;
+    end
+
+    prefix = prefix:lower();
+    local kind = nil;
+    if (prefix == '/ma' or prefix == '/magic') then
+        kind = 'spell';
+    elseif (prefix == '/ja' or prefix == '/jobability') then
+        kind = 'ability';
+    else
+        return nil, nil;
+    end
+
+    local name = rest:match('^"([^"]+)"') or rest:match("^'([^']+)'") or rest:match('^(%S+)');
+    if (type(name) ~= 'string' or name == '') then
+        return nil, nil;
+    end
+
+    return kind, name;
+end
+
+local function spell_recast_source(resources, name)
+    local spell = safe_read(function ()
+        return resources:GetSpellByName(name, 0);
+    end, nil);
+    if (spell == nil) then
+        return nil;
+    end
+
+    local spell_id = safe_read(function ()
+        return spell.Index;
+    end, safe_read(function ()
+        return spell.Id;
+    end, nil));
+    spell_id = tonumber(spell_id);
+    if (spell_id == nil) then
+        return nil;
+    end
+
+    local recast_delay = tonumber(safe_read(function ()
+        return spell.RecastDelay;
+    end, nil));
+    local total = nil;
+    if (recast_delay ~= nil and recast_delay > 0) then
+        total = recast_delay * 15;
+    end
+
+    return {
+        kind = 'spell',
+        key = ('spell:%d'):fmt(math.floor(spell_id)),
+        id = math.floor(spell_id),
+        name = name,
+        total = total,
+    };
+end
+
+local function ability_recast_source(resources, name)
+    local ability = safe_read(function ()
+        return resources:GetAbilityByName(name, 0);
+    end, nil);
+    if (ability == nil) then
+        return nil;
+    end
+
+    local timer_id = tonumber(safe_read(function ()
+        return ability.RecastTimerId;
+    end, nil));
+    if (timer_id == nil or timer_id <= 0) then
+        return nil;
+    end
+
+    local recast_time = tonumber(safe_read(function ()
+        return ability.RecastTime;
+    end, nil));
+    local total = nil;
+    if (recast_time ~= nil and recast_time > 0) then
+        total = recast_time * 60;
+    end
+
+    return {
+        kind = 'ability',
+        key = ('ability:%d'):fmt(math.floor(timer_id)),
+        timer_id = math.floor(timer_id),
+        name = name,
+        total = total,
+    };
+end
+
+local function recast_source_for_command(command)
+    if (type(command) ~= 'string' or command == '') then
+        return nil;
+    end
+
+    local cached = state.recast_cache[command];
+    if (cached ~= nil) then
+        if (cached == false) then
+            return nil;
+        end
+        return cached;
+    end
+
+    local kind, name = command_recast_action(command);
+    if (kind == nil or name == nil) then
+        state.recast_cache[command] = false;
+        return nil;
+    end
+
+    local resources = safe_read(function ()
+        return AshitaCore:GetResourceManager();
+    end, nil);
+    if (resources == nil) then
+        state.recast_cache[command] = false;
+        return nil;
+    end
+
+    local source = nil;
+    if (kind == 'spell') then
+        source = spell_recast_source(resources, name);
+    elseif (kind == 'ability') then
+        source = ability_recast_source(resources, name);
+    end
+
+    state.recast_cache[command] = source or false;
+    return source;
+end
+
+local function seconds_from_recast_timer(timer)
+    timer = tonumber(timer);
+    if (timer == nil or timer <= 0) then
+        return 0;
+    end
+
+    return math.max(1, math.ceil(timer / 60));
+end
+
+local function format_recast_seconds(seconds)
+    seconds = math.max(0, math.floor(tonumber(seconds) or 0));
+    if (seconds >= 3600) then
+        local hours = math.floor(seconds / 3600);
+        local minutes = math.floor((seconds % 3600) / 60);
+        return ('%d:%02d'):fmt(hours, minutes);
+    end
+
+    if (seconds >= 60) then
+        local minutes = math.floor(seconds / 60);
+        local remaining = seconds % 60;
+        return ('%d:%02d'):fmt(minutes, remaining);
+    end
+
+    return tostring(seconds);
+end
+
+local function spell_recast_timer(spell_id)
+    local recast = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetRecast();
+    end, nil);
+    if (recast == nil) then
+        return 0;
+    end
+
+    return tonumber(safe_read(function ()
+        return recast:GetSpellTimer(spell_id);
+    end, 0)) or 0;
+end
+
+local function ability_recast_timer(timer_id)
+    local recast = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetRecast();
+    end, nil);
+    if (recast == nil) then
+        return 0;
+    end
+
+    for slot = 0, 31, 1 do
+        local active_timer_id = tonumber(safe_read(function ()
+            return recast:GetAbilityTimerId(slot);
+        end, nil));
+        if (active_timer_id == timer_id) then
+            return tonumber(safe_read(function ()
+                return recast:GetAbilityTimer(slot);
+            end, 0)) or 0;
+        end
+    end
+
+    return 0;
+end
+
+local function slot_recast(slot)
+    if (slot == nil or slot.recast == false or not setting_enabled('show_recasts', true)) then
+        return nil;
+    end
+
+    local source = recast_source_for_command(slot.command);
+    if (source == nil) then
+        return nil;
+    end
+
+    local timer = 0;
+    if (source.kind == 'spell') then
+        timer = spell_recast_timer(source.id);
+    elseif (source.kind == 'ability') then
+        timer = ability_recast_timer(source.timer_id);
+    end
+
+    if (timer <= 0) then
+        return nil;
+    end
+
+    local total = tonumber(state.recast_totals[source.key]) or tonumber(source.total) or timer;
+    if (source.total ~= nil and source.total > total) then
+        total = source.total;
+    end
+    if (timer > total) then
+        total = timer;
+    end
+    state.recast_totals[source.key] = total;
+
+    local fraction = 1.0;
+    if (total > 0) then
+        fraction = timer / total;
+    end
+    if (fraction < 0) then
+        fraction = 0;
+    elseif (fraction > 1) then
+        fraction = 1;
+    end
+
+    local seconds = seconds_from_recast_timer(timer);
+    return {
+        kind = source.kind,
+        name = source.name,
+        timer = timer,
+        total = total,
+        fraction = fraction,
+        seconds = seconds,
+        label = format_recast_seconds(seconds),
+    };
 end
 
 local function icon_style()
@@ -1208,6 +1470,32 @@ local function draw_empty_slot_overlay(draw_list, x, y, slot_size)
     draw_crystal_mark(draw_list, x + slot_size * 0.50, y + slot_size * 0.48, slot_size * 0.10, theme.empty_crystal or { 0.50, 0.48, 0.42, 1.00 }, 0.28);
 end
 
+local function draw_recast_overlay(draw_list, x1, y1, x2, y2, recast_info)
+    if (recast_info == nil or recast_info.fraction == nil or recast_info.fraction <= 0) then
+        return;
+    end
+
+    local theme = current_theme();
+    local width = x2 - x1;
+    local height = y2 - y1;
+    if (width <= 0 or height <= 0) then
+        return;
+    end
+
+    local fraction = math.min(1.0, math.max(0.0, recast_info.fraction));
+    local wipe_height = math.ceil(height * fraction);
+    local wipe_y = math.min(y2, y1 + wipe_height);
+    local overlay = color_u32(theme.recast_overlay or { 0.00, 0.00, 0.00, 0.68 });
+    local line = color_u32(theme.recast_line or { 1.00, 0.86, 0.54, 0.70 });
+
+    draw_list:AddRectFilled({ x1, y1 }, { x2, wipe_y }, overlay, 2.0);
+    if (wipe_y > y1 + 1 and wipe_y < y2 - 1) then
+        draw_list:AddLine({ x1 + 2, wipe_y }, { x2 - 2, wipe_y }, line, 1.0);
+    end
+
+    draw_centered_text(draw_list, x1 + (width * 0.5), y1 + (height * 0.48), theme.recast_text or { 1.00, 0.96, 0.78, 1.00 }, recast_info.label);
+end
+
 local function draw_unsupported_overlay(draw_list, x, y, slot_size)
     local theme = current_theme();
     local warn = theme.unsupported or { 1.00, 0.24, 0.18, 1.00 };
@@ -1237,6 +1525,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local icon_def = slot_icon(slot, family);
     local icon_family = (icon_def and icon_def.family) or family;
     local icon_color = (icon_def and icon_def.accent) or COMMAND_THEME[icon_family] or COMMAND_THEME.command;
+    local recast_info = slot_recast(slot);
     local nudge = pressed and 1 or 0;
     local rx = x + nudge;
     local ry = y + nudge;
@@ -1282,6 +1571,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32(color_with_alpha(theme.icon_border or { 1.00, 0.86, 0.54, 1.00 }, has_command and 0.35 or 0.18)), 2.5, ImDrawCornerFlags_All, 1.0);
 
+    if (has_command and command_supported and recast_info ~= nil) then
+        draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, recast_info);
+    end
+
     if (setting_enabled('show_hotkeys', true)) then
         local hotkey = row.keyPrefix .. DIGIT_LABELS[index];
         local key_color = command_supported and row_color or (has_command and { 1.00, 0.30, 0.24, 1.00 } or { 0.54, 0.54, 0.58, 1.00 });
@@ -1320,7 +1613,11 @@ local function render_tooltip(row, index)
         imgui.Text('icon: ' .. icon_token);
     end
     if (slot and slot.command) then
+        local recast_info = slot_recast(slot);
         imgui.Text(slot.command);
+        if (recast_info ~= nil) then
+            imgui.Text(('recast: %s'):fmt(recast_info.label));
+        end
         if (not allowed_command(slot.command)) then
             imgui.Text('unsupported command prefix');
         end
@@ -1459,7 +1756,7 @@ ashita.events.register('command', 'command_cb', function (e)
         local profile = refresh_profile_context();
         local active = active_group();
         local _, theme_key = current_theme();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s theme=%s iconStyle=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s theme=%s iconStyle=%s showRecasts=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
@@ -1468,6 +1765,7 @@ ashita.events.register('command', 'command_cb', function (e)
             visual_group(),
             theme_key,
             icon_style(),
+            tostring(setting_enabled('show_recasts', true)),
             profile.job_key or 'unknown',
             tostring(profile.key),
             tostring(profile.source),

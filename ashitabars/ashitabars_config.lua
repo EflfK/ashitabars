@@ -87,6 +87,7 @@ return {
         theme = 'ffxi', -- Other built-in options: 'jeuno', 'sandoria'.
         show_hotkeys = true,
         show_labels = true,
+        show_recasts = true,
         icon_style = 'auto',
         slot_size = 48,
         slot_gap = 4,

@@ -21,6 +21,8 @@ text input is open.
 - Clicks on visible slots also execute one configured command.
 - Draws custom action-button slots with hotkey badges, label strips, readable
   text outlines, empty-slot dimming, and unsupported-command markers.
+- Draws display-only recast overlays for configured spell and job-ability slots
+  when Ashita exposes a matching recast timer.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - Ships default test commands that only `/echo`.
@@ -86,6 +88,7 @@ settings = {
     theme = 'ffxi',
     show_hotkeys = true,
     show_labels = true,
+    show_recasts = true,
     icon_style = 'auto',
 }
 ```
@@ -143,6 +146,12 @@ infers a built-in icon from the command. Use `icon_style = 'configured'` to
 draw icons only for slots that explicitly set `icon`, or `icon_style = 'none'`
 for label-only slots.
 
+`show_recasts = true` draws a dark cooldown wipe and remaining time on slots
+whose commands resolve to `/ma`, `/magic`, `/ja`, or `/jobability` recast data.
+This is display-only; key and click execution still runs the configured command
+exactly as before. Set `show_recasts = false` globally, or `recast = false` on
+an individual slot, to hide the overlay.
+
 Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
 `raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,
 `earth`, `lightning`, `water`, `light`, `dark`, `ability`, `song`, `summon`,
@@ -166,8 +175,8 @@ can be tested.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
-display-mode source, theme, and icon style alongside input, profile, and
-modifier-blocking state.
+display-mode source, theme, icon style, and recast overlay setting alongside
+input, profile, and modifier-blocking state.
 
 If modifier blocking conflicts with another hotkey, disable it:
 

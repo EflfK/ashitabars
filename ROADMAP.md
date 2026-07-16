@@ -24,7 +24,8 @@ most one configured command.
 
 - Done: `/ashitabars mode single|stacked` to switch display mode in game without
   editing `ashitabars_config.lua` and reloading.
-- Display-only cooldown or recast overlays if the data can be read safely.
+- Done: display-only cooldown or recast overlays for spell and job-ability slots
+  when the local Ashita recast timer can be resolved safely.
 - Display-only charge/count text for items or abilities where safe state is
   available.
 - Display-only range or usability dimming if it can be implemented without
