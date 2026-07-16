@@ -19,8 +19,9 @@ text input is open.
   closed by default, so FFXI should not also show or execute native macro rows.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command.
-- Draws custom action-button slots with hotkey badges, label strips, readable
-  text outlines, empty-slot dimming, and unsupported-command markers.
+- Draws image-first action-button slots with hotkey badges, configurable label
+  placement, readable text outlines, empty-slot dimming, and unsupported-command
+  markers.
 - Draws display-only recast overlays for configured spell and job-ability slots
   when Ashita exposes a matching recast timer.
 - Draws display-only item count badges and low-resource dimming for supported
@@ -104,6 +105,7 @@ settings = {
     button_gap = 6,
     slot_glow_size = 100,
     slot_glow_opacity = 100,
+    label_vertical_position = 100,
     show_bar_frame = false,
     window_x = 820,
     window_y = 760,
@@ -132,6 +134,10 @@ same controls exposed by `/ashitabars mode`, `/ashitabars size`, and
 runtime overrides; click `Save` in the window to persist display mode, button
 size, button gap, button glow, bar frame visibility, and bar position to the
 loaded `ashitabars_config.lua`.
+
+Button labels are drawn as shadowed text without a background strip.
+`settings.label_vertical_position` controls their vertical placement from `0`
+top, to `50` center, to `100` bottom.
 
 Button glow is controlled by `settings.slot_glow_size` and
 `settings.slot_glow_opacity`. `slot_glow_size = 100` is the original glow size,

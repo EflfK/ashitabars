@@ -96,6 +96,7 @@ return {
         button_gap = 6,
         slot_glow_size = 100,
         slot_glow_opacity = 100,
+        label_vertical_position = 100,
         show_bar_frame = false,
         row_gap = 6,
         window_x = 820,

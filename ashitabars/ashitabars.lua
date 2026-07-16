@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.17.0';
+addon.version   = '0.18.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -136,6 +136,8 @@ local SLOT_GLOW_SIZE_MIN = 0;
 local SLOT_GLOW_SIZE_MAX = 200;
 local SLOT_GLOW_OPACITY_MIN = 0;
 local SLOT_GLOW_OPACITY_MAX = 100;
+local LABEL_VERTICAL_POSITION_MIN = 0;
+local LABEL_VERTICAL_POSITION_MAX = 100;
 local FRAMELESS_WINDOW_PADDING = 4;
 local CONFIG_HEADER_COLOR = { 1.00, 0.70, 0.36, 1.00 };
 local CONFIG_SUCCESS_COLOR = { 0.45, 1.00, 0.58, 1.00 };
@@ -145,12 +147,6 @@ local THEMES = {
     ffxi = {
         window_bg = { 0.025, 0.022, 0.018, 0.72 },
         window_border = { 0.58, 0.44, 0.20, 0.88 },
-        slot_shadow = { 0.00, 0.00, 0.00, 0.58 },
-        slot_bg = { 0.035, 0.030, 0.028, 0.98 },
-        slot_border = { 0.02, 0.02, 0.02, 1.00 },
-        bevel_light = { 0.88, 0.78, 0.48, 0.46 },
-        bevel_mid = { 0.86, 0.76, 0.48, 0.34 },
-        bevel_shadow = { 0.00, 0.00, 0.00, 0.72 },
         icon_border = { 1.00, 0.86, 0.54, 1.00 },
         icon_highlight = { 1.00, 1.00, 1.00, 1.00 },
         empty_bg = { 0.03, 0.03, 0.04, 0.82 },
@@ -159,7 +155,6 @@ local THEMES = {
         empty_crystal = { 0.50, 0.48, 0.42, 1.00 },
         hotkey_bg = { 0.00, 0.00, 0.00, 1.00 },
         hotkey_dim_text = { 0.62, 0.62, 0.66, 0.88 },
-        label_bg = { 0.00, 0.00, 0.00, 0.70 },
         label_text = { 0.96, 0.93, 0.84, 1.00 },
         recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
         recast_text = { 1.00, 0.96, 0.78, 1.00 },
@@ -176,12 +171,6 @@ local THEMES = {
     jeuno = {
         window_bg = { 0.020, 0.026, 0.034, 0.74 },
         window_border = { 0.45, 0.62, 0.76, 0.86 },
-        slot_shadow = { 0.00, 0.00, 0.00, 0.60 },
-        slot_bg = { 0.030, 0.036, 0.046, 0.98 },
-        slot_border = { 0.01, 0.02, 0.03, 1.00 },
-        bevel_light = { 0.58, 0.74, 0.88, 0.42 },
-        bevel_mid = { 0.40, 0.56, 0.70, 0.34 },
-        bevel_shadow = { 0.00, 0.00, 0.00, 0.74 },
         icon_border = { 0.70, 0.86, 1.00, 1.00 },
         icon_highlight = { 1.00, 1.00, 1.00, 1.00 },
         empty_bg = { 0.025, 0.030, 0.040, 0.84 },
@@ -190,7 +179,6 @@ local THEMES = {
         empty_crystal = { 0.38, 0.48, 0.56, 1.00 },
         hotkey_bg = { 0.00, 0.00, 0.00, 1.00 },
         hotkey_dim_text = { 0.60, 0.66, 0.72, 0.88 },
-        label_bg = { 0.00, 0.00, 0.00, 0.70 },
         label_text = { 0.88, 0.94, 1.00, 1.00 },
         recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
         recast_text = { 0.90, 0.96, 1.00, 1.00 },
@@ -207,12 +195,6 @@ local THEMES = {
     sandoria = {
         window_bg = { 0.034, 0.018, 0.018, 0.74 },
         window_border = { 0.72, 0.42, 0.30, 0.88 },
-        slot_shadow = { 0.00, 0.00, 0.00, 0.60 },
-        slot_bg = { 0.040, 0.026, 0.022, 0.98 },
-        slot_border = { 0.02, 0.01, 0.01, 1.00 },
-        bevel_light = { 0.92, 0.62, 0.42, 0.44 },
-        bevel_mid = { 0.74, 0.42, 0.32, 0.34 },
-        bevel_shadow = { 0.00, 0.00, 0.00, 0.74 },
         icon_border = { 1.00, 0.68, 0.48, 1.00 },
         icon_highlight = { 1.00, 1.00, 1.00, 1.00 },
         empty_bg = { 0.04, 0.025, 0.026, 0.84 },
@@ -221,7 +203,6 @@ local THEMES = {
         empty_crystal = { 0.58, 0.42, 0.36, 1.00 },
         hotkey_bg = { 0.00, 0.00, 0.00, 1.00 },
         hotkey_dim_text = { 0.70, 0.60, 0.58, 0.88 },
-        label_bg = { 0.00, 0.00, 0.00, 0.70 },
         label_text = { 1.00, 0.90, 0.82, 1.00 },
         recast_overlay = { 0.00, 0.00, 0.00, 0.68 },
         recast_text = { 1.00, 0.90, 0.80, 1.00 },
@@ -379,6 +360,7 @@ local DEFAULT_CONFIG = {
         button_gap = 6,
         slot_glow_size = 100,
         slot_glow_opacity = 100,
+        label_vertical_position = 100,
         show_bar_frame = false,
         row_gap = 6,
         window_x = 820,
@@ -412,6 +394,7 @@ local state = {
     button_gap_override = nil,
     slot_glow_size_override = nil,
     slot_glow_opacity_override = nil,
+    label_vertical_position_override = nil,
     bar_frame_override = nil,
     bar_window_x = nil,
     bar_window_y = nil,
@@ -568,6 +551,7 @@ local function load_config()
         state.button_gap_override = nil;
         state.slot_glow_size_override = nil;
         state.slot_glow_opacity_override = nil;
+        state.label_vertical_position_override = nil;
         state.bar_frame_override = nil;
         state.bar_window_x = DEFAULT_CONFIG.settings.window_x;
         state.bar_window_y = DEFAULT_CONFIG.settings.window_y;
@@ -605,6 +589,7 @@ local function load_config()
     state.button_gap_override = nil;
     state.slot_glow_size_override = nil;
     state.slot_glow_opacity_override = nil;
+    state.label_vertical_position_override = nil;
     state.bar_frame_override = nil;
     state.bar_window_x = tonumber(state.config.settings.window_x) or DEFAULT_CONFIG.settings.window_x;
     state.bar_window_y = tonumber(state.config.settings.window_y) or DEFAULT_CONFIG.settings.window_y;
@@ -873,6 +858,32 @@ local function slot_glow_alpha_scale()
     return slot_glow_opacity() / 100.0;
 end
 
+local function normalize_label_vertical_position(value)
+    return normalize_percent(value, LABEL_VERTICAL_POSITION_MIN, LABEL_VERTICAL_POSITION_MAX);
+end
+
+local function label_vertical_position()
+    if (state.label_vertical_position_override ~= nil) then
+        return state.label_vertical_position_override;
+    end
+
+    local settings = state.config.settings or {};
+    return normalize_label_vertical_position(settings.label_vertical_position) or DEFAULT_CONFIG.settings.label_vertical_position;
+end
+
+local function label_vertical_position_source()
+    if (state.label_vertical_position_override ~= nil) then
+        return 'runtime';
+    end
+
+    local settings = state.config.settings or {};
+    if (normalize_label_vertical_position(settings.label_vertical_position) ~= nil) then
+        return 'config';
+    end
+
+    return 'default';
+end
+
 local function configured_bar_frame_visible()
     local settings = state.config.settings or {};
     if (settings.show_bar_frame ~= nil) then
@@ -1053,6 +1064,7 @@ local function save_runtime_settings()
     local gap = button_gap();
     local glow_size = slot_glow_size();
     local glow_opacity = slot_glow_opacity();
+    local label_position = label_vertical_position();
     local show_frame = bar_frame_visible();
     local settings = state.config.settings or {};
     local window_x, window_y = bar_window_position(settings);
@@ -1073,6 +1085,7 @@ local function save_runtime_settings()
     block = replace_setting(block, 'button_gap', tostring(gap));
     block = replace_setting(block, 'slot_glow_size', tostring(glow_size));
     block = replace_setting(block, 'slot_glow_opacity', tostring(glow_opacity));
+    block = replace_setting(block, 'label_vertical_position', tostring(label_position));
     block = replace_setting(block, 'show_bar_frame', tostring(show_frame));
     block = replace_setting(block, 'window_x', tostring(window_x));
     block = replace_setting(block, 'window_y', tostring(window_y));
@@ -1091,6 +1104,7 @@ local function save_runtime_settings()
     state.config.settings.button_gap = gap;
     state.config.settings.slot_glow_size = glow_size;
     state.config.settings.slot_glow_opacity = glow_opacity;
+    state.config.settings.label_vertical_position = label_position;
     state.config.settings.show_bar_frame = show_frame;
     state.config.settings.window_x = window_x;
     state.config.settings.window_y = window_y;
@@ -1099,13 +1113,14 @@ local function save_runtime_settings()
     state.button_gap_override = nil;
     state.slot_glow_size_override = nil;
     state.slot_glow_opacity_override = nil;
+    state.label_vertical_position_override = nil;
     state.bar_frame_override = nil;
     state.bar_window_x = window_x;
     state.bar_window_y = window_y;
     state.bar_anchor_x = window_x;
     state.bar_anchor_y = window_y;
 
-    return true, ('Saved display mode, button layout, slot glow, bar frame, and bar position to ashitabars_config.lua.');
+    return true, ('Saved display mode, button layout, slot text, slot glow, bar frame, and bar position to ashitabars_config.lua.');
 end
 
 local function visual_group()
@@ -2148,13 +2163,14 @@ local function draw_label_overlay(draw_list, x, y, slot_size, label, color)
     tw = tonumber(tw) or 0;
     th = tonumber(th) or 0;
 
-    local strip_h = math.max(14, th + 5);
-    local y1 = y + slot_size - strip_h - 3;
-    local y2 = y + slot_size - 3;
+    local margin = 5;
+    local top_y = y + margin;
+    local bottom_y = y + slot_size - th - margin;
+    local position = label_vertical_position() / 100.0;
+    local text_x = x + math.floor((slot_size - tw) * 0.5);
+    local text_y = top_y + ((bottom_y - top_y) * position);
 
-    draw_list:AddRectFilled({ x + 3, y1 }, { x + slot_size - 3, y2 }, color_u32(theme.label_bg or { 0.00, 0.00, 0.00, 0.70 }), 1.5);
-    draw_list:AddLine({ x + 5, y1 + 1 }, { x + slot_size - 5, y1 + 1 }, color_u32(color_with_alpha(color, 0.36)), 1.0);
-    draw_text_shadow(draw_list, x + math.floor((slot_size - tw) * 0.5), y1 + math.floor((strip_h - th) * 0.5), theme.label_text or { 0.96, 0.93, 0.84, 1.00 }, fitted);
+    draw_text_shadow(draw_list, text_x, math.floor(text_y + 0.5), theme.label_text or { 0.96, 0.93, 0.84, 1.00 }, fitted);
 end
 
 local function draw_empty_slot_overlay(draw_list, x, y, slot_size)
@@ -2286,13 +2302,11 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local rr = 4.0;
     local glow_scale = slot_glow_scale();
     local glow_alpha_scale = slot_glow_alpha_scale();
-    local inset = math.max(5, math.floor(slot_size * 0.12));
+    local inset = math.max(1, math.floor(slot_size * 0.04));
     local ix1 = rx + inset;
     local iy1 = ry + inset;
     local ix2 = rx + slot_size - inset;
     local iy2 = ry + slot_size - inset;
-
-    draw_list:AddRectFilled({ x + 2, y + 3 }, { x + slot_size + 2, y + slot_size + 3 }, color_u32(theme.slot_shadow or { 0.00, 0.00, 0.00, 0.58 }), rr);
 
     if ((active or hovered) and glow_scale > 0 and glow_alpha_scale > 0) then
         local glow_alpha = (active and 0.82 or 0.42) * glow_alpha_scale;
@@ -2300,9 +2314,6 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         local glow_thickness = (active and 2.0 or 1.4) * glow_scale;
         draw_list:AddRect({ rx - glow_extent, ry - glow_extent }, { rx + slot_size + glow_extent, ry + slot_size + glow_extent }, color_u32(color_with_alpha(row_color, glow_alpha)), rr + (glow_extent * 0.5), ImDrawCornerFlags_All, glow_thickness);
     end
-
-    draw_list:AddRectFilled({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32(theme.slot_bg or { 0.035, 0.030, 0.028, 0.98 }), rr);
-    draw_list:AddRect({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32(theme.slot_border or { 0.02, 0.02, 0.02, 1.00 }), rr, ImDrawCornerFlags_All, 2.0);
 
     local flash = tonumber(transition_alpha) or 0;
     if (flash > 0 and glow_scale > 0 and glow_alpha_scale > 0) then
@@ -2314,11 +2325,6 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_list:AddRect({ rx + inner_inset, ry + inner_inset }, { rx + slot_size - inner_inset, ry + slot_size - inner_inset }, color_u32(color_with_alpha(row_color, flash_alpha * 0.32)), 2.0, ImDrawCornerFlags_All, 1.0 * glow_scale);
     end
 
-    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + slot_size - 3, ry + 2 }, color_u32(theme.bevel_light or { 0.88, 0.78, 0.48, 0.46 }), 1.0);
-    draw_list:AddLine({ rx + 2, ry + 2 }, { rx + 2, ry + slot_size - 3 }, color_u32(theme.bevel_mid or { 0.86, 0.76, 0.48, 0.34 }), 1.0);
-    draw_list:AddLine({ rx + slot_size - 2, ry + 3 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(theme.bevel_shadow or { 0.00, 0.00, 0.00, 0.72 }), 1.0);
-    draw_list:AddLine({ rx + 3, ry + slot_size - 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(theme.bevel_shadow or { 0.00, 0.00, 0.00, 0.72 }), 1.0);
-
     if (has_command) then
         local icon_alpha = command_supported and (available and 0.96 or 0.56) or 0.64;
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ draw_icon_color[1] * 0.20, draw_icon_color[2] * 0.20, draw_icon_color[3] * 0.20, icon_alpha }), 2.5);
@@ -2329,8 +2335,6 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32(theme.empty_bg or { 0.03, 0.03, 0.04, 0.82 }), 2.5);
         draw_empty_slot_overlay(draw_list, rx, ry, slot_size);
     end
-
-    draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32(color_with_alpha(theme.icon_border or { 1.00, 0.86, 0.54, 1.00 }, has_command and 0.35 or 0.18)), 2.5, ImDrawCornerFlags_All, 1.0);
 
     if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
         draw_availability_overlay(draw_list, ix1, iy1, ix2, iy2, visual_state, recast_info == nil);
@@ -2573,6 +2577,12 @@ local function render_config_window()
                 end);
 
                 imgui.Separator();
+                imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Text');
+                render_runtime_int_control('Label Vertical', 'label_vertical_position', label_vertical_position(), label_vertical_position_source(), LABEL_VERTICAL_POSITION_MIN, LABEL_VERTICAL_POSITION_MAX, function (value)
+                    state.label_vertical_position_override = normalize_label_vertical_position(value);
+                end, '%');
+
+                imgui.Separator();
                 imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Glow');
                 render_runtime_int_control('Glow Size', 'slot_glow_size', slot_glow_size(), slot_glow_size_source(), SLOT_GLOW_SIZE_MIN, SLOT_GLOW_SIZE_MAX, function (value)
                     state.slot_glow_size_override = normalize_slot_glow_size(value);
@@ -2717,7 +2727,7 @@ ashita.events.register('command', 'command_cb', function (e)
         local active = active_group();
         local _, theme_key = current_theme();
         local window_x, window_y = bar_window_position(settings);
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s buttonGap=%d buttonGapSource=%s glowSize=%d glowSizeSource=%s glowOpacity=%d glowOpacitySource=%s barFrame=%s barFrameSource=%s barAnchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s slotSize=%d slotSizeSource=%s buttonGap=%d buttonGapSource=%s labelY=%d labelYSource=%s glowSize=%d glowSizeSource=%s glowOpacity=%d glowOpacitySource=%s barFrame=%s barFrameSource=%s barAnchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
@@ -2728,6 +2738,8 @@ ashita.events.register('command', 'command_cb', function (e)
             slot_size_source(),
             button_gap(),
             button_gap_source(),
+            label_vertical_position(),
+            label_vertical_position_source(),
             slot_glow_size(),
             slot_glow_size_source(),
             slot_glow_opacity(),

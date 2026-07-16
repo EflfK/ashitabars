@@ -6,8 +6,8 @@ most one configured command.
 
 ## Visual Polish
 
-- Done: custom action-button renderer with a World of Warcraft-style square slot,
-  bevel, inner border, hover state, pressed state, and active-row glow.
+- Done: custom action-button renderer with image-first square slots, hover
+  state, pressed state, and active-row glow.
 - Done: per-slot built-in icon support through config, with inferred icons in
   `auto` mode and a text-only fallback when icons are disabled or absent.
 - Done: Final Fantasy-inspired icon set for common action types such as white magic,
@@ -29,6 +29,8 @@ most one configured command.
   shown for positioning and hidden for locked frameless action bars.
 - Done: configurable button glow size and opacity, with runtime sliders and
   saved config values.
+- Done: configurable button label vertical placement, with label text drawn
+  directly over the icon instead of on a filled strip.
 
 ## Later Feature Ideas
 
