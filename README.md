@@ -12,7 +12,7 @@ text input is open.
 - Shows configurable action-bar visuals:
   - `stacked`: three rows for `1-0`, `Ctrl+1-0`, and `Alt+1-0`
   - `single`: one visible row that switches between base, Ctrl, and Alt while
-    the modifier is held
+    the modifier is held, with a brief row-switch glow
 - Captures those keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is

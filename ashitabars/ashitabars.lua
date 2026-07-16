@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.7.0';
+addon.version   = '0.8.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -124,6 +124,8 @@ local ROW_THEME = {
     ctrl = { 0.35, 0.70, 1.00, 1.00 },
     alt  = { 1.00, 0.55, 0.26, 1.00 },
 };
+
+local ROW_TRANSITION_SECONDS = 0.24;
 
 local COMMAND_THEME = {
     empty       = { 0.14, 0.14, 0.16, 1.00 },
@@ -275,6 +277,10 @@ local state = {
     visible = T{ true },
     config_error = nil,
     profile = nil,
+    visual = {
+        row = 'base',
+        changed_at = 0,
+    },
 };
 
 local function log_info(message)
@@ -486,6 +492,32 @@ end
 
 local function visual_group()
     return active_group() or 'base';
+end
+
+local function row_transition_alpha(row_id, mode)
+    if (state.visual == nil) then
+        state.visual = { row = row_id, changed_at = os.clock() };
+        return 0;
+    end
+
+    local now = os.clock();
+    if (state.visual.row ~= row_id) then
+        state.visual.row = row_id;
+        state.visual.changed_at = now;
+    end
+
+    if (mode ~= 'single') then
+        return 0;
+    end
+
+    local elapsed = now - (state.visual.changed_at or now);
+    if (elapsed < 0 or elapsed >= ROW_TRANSITION_SECONDS) then
+        return 0;
+    end
+
+    local progress = elapsed / ROW_TRANSITION_SECONDS;
+    local remaining = 1.0 - progress;
+    return remaining * remaining;
 end
 
 local function get_slot(group, index)
@@ -1048,7 +1080,7 @@ local function draw_unsupported_overlay(draw_list, x, y, slot_size)
     draw_list:AddRectFilled({ cx - 1, cy + 5 }, { cx + 1, cy + 7 }, dim, 0.5);
 end
 
-local function render_slot_button(row, index, slot_size, active)
+local function render_slot_button(row, index, slot_size, active, transition_alpha)
     local slot = get_slot(row.id, index);
     local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
     local command_supported = has_command and allowed_command(slot.command);
@@ -1081,6 +1113,14 @@ local function render_slot_button(row, index, slot_size, active)
 
     draw_list:AddRectFilled({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32({ 0.035, 0.030, 0.028, 0.98 }), rr);
     draw_list:AddRect({ rx, ry }, { rx + slot_size, ry + slot_size }, color_u32({ 0.02, 0.02, 0.02, 1.00 }), rr, ImDrawCornerFlags_All, 2.0);
+
+    local flash = tonumber(transition_alpha) or 0;
+    if (flash > 0) then
+        draw_list:AddRectFilled({ rx + 2, ry + 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32(color_with_alpha(row_color, flash * 0.11)), rr - 1);
+        draw_list:AddRect({ rx - 3, ry - 3 }, { rx + slot_size + 3, ry + slot_size + 3 }, color_u32(color_with_alpha(row_color, flash * 0.76)), rr + 2, ImDrawCornerFlags_All, 2.2);
+        draw_list:AddRect({ rx + 4, ry + 4 }, { rx + slot_size - 4, ry + slot_size - 4 }, color_u32(color_with_alpha(row_color, flash * 0.32)), 2.0, ImDrawCornerFlags_All, 1.0);
+    end
+
     draw_list:AddLine({ rx + 2, ry + 2 }, { rx + slot_size - 3, ry + 2 }, color_u32({ 0.88, 0.78, 0.48, 0.46 }), 1.0);
     draw_list:AddLine({ rx + 2, ry + 2 }, { rx + 2, ry + slot_size - 3 }, color_u32({ 0.86, 0.76, 0.48, 0.34 }), 1.0);
     draw_list:AddLine({ rx + slot_size - 2, ry + 3 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32({ 0.00, 0.00, 0.00, 0.72 }), 1.0);
@@ -1146,7 +1186,7 @@ local function render_tooltip(row, index)
     imgui.EndTooltip();
 end
 
-local function render_row(row, active)
+local function render_row(row, active, transition_alpha)
     local settings = state.config.settings or {};
     local slot_size = tonumber(settings.slot_size) or DEFAULT_CONFIG.settings.slot_size;
     local gap = tonumber(settings.slot_gap) or DEFAULT_CONFIG.settings.slot_gap;
@@ -1159,7 +1199,7 @@ local function render_row(row, active)
             imgui.SameLine(0, gap);
         end
 
-        if (render_slot_button(row, index, slot_size, active)) then
+        if (render_slot_button(row, index, slot_size, active, transition_alpha)) then
             execute_slot(row.id, index, 'click');
         end
         render_tooltip(row, index);
@@ -1196,10 +1236,12 @@ local function render_bars()
 
         if (mode == 'single') then
             local row = ROW_BY_ID[visual] or ROW_BY_ID.base;
-            render_row(row, active == row.id);
+            local transition_alpha = row_transition_alpha(row.id, mode);
+            render_row(row, active == row.id, transition_alpha);
         else
+            row_transition_alpha(visual, mode);
             for i, row in ipairs(ROWS) do
-                render_row(row, active == row.id);
+                render_row(row, active == row.id, 0);
                 if (i < #ROWS) then
                     imgui.Dummy({ 1, row_gap });
                 end
