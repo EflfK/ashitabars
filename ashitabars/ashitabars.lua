@@ -30,6 +30,13 @@ local VK = {
     },
 };
 
+local DIK_BLOCKED_MODIFIERS = {
+    0x1D, -- Left Ctrl
+    0x9D, -- Right Ctrl
+    0x38, -- Left Alt
+    0xB8, -- Right Alt
+};
+
 local KEY_UP_MASK       = bit.lshift(0x8000, 16);
 local KEY_WAS_DOWN_MASK = bit.lshift(0x4000, 16);
 local DIGIT_LABELS      = { '1', '2', '3', '4', '5', '6', '7', '8', '9', '0' };
@@ -72,6 +79,7 @@ local DEFAULT_CONFIG = {
         row_gap = 6,
         window_x = 820,
         window_y = 760,
+        block_native_macro_modifiers = true,
     },
     bars = {
         base = {},
@@ -129,6 +137,27 @@ end
 
 local function input_is_closed()
     return AshitaCore:GetChatManager():IsInputOpen() == 0x00;
+end
+
+local function should_block_native_modifier(e)
+    local settings = state.config.settings or {};
+    if (settings.block_native_macro_modifiers == false) then
+        return false;
+    end
+
+    return input_is_closed() and (e.wparam == VK.CONTROL or e.wparam == VK.ALT);
+end
+
+local function clear_directinput_modifier_state(e)
+    local settings = state.config.settings or {};
+    if (settings.block_native_macro_modifiers == false or not input_is_closed() or e.data_raw == nil) then
+        return;
+    end
+
+    local keyptr = ffi.cast('uint8_t*', e.data_raw);
+    for _, scancode in ipairs(DIK_BLOCKED_MODIFIERS) do
+        keyptr[scancode] = 0;
+    end
 end
 
 local function active_group()
@@ -339,7 +368,12 @@ ashita.events.register('command', 'command_cb', function (e)
         log_info('Config reloaded.');
     elseif (sub == 'status') then
         local input_state = AshitaCore:GetChatManager():IsInputOpen();
-        log_info(('visible=%s input=0x%02X active=%s'):fmt(tostring(state.visible[1]), input_state, tostring(active_group())));
+        local settings = state.config.settings or {};
+        log_info(('visible=%s input=0x%02X active=%s blockModifiers=%s'):fmt(
+            tostring(state.visible[1]),
+            input_state,
+            tostring(active_group()),
+            tostring(settings.block_native_macro_modifiers ~= false)));
     else
         print_help();
     end
@@ -347,8 +381,21 @@ ashita.events.register('command', 'command_cb', function (e)
     e.blocked = true;
 end);
 
+ashita.events.register('key_state', 'key_state_cb', function (e)
+    clear_directinput_modifier_state(e);
+end);
+
 ashita.events.register('key', 'key_cb', function (e)
-    if (e.blocked or not is_initial_keydown(e)) then
+    if (e.blocked) then
+        return;
+    end
+
+    if (should_block_native_modifier(e)) then
+        e.blocked = true;
+        return;
+    end
+
+    if (not is_initial_keydown(e)) then
         return;
     end
 
