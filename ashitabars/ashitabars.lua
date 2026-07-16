@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.6.0';
+addon.version   = '0.7.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -732,7 +732,11 @@ local function draw_text_shadow(draw_list, x, y, color, text)
         return;
     end
 
-    draw_list:AddText({ x + 1, y + 1 }, color_u32({ 0.00, 0.00, 0.00, 0.88 }), text);
+    local shadow = color_u32({ 0.00, 0.00, 0.00, 0.90 });
+    draw_list:AddText({ x + 1, y + 1 }, shadow, text);
+    draw_list:AddText({ x - 1, y }, shadow, text);
+    draw_list:AddText({ x + 1, y }, shadow, text);
+    draw_list:AddText({ x, y - 1 }, shadow, text);
     draw_list:AddText({ x, y }, color_u32(color), text);
 end
 
@@ -976,9 +980,78 @@ local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
     draw_crystal_mark(draw_list, x, y, size, color, 0.88);
 end
 
+local function draw_hotkey_badge(draw_list, x, y, slot_size, hotkey, color, dimmed)
+    if (hotkey == nil or hotkey == '') then
+        return;
+    end
+
+    local tw, th = imgui.CalcTextSize(hotkey);
+    tw = tonumber(tw) or 0;
+    th = tonumber(th) or 0;
+
+    local pad_x = 3;
+    local bx1 = x + 4;
+    local by1 = y + 3;
+    local bx2 = math.min(x + slot_size - 4, bx1 + tw + (pad_x * 2));
+    local by2 = by1 + th + 3;
+    local text_color = dimmed and { 0.62, 0.62, 0.66, 0.88 } or color_with_alpha(color, 1.00);
+
+    draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32({ 0.00, 0.00, 0.00, dimmed and 0.54 or 0.74 }), 1.5);
+    draw_list:AddRect({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(color, dimmed and 0.24 or 0.55)), 1.5, ImDrawCornerFlags_All, 1.0);
+    draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, text_color, hotkey);
+end
+
+local function draw_label_overlay(draw_list, x, y, slot_size, label, color)
+    local fitted = fit_text(label, slot_size - 8);
+    if (fitted == '') then
+        return;
+    end
+
+    local tw, th = imgui.CalcTextSize(fitted);
+    tw = tonumber(tw) or 0;
+    th = tonumber(th) or 0;
+
+    local strip_h = math.max(14, th + 5);
+    local y1 = y + slot_size - strip_h - 3;
+    local y2 = y + slot_size - 3;
+
+    draw_list:AddRectFilled({ x + 3, y1 }, { x + slot_size - 3, y2 }, color_u32({ 0.00, 0.00, 0.00, 0.70 }), 1.5);
+    draw_list:AddLine({ x + 5, y1 + 1 }, { x + slot_size - 5, y1 + 1 }, color_u32(color_with_alpha(color, 0.36)), 1.0);
+    draw_text_shadow(draw_list, x + math.floor((slot_size - tw) * 0.5), y1 + math.floor((strip_h - th) * 0.5), { 0.96, 0.93, 0.84, 1.00 }, fitted);
+end
+
+local function draw_empty_slot_overlay(draw_list, x, y, slot_size)
+    local inset = math.max(8, math.floor(slot_size * 0.18));
+    local x1 = x + inset;
+    local y1 = y + inset;
+    local x2 = x + slot_size - inset;
+    local y2 = y + slot_size - inset;
+    local line = color_u32({ 0.36, 0.36, 0.40, 0.40 });
+    local dim = color_u32({ 0.22, 0.22, 0.25, 0.44 });
+
+    draw_list:AddRect({ x1, y1 }, { x2, y2 }, dim, 2.0, ImDrawCornerFlags_All, 1.0);
+    draw_list:AddLine({ x1 + 4, y1 + 4 }, { x2 - 4, y2 - 4 }, line, 1.0);
+    draw_list:AddLine({ x2 - 4, y1 + 4 }, { x1 + 4, y2 - 4 }, line, 1.0);
+    draw_crystal_mark(draw_list, x + slot_size * 0.50, y + slot_size * 0.48, slot_size * 0.10, { 0.50, 0.48, 0.42, 1.00 }, 0.28);
+end
+
+local function draw_unsupported_overlay(draw_list, x, y, slot_size)
+    local warn = { 1.00, 0.24, 0.18, 1.00 };
+    local col = color_u32(color_with_alpha(warn, 0.88));
+    local dim = color_u32(color_with_alpha(warn, 0.34));
+    local cx = x + slot_size - 9;
+    local cy = y + 9;
+
+    draw_list:AddLine({ x + slot_size - 17, y + 4 }, { x + slot_size - 4, y + 4 }, col, 1.5);
+    draw_list:AddLine({ x + slot_size - 4, y + 4 }, { x + slot_size - 4, y + 17 }, col, 1.5);
+    draw_list:AddRectFilled({ cx - 1, cy - 5 }, { cx + 1, cy + 3 }, col, 0.5);
+    draw_list:AddRectFilled({ cx - 1, cy + 5 }, { cx + 1, cy + 7 }, dim, 0.5);
+end
+
 local function render_slot_button(row, index, slot_size, active)
     local slot = get_slot(row.id, index);
     local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
+    local command_supported = has_command and allowed_command(slot.command);
     local clicked = imgui.InvisibleButton(('##ashitabars_%s_%d'):fmt(row.id, index), { slot_size, slot_size });
     local hovered = imgui.IsItemHovered();
     local pressed = imgui.IsItemActive();
@@ -1014,31 +1087,29 @@ local function render_slot_button(row, index, slot_size, active)
     draw_list:AddLine({ rx + 3, ry + slot_size - 2 }, { rx + slot_size - 2, ry + slot_size - 2 }, color_u32({ 0.00, 0.00, 0.00, 0.72 }), 1.0);
 
     if (has_command) then
-        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, 0.96 }), 2.5);
-        draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32({ 1.00, 1.00, 1.00, 0.05 }), 2.0);
+        local icon_alpha = command_supported and 0.96 or 0.64;
+        draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, icon_alpha }), 2.5);
+        draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32({ 1.00, 1.00, 1.00, command_supported and 0.05 or 0.02 }), 2.0);
         draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, icon_color);
     else
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 0.03, 0.03, 0.04, 0.82 }), 2.5);
-        draw_list:AddLine({ ix1 + 5, iy1 + 5 }, { ix2 - 5, iy2 - 5 }, color_u32({ 0.32, 0.32, 0.36, 0.38 }), 1.0);
-        draw_list:AddLine({ ix2 - 5, iy1 + 5 }, { ix1 + 5, iy2 - 5 }, color_u32({ 0.32, 0.32, 0.36, 0.30 }), 1.0);
+        draw_empty_slot_overlay(draw_list, rx, ry, slot_size);
     end
 
     draw_list:AddRect({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 1.00, 0.86, 0.54, has_command and 0.35 or 0.18 }), 2.5, ImDrawCornerFlags_All, 1.0);
 
     if (setting_enabled('show_hotkeys', true)) then
         local hotkey = row.keyPrefix .. DIGIT_LABELS[index];
-        local key_color = has_command and color_with_alpha(row_color, 0.96) or { 0.54, 0.54, 0.58, 0.80 };
-        draw_text_shadow(draw_list, rx + 5, ry + 3, key_color, hotkey);
+        local key_color = command_supported and row_color or (has_command and { 1.00, 0.30, 0.24, 1.00 } or { 0.54, 0.54, 0.58, 1.00 });
+        draw_hotkey_badge(draw_list, rx, ry, slot_size, hotkey, key_color, not has_command);
     end
 
     if (setting_enabled('show_labels', true) and has_command and slot.label ~= nil) then
-        local label = fit_text(slot.label, slot_size - 8);
-        if (label ~= '') then
-            local tw, th = imgui.CalcTextSize(label);
-            local label_y = ry + slot_size - th - 4;
-            draw_list:AddRectFilled({ rx + 3, label_y - 1 }, { rx + slot_size - 3, ry + slot_size - 3 }, color_u32({ 0.00, 0.00, 0.00, 0.58 }), 1.5);
-            draw_text_shadow(draw_list, rx + math.floor((slot_size - tw) * 0.5), label_y, { 0.96, 0.93, 0.84, 1.00 }, label);
-        end
+        draw_label_overlay(draw_list, rx, ry, slot_size, slot.label, command_supported and icon_color or { 1.00, 0.30, 0.24, 1.00 });
+    end
+
+    if (has_command and not command_supported) then
+        draw_unsupported_overlay(draw_list, rx, ry, slot_size);
     end
 
     if (hovered) then
@@ -1066,6 +1137,9 @@ local function render_tooltip(row, index)
     end
     if (slot and slot.command) then
         imgui.Text(slot.command);
+        if (not allowed_command(slot.command)) then
+            imgui.Text('unsupported command prefix');
+        end
     else
         imgui.Text('(empty)');
     end

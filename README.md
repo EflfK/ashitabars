@@ -19,7 +19,8 @@ text input is open.
   closed by default, so FFXI should not also show or execute native macro rows.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command.
-- Draws custom action-button slots with hotkey and label overlays.
+- Draws custom action-button slots with hotkey badges, label strips, readable
+  text outlines, empty-slot dimming, and unsupported-command markers.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - Ships default test commands that only `/echo`.
@@ -156,7 +157,8 @@ block_native_macro_modifiers = false,
 
 Allowed command prefixes are intentionally narrow. Ashita control commands such
 as `/addon`, `/bind`, `/unbind`, `/exec`, and `/alias` are not accepted as slot
-commands.
+commands. Slots with unsupported prefixes draw a red warning corner and are
+still rejected when clicked or pressed.
 
 ## Notes
 

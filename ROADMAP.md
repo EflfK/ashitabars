@@ -13,7 +13,7 @@ most one configured command.
 - Done: Final Fantasy-inspired icon set for common action types such as white magic,
   black magic, job abilities, weapon skills, items, targeting, assist, healing,
   and test actions.
-- Slot overlays for hotkey text, action label text, empty-slot dimming, and
+- Done: slot overlays for hotkey text, action label text, empty-slot dimming, and
   readable text shadowing.
 - Single-row modifier transition polish, such as a quick glow or color shift
   when the visible row changes between base, Ctrl, and Alt.
