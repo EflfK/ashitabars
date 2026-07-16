@@ -6,10 +6,10 @@ most one configured command.
 
 ## Visual Polish
 
-- Custom action-button renderer with a World of Warcraft-style square slot,
+- Done: custom action-button renderer with a World of Warcraft-style square slot,
   bevel, inner border, hover state, pressed state, and active-row glow.
-- Per-slot icon support through config, with a text-only fallback when no icon
-  is configured or loaded.
+- Done: per-slot built-in icon support through config, with inferred icons in
+  `auto` mode and a text-only fallback when icons are disabled or absent.
 - Final Fantasy-inspired icon set for common action types such as white magic,
   black magic, job abilities, weapon skills, items, targeting, assist, healing,
   and test actions.

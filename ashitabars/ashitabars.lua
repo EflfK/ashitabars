@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.4.0';
+addon.version   = '0.5.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -137,12 +137,75 @@ local COMMAND_THEME = {
     command     = { 0.72, 0.66, 0.52, 1.00 },
 };
 
+local ICON_ALIASES = {
+    cure = 'cure',
+    curaga = 'cure',
+    healing = 'cure',
+    heal = 'rest',
+    rest = 'rest',
+    dia = 'holy',
+    banish = 'holy',
+    holy = 'holy',
+    protect = 'buff',
+    shell = 'buff',
+    barspell = 'buff',
+    buff = 'buff',
+    status = 'status',
+    na = 'status',
+    erase = 'status',
+    raise = 'raise',
+    reraise = 'raise',
+    sneak = 'stealth',
+    invisible = 'stealth',
+    invis = 'stealth',
+    deodorize = 'stealth',
+    stealth = 'stealth',
+    white_magic = 'white_magic',
+    black_magic = 'black_magic',
+    nuke = 'black_magic',
+    ability = 'ability',
+    ja = 'ability',
+    weapon = 'weapon',
+    weaponskill = 'weapon',
+    ws = 'weapon',
+    item = 'item',
+    target = 'target',
+    assist = 'assist',
+    check = 'check',
+    chat = 'chat',
+    echo = 'test',
+    test = 'test',
+    command = 'command',
+};
+
+local ICON_DEFS = {
+    cure        = { family = 'white_magic', mark = 'plus',    accent = { 0.82, 1.00, 0.96, 1.00 } },
+    rest        = { family = 'item',        mark = 'text',    text = 'Z', accent = { 0.58, 0.90, 0.58, 1.00 } },
+    holy        = { family = 'white_magic', mark = 'spark',   accent = { 1.00, 0.94, 0.52, 1.00 } },
+    buff        = { family = 'white_magic', mark = 'shield',  accent = { 0.86, 0.92, 1.00, 1.00 } },
+    status      = { family = 'white_magic', mark = 'diamond', accent = { 0.64, 1.00, 0.86, 1.00 } },
+    raise       = { family = 'white_magic', mark = 'spark',   accent = { 0.95, 1.00, 0.88, 1.00 } },
+    stealth     = { family = 'white_magic', mark = 'diamond', accent = { 0.74, 0.84, 1.00, 1.00 } },
+    white_magic = { family = 'white_magic', mark = 'diamond', accent = { 0.70, 0.94, 1.00, 1.00 } },
+    black_magic = { family = 'black_magic', mark = 'burst',   accent = { 0.78, 0.56, 1.00, 1.00 } },
+    ability     = { family = 'ability',     mark = 'spark',   accent = { 1.00, 0.76, 0.32, 1.00 } },
+    weapon      = { family = 'weapon',      mark = 'blade',   accent = { 1.00, 0.48, 0.36, 1.00 } },
+    item        = { family = 'item',        mark = 'bag',     accent = { 0.54, 0.94, 0.54, 1.00 } },
+    target      = { family = 'target',      mark = 'reticle', accent = { 0.62, 0.86, 1.00, 1.00 } },
+    assist      = { family = 'target',      mark = 'arrow',   accent = { 0.62, 0.86, 1.00, 1.00 } },
+    check       = { family = 'target',      mark = 'text',    text = '?', accent = { 0.76, 0.90, 1.00, 1.00 } },
+    chat        = { family = 'chat',        mark = 'chat',    accent = { 0.90, 0.90, 0.98, 1.00 } },
+    test        = { family = 'chat',        mark = 'text',    text = 'T', accent = { 0.88, 0.84, 0.72, 1.00 } },
+    command     = { family = 'command',     mark = 'diamond', accent = { 0.76, 0.70, 0.54, 1.00 } },
+};
+
 local DEFAULT_CONFIG = {
     settings = {
         visible = true,
         display_mode = 'stacked',
         show_hotkeys = true,
         show_labels = true,
+        icon_style = 'auto',
         slot_size = 48,
         slot_gap = 4,
         row_gap = 6,
@@ -425,6 +488,32 @@ local function setting_enabled(name, fallback)
     return settings[name] ~= false;
 end
 
+local function icon_style()
+    local settings = state.config.settings or {};
+    local style = settings.icon_style;
+    if (type(style) == 'string') then
+        style = style:lower():gsub('%s+', '');
+        if (style == 'auto' or style == 'configured' or style == 'none') then
+            return style;
+        end
+    end
+
+    return DEFAULT_CONFIG.settings.icon_style;
+end
+
+local function normalize_icon_token(value)
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    local token = value:lower():gsub('[%s%-]+', '_'):gsub('[^%w_]+', ''):gsub('_+', '_'):gsub('^_', ''):gsub('_$', '');
+    if (token == '') then
+        return nil;
+    end
+
+    return ICON_ALIASES[token] or token;
+end
+
 local function color_with_alpha(color, alpha)
     return { color[1], color[2], color[3], alpha };
 end
@@ -467,6 +556,88 @@ local function command_family(slot)
     end
 
     return 'command';
+end
+
+local function infer_icon_token(slot, family)
+    if (slot == nil or type(slot.command) ~= 'string') then
+        return family;
+    end
+
+    local command = slot.command:lower();
+    local prefix = command:match('^%s*(/%S+)') or '';
+
+    if (prefix == '/heal') then return 'rest'; end
+    if (prefix == '/target' or prefix == '/attack') then return 'target'; end
+    if (prefix == '/assist') then return 'assist'; end
+    if (prefix == '/check') then return 'check'; end
+    if (prefix == '/item') then return 'item'; end
+    if (prefix == '/ja' or prefix == '/jobability') then return 'ability'; end
+    if (prefix == '/ws' or prefix == '/weaponskill' or prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then return 'weapon'; end
+    if (prefix == '/echo' or prefix == '/p' or prefix == '/party' or prefix == '/l' or prefix == '/linkshell' or prefix == '/say' or prefix == '/tell') then return 'chat'; end
+
+    if (prefix == '/ma' or prefix == '/magic') then
+        if (command:find('cure', 1, true) ~= nil or command:find('curaga', 1, true) ~= nil) then
+            return 'cure';
+        end
+        if (command:find('dia', 1, true) ~= nil or command:find('banish', 1, true) ~= nil) then
+            return 'holy';
+        end
+        if (command:find('protect', 1, true) ~= nil or command:find('shell', 1, true) ~= nil or command:find('bar', 1, true) ~= nil or command:find('regen', 1, true) ~= nil) then
+            return 'buff';
+        end
+        if (command:find('raise', 1, true) ~= nil or command:find('reraise', 1, true) ~= nil) then
+            return 'raise';
+        end
+        if (command:find('sneak', 1, true) ~= nil or command:find('invisible', 1, true) ~= nil or command:find('deodorize', 1, true) ~= nil) then
+            return 'stealth';
+        end
+        if (command:find('erase', 1, true) ~= nil or command:find('poisona', 1, true) ~= nil or command:find('paralyna', 1, true) ~= nil or command:find('silena', 1, true) ~= nil) then
+            return 'status';
+        end
+    end
+
+    return family;
+end
+
+local function icon_def_for_token(token, family)
+    local normalized = normalize_icon_token(token);
+    if (normalized == nil) then
+        return nil, nil;
+    end
+
+    local known = ICON_DEFS[normalized];
+    if (known ~= nil) then
+        return known, normalized;
+    end
+
+    return {
+        family = family,
+        mark = 'text',
+        text = normalized:sub(1, 2):upper(),
+        accent = COMMAND_THEME[family] or COMMAND_THEME.command,
+    }, normalized;
+end
+
+local function slot_icon(slot, family)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+        return nil, nil;
+    end
+
+    local style = icon_style();
+    if (style == 'none') then
+        return nil, nil;
+    end
+
+    local explicit = normalize_icon_token(slot.icon);
+    if (explicit ~= nil) then
+        return icon_def_for_token(explicit, family);
+    end
+
+    if (style == 'configured') then
+        return nil, nil;
+    end
+
+    return icon_def_for_token(infer_icon_token(slot, family), family);
 end
 
 local function fit_text(text, max_width)
@@ -513,6 +684,121 @@ local function draw_crystal_mark(draw_list, x, y, size, color, alpha)
     draw_list:AddLine({ x, y - size * 0.55 }, { x, y + size * 0.55 }, dim, 1.00);
 end
 
+local function draw_centered_text(draw_list, cx, cy, color, text)
+    if (text == nil or text == '') then
+        return;
+    end
+
+    local tw, th = imgui.CalcTextSize(text);
+    tw = tonumber(tw) or 0;
+    th = tonumber(th) or 0;
+    draw_text_shadow(draw_list, cx - (tw * 0.5), cy - (th * 0.5), color, text);
+end
+
+local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
+    if (icon_def == nil) then
+        return;
+    end
+
+    local color = icon_def.accent or fallback_color or COMMAND_THEME.command;
+    local col = color_u32(color_with_alpha(color, 0.92));
+    local dim = color_u32(color_with_alpha(color, 0.48));
+    local mark = icon_def.mark or 'diamond';
+    local thick = math.max(2, math.floor(size * 0.18));
+
+    if (mark == 'plus') then
+        draw_list:AddRectFilled({ x - thick, y - size }, { x + thick, y + size }, col, 1.0);
+        draw_list:AddRectFilled({ x - size, y - thick }, { x + size, y + thick }, col, 1.0);
+        draw_list:AddRect({ x - size, y - size }, { x + size, y + size }, dim, 1.0, ImDrawCornerFlags_All, 1.0);
+        return;
+    end
+
+    if (mark == 'spark') then
+        draw_list:AddLine({ x, y - size }, { x, y + size }, col, 1.7);
+        draw_list:AddLine({ x - size, y }, { x + size, y }, col, 1.7);
+        draw_list:AddLine({ x - size * 0.66, y - size * 0.66 }, { x + size * 0.66, y + size * 0.66 }, dim, 1.2);
+        draw_list:AddLine({ x + size * 0.66, y - size * 0.66 }, { x - size * 0.66, y + size * 0.66 }, dim, 1.2);
+        draw_list:AddRectFilled({ x - thick * 0.5, y - thick * 0.5 }, { x + thick * 0.5, y + thick * 0.5 }, col, 1.0);
+        return;
+    end
+
+    if (mark == 'burst') then
+        draw_list:AddLine({ x, y - size }, { x, y - size * 0.16 }, col, 1.6);
+        draw_list:AddLine({ x, y + size * 0.16 }, { x, y + size }, col, 1.6);
+        draw_list:AddLine({ x - size, y }, { x - size * 0.16, y }, col, 1.6);
+        draw_list:AddLine({ x + size * 0.16, y }, { x + size, y }, col, 1.6);
+        draw_list:AddLine({ x - size * 0.72, y - size * 0.72 }, { x - size * 0.18, y - size * 0.18 }, dim, 1.4);
+        draw_list:AddLine({ x + size * 0.18, y + size * 0.18 }, { x + size * 0.72, y + size * 0.72 }, dim, 1.4);
+        draw_list:AddLine({ x + size * 0.72, y - size * 0.72 }, { x + size * 0.18, y - size * 0.18 }, dim, 1.4);
+        draw_list:AddLine({ x - size * 0.18, y + size * 0.18 }, { x - size * 0.72, y + size * 0.72 }, dim, 1.4);
+        draw_crystal_mark(draw_list, x, y, size * 0.28, color, 0.74);
+        return;
+    end
+
+    if (mark == 'shield') then
+        draw_list:AddLine({ x, y - size }, { x + size * 0.75, y - size * 0.48 }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.75, y - size * 0.48 }, { x + size * 0.56, y + size * 0.50 }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.56, y + size * 0.50 }, { x, y + size }, dim, 1.8);
+        draw_list:AddLine({ x, y + size }, { x - size * 0.56, y + size * 0.50 }, dim, 1.8);
+        draw_list:AddLine({ x - size * 0.56, y + size * 0.50 }, { x - size * 0.75, y - size * 0.48 }, dim, 1.8);
+        draw_list:AddLine({ x - size * 0.75, y - size * 0.48 }, { x, y - size }, col, 1.8);
+        draw_list:AddLine({ x, y - size * 0.52 }, { x, y + size * 0.55 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'blade') then
+        draw_list:AddLine({ x - size * 0.52, y + size * 0.70 }, { x + size * 0.70, y - size * 0.70 }, col, 2.1);
+        draw_list:AddLine({ x + size * 0.18, y - size * 0.18 }, { x + size * 0.70, y - size * 0.70 }, dim, 1.1);
+        draw_list:AddLine({ x - size * 0.62, y + size * 0.20 }, { x - size * 0.18, y + size * 0.62 }, col, 1.7);
+        draw_list:AddLine({ x - size * 0.40, y + size * 0.38 }, { x - size * 0.72, y + size * 0.74 }, dim, 1.6);
+        return;
+    end
+
+    if (mark == 'bag') then
+        draw_list:AddRect({ x - size * 0.70, y - size * 0.18 }, { x + size * 0.70, y + size * 0.82 }, col, 2.0, ImDrawCornerFlags_All, 1.8);
+        draw_list:AddLine({ x - size * 0.36, y - size * 0.18 }, { x - size * 0.16, y - size * 0.62 }, dim, 1.4);
+        draw_list:AddLine({ x - size * 0.16, y - size * 0.62 }, { x + size * 0.16, y - size * 0.62 }, dim, 1.4);
+        draw_list:AddLine({ x + size * 0.16, y - size * 0.62 }, { x + size * 0.36, y - size * 0.18 }, dim, 1.4);
+        draw_list:AddLine({ x - size * 0.42, y + size * 0.22 }, { x + size * 0.42, y + size * 0.22 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'reticle') then
+        draw_list:AddRect({ x - size * 0.72, y - size * 0.72 }, { x + size * 0.72, y + size * 0.72 }, dim, 1.0, ImDrawCornerFlags_All, 1.1);
+        draw_list:AddLine({ x, y - size }, { x, y - size * 0.36 }, col, 1.5);
+        draw_list:AddLine({ x, y + size * 0.36 }, { x, y + size }, col, 1.5);
+        draw_list:AddLine({ x - size, y }, { x - size * 0.36, y }, col, 1.5);
+        draw_list:AddLine({ x + size * 0.36, y }, { x + size, y }, col, 1.5);
+        draw_list:AddRectFilled({ x - 1, y - 1 }, { x + 1, y + 1 }, col, 1.0);
+        return;
+    end
+
+    if (mark == 'arrow') then
+        draw_list:AddLine({ x - size * 0.82, y }, { x + size * 0.64, y }, col, 2.0);
+        draw_list:AddLine({ x + size * 0.64, y }, { x + size * 0.20, y - size * 0.44 }, col, 2.0);
+        draw_list:AddLine({ x + size * 0.64, y }, { x + size * 0.20, y + size * 0.44 }, col, 2.0);
+        draw_list:AddLine({ x - size * 0.32, y - size * 0.34 }, { x - size * 0.74, y }, dim, 1.3);
+        draw_list:AddLine({ x - size * 0.32, y + size * 0.34 }, { x - size * 0.74, y }, dim, 1.3);
+        return;
+    end
+
+    if (mark == 'chat') then
+        draw_list:AddRect({ x - size * 0.78, y - size * 0.55 }, { x + size * 0.78, y + size * 0.42 }, col, 2.0, ImDrawCornerFlags_All, 1.5);
+        draw_list:AddLine({ x - size * 0.22, y + size * 0.42 }, { x - size * 0.48, y + size * 0.78 }, dim, 1.5);
+        draw_list:AddLine({ x - size * 0.48, y + size * 0.78 }, { x + size * 0.08, y + size * 0.42 }, dim, 1.5);
+        draw_list:AddLine({ x - size * 0.46, y - size * 0.18 }, { x + size * 0.46, y - size * 0.18 }, dim, 1.0);
+        draw_list:AddLine({ x - size * 0.46, y + size * 0.08 }, { x + size * 0.26, y + size * 0.08 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'text') then
+        draw_centered_text(draw_list, x, y, color, icon_def.text or '?');
+        return;
+    end
+
+    draw_crystal_mark(draw_list, x, y, size, color, 0.88);
+end
+
 local function render_slot_button(row, index, slot_size, active)
     local slot = get_slot(row.id, index);
     local has_command = slot ~= nil and slot.command ~= nil and slot.command ~= '';
@@ -523,7 +809,9 @@ local function render_slot_button(row, index, slot_size, active)
     local draw_list = imgui.GetWindowDrawList();
     local row_color = ROW_THEME[row.id] or ROW_THEME.base;
     local family = command_family(slot);
-    local icon_color = COMMAND_THEME[family] or COMMAND_THEME.command;
+    local icon_def = slot_icon(slot, family);
+    local icon_family = (icon_def and icon_def.family) or family;
+    local icon_color = (icon_def and icon_def.accent) or COMMAND_THEME[icon_family] or COMMAND_THEME.command;
     local nudge = pressed and 1 or 0;
     local rx = x + nudge;
     local ry = y + nudge;
@@ -551,7 +839,7 @@ local function render_slot_button(row, index, slot_size, active)
     if (has_command) then
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, 0.96 }), 2.5);
         draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32({ 1.00, 1.00, 1.00, 0.05 }), 2.0);
-        draw_crystal_mark(draw_list, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, icon_color, 0.86);
+        draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, icon_color);
     else
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ 0.03, 0.03, 0.04, 0.82 }), 2.5);
         draw_list:AddLine({ ix1 + 5, iy1 + 5 }, { ix2 - 5, iy2 - 5 }, color_u32({ 0.32, 0.32, 0.36, 0.38 }), 1.0);
@@ -589,10 +877,15 @@ local function render_tooltip(row, index)
     end
 
     local slot = get_slot(row.id, index);
+    local family = command_family(slot);
+    local _, icon_token = slot_icon(slot, family);
     imgui.BeginTooltip();
     imgui.Text(row.label .. ' ' .. DIGIT_LABELS[index]);
     if (slot and slot.label) then
         imgui.Text(slot.label);
+    end
+    if (icon_token ~= nil) then
+        imgui.Text('icon: ' .. icon_token);
     end
     if (slot and slot.command) then
         imgui.Text(slot.command);
@@ -710,12 +1003,13 @@ ashita.events.register('command', 'command_cb', function (e)
         local settings = state.config.settings or {};
         local profile = refresh_profile_context();
         local active = active_group();
-        log_info(('visible=%s input=0x%02X active=%s displayMode=%s visualRow=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('visible=%s input=0x%02X active=%s displayMode=%s visualRow=%s iconStyle=%s job=%s profile=%s source=%s blockModifiers=%s'):fmt(
             tostring(state.visible[1]),
             input_state,
             active or 'none',
             display_mode(),
             visual_group(),
+            icon_style(),
             profile.job_key or 'unknown',
             tostring(profile.key),
             tostring(profile.source),

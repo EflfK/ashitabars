@@ -20,6 +20,8 @@ text input is open.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command.
 - Draws custom action-button slots with hotkey and label overlays.
+- Supports optional per-slot built-in icon tokens, with inferred icons in
+  `auto` mode.
 - Ships default test commands that only `/echo`.
 
 ## Safety Boundary
@@ -79,6 +81,7 @@ settings = {
     display_mode = 'single', -- Use 'stacked' for the existing three-row view.
     show_hotkeys = true,
     show_labels = true,
+    icon_style = 'auto',
 }
 ```
 
@@ -109,23 +112,34 @@ profiles = {
 }
 ```
 
-Each slot has a label and command:
+Each slot has a label and command, and may also include an `icon` token:
 
 ```lua
-[1] = { label = 'Cure', command = '/ma "Cure" <stpt>' },
+[1] = { label = 'Cure', icon = 'cure', command = '/ma "Cure" <stpt>' },
 ```
+
+`icon_style = 'auto'` uses the configured icon when present and otherwise
+infers a built-in icon from the command. Use `icon_style = 'configured'` to
+draw icons only for slots that explicitly set `icon`, or `icon_style = 'none'`
+for label-only slots.
+
+Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `raise`,
+`stealth`, `white_magic`, `black_magic`, `ability`, `weapon`, `item`, `target`,
+`assist`, `check`, `chat`, `rest`, `test`, and `command`. Unknown icon tokens
+fall back to a small two-letter text glyph.
 
 Existing configs that still use a top-level `bars = { ... }` table continue to
 work as a legacy fallback.
 
 The sample config includes a `WHM` test profile. It intentionally mixes common
 WHM spells with `/heal`, `/target`, `/assist`, `/check`, `/echo`, and one
-`/ja` slot so different command paths and target forms can be tested.
+`/ja` slot so different command paths, target forms, and built-in icon tokens
+can be tested.
 
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
-`/ashitabars status` prints the normalized display mode and current visual row
-alongside input, profile, and modifier-blocking state.
+`/ashitabars status` prints the normalized display mode, current visual row,
+and icon style alongside input, profile, and modifier-blocking state.
 
 If modifier blocking conflicts with another hotkey, disable it:
 
