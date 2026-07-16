@@ -112,6 +112,15 @@ return {
         -- WAR = {
         --     base = {
         --         [1] = { label = 'Provoke', command = '/ja "Provoke" <t>' },
+        --         [2] = {
+        --             label = 'Buffs',
+        --             icon = 'buff',
+        --             macro_mode = 'multi',
+        --             commands = {
+        --                 '/ma "Protect" <me>',
+        --                 '/ma "Shell" <me>',
+        --             },
+        --         },
         --     },
         --     ctrl = {},
         --     alt = {},
