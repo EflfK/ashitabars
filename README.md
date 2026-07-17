@@ -15,8 +15,9 @@ text input is open.
     the modifier is held, with a brief row-switch glow
 - Captures those keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
-- Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is
-  closed by default, so FFXI should not also show or execute native macro rows.
+- Clears native DirectInput `Ctrl`/`Alt` macro-palette state only while an
+  AshitaBars number hotkey is pressed, so FFXI should not also show or execute
+  native macro rows for `Ctrl+1-0` / `Alt+1-0`.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command, structured
   generated command, or static multi-line macro.
@@ -388,10 +389,12 @@ common enfeebles use `debuff`, songs use `song`, and avatar names use
 Existing configs that still use a top-level `bars = { ... }` table continue to
 work as a legacy fallback.
 
-The sample config includes a `WHM` test profile. It intentionally mixes common
-WHM spells with `/heal`, `/target`, `/assist`, `/check`, `/echo`, and one
-`/ja` slot so different command paths, target forms, and built-in icon tokens
-can be tested.
+The sample config includes a `WHM` test profile and a `BST` leveling profile.
+The WHM profile intentionally mixes common WHM spells with `/heal`, `/target`,
+`/assist`, `/check`, `/echo`, and one `/ja` slot so different command paths,
+target forms, and built-in icon tokens can be tested. The BST profile is tuned
+for early `BST/WHM` play with base combat/beast actions, Ctrl targeting, and
+Alt support.
 
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
@@ -400,7 +403,9 @@ display-mode source, button size/source, button gap/source, theme, icon style,
 recast/count/availability settings, and weapon-skill TP threshold alongside
 input, profile, and modifier-blocking state.
 
-If modifier blocking conflicts with another hotkey, disable it:
+Modifier blocking is scoped to AshitaBars number hotkeys so native shortcuts
+such as `Ctrl+E` and `Ctrl+I` can continue to work. If modifier blocking still
+conflicts with another hotkey, disable it:
 
 ```lua
 block_native_macro_modifiers = false,
