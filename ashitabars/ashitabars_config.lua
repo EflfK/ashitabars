@@ -112,7 +112,11 @@ return {
         -- WAR = {
         --     base = {
         --         [1] = { label = 'Provoke', command = '/ja "Provoke" <t>' },
-        --         [2] = {
+        --         [2] = { label = 'FastBlade', command = '/ws "Fast Blade" <t>' },
+        --         -- Item buttons use the selected item's in-game icon automatically.
+        --         -- Structured commands use the action name as the label unless use_action_name_label is false.
+        --         [3] = { label = 'Potion', command = '/item "Potion" <me>' },
+        --         [4] = {
         --             label = 'Buffs',
         --             icon = 'buff',
         --             macro_mode = 'multi',

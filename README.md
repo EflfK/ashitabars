@@ -18,8 +18,8 @@ text input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state while chat/input is
   closed by default, so FFXI should not also show or execute native macro rows.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
-- Clicks on visible slots also execute one configured command or static
-  multi-line macro.
+- Clicks on visible slots also execute one configured command, structured
+  generated command, or static multi-line macro.
 - Draws image-first action-button slots with hotkey badges, configurable label
   placement, readable text outlines, empty-slot dimming, and unsupported-command
   markers.
@@ -30,7 +30,7 @@ text input is open.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - When the bar frame is visible, each button shows a small edit corner that
-  opens an in-game editor for that button's label, command mode, command text,
+  opens an in-game editor for that button's label, command mode, command data,
   and optional icon.
 - Ships default test commands that only `/echo`.
 
@@ -38,12 +38,12 @@ text input is open.
 
 This addon can send real FFXI slash commands when configured to do so. Keep it
 to one intentional keypress or click producing one configured action: either
-one command line or one static multi-line macro. Static per-job profiles are
-fine; do not add timers, waits, loops, reactive combat-state action choice,
-packet injection, unattended behavior, or detection-evasion behavior. The
-in-game button editor follows the same boundary: each saved macro is a fixed
-list of allowed slash command lines and only runs from the attended button
-press.
+one command line, one structured command that generates a normal slash command,
+or one static multi-line macro. Static per-job profiles are fine; do not add
+timers, waits, loops, reactive combat-state action choice, packet injection,
+unattended behavior, or detection-evasion behavior. The in-game button editor
+follows the same boundary: each saved macro is a fixed list of allowed slash
+command lines and only runs from the attended button press.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
@@ -279,11 +279,12 @@ return {
 
 You can edit visible buttons in game while the bar frame is shown. Open
 `/ashitabars config`, enable `Show Bar Frame`, then click the small top-left
-corner of a button. The editor can save a label, a single-command or
-multi-line macro mode, and an optional icon chosen from a built-in selector.
-The edited button previews the selected icon in the editor preview tile, and
-previews hovered icon presets while the selector is open. These runtime edits
-are stored outside the addon folder in:
+corner of a button. The editor can save a label, command mode, command data,
+and an optional icon chosen from a built-in selector. The edited button
+previews the selected icon in the editor preview tile, and previews hovered
+icon presets while the selector is open. Item mode does not show the manual
+icon selector because item buttons use the selected item's in-game icon
+automatically. These runtime edits are stored outside the addon folder in:
 
 ```txt
 Ashita/config/addons/ashitabars/button_overrides.lua
@@ -294,6 +295,41 @@ persist across addon reloads and game sessions. `Clear` saves an empty button
 for that slot, while `Reset` removes the saved edit and returns to the
 configured profile slot. `Validate & Run` validates the current editor command
 or macro lines and queues them immediately without saving the button.
+
+Command mode options are:
+
+- `Freeform Command`: hand-enter one allowed slash command.
+- `Multi-Line Macro`: hand-enter up to six allowed slash command lines.
+- `Spell`: filter usable learned spells by magic type, element, and search text,
+  then choose from the filtered spell list and select a target; generates `/ma`.
+  The type and element dropdowns only show values that still have matching
+  spells under the other active filters. Trust spells are grouped under
+  `Trusts`, even when their resource type data overlaps other magic categories.
+  If the filters hide the selected spell, the editor clears the selection and
+  requires choosing another spell before saving or running.
+- `Item`: choose an item from Inventory or Temporary items; generates `/item`
+  with `<me>` and intentionally does not show a target selector. Filter by item
+  source and search text, then choose from the filtered item list. The editor
+  previews the selected item's in-game icon and shows the item resource tooltip
+  when hovering the preview or item rows. Saved item buttons do not need an
+  `icon` token; the action bar renders the item icon from the game resource.
+- `Weapon Skill`: search known weapon skills, choose one, and select a target;
+  generates `/ws`.
+- `Job Ability`: search known job abilities, choose one, and select a target;
+  generates `/ja`.
+- `Ranged Attack`: choose the ranged attack action and target; generates `/ra`.
+- `Target / Assist`: choose target, assist, attack, or check plus a target.
+
+Structured modes still save normal slash command text in
+`button_overrides.lua`, so key execution, validation, icon inference, recast
+display, item counts, and availability dimming use the same path as hand-written
+commands. Existing command buttons are parsed back into the matching structured
+mode when possible; unsupported or unusual commands open as `Freeform Command`.
+All structured modes default to using the selected action name as the bar label.
+Uncheck `Use Action Name As Label` to show the normal label field and save a
+custom label instead. If a filter hides the selected action, the editor clears
+the selection and hides `Save` / `Validate & Run` until a visible action is
+selected again.
 
 Shared buttons are linked by name, not copied. If multiple slots use the same
 shared button, editing and saving any attached slot updates the shared
@@ -307,6 +343,11 @@ saves the current fields as a local per-slot copy.
 infers a built-in icon from the command. Use `icon_style = 'configured'` to
 draw icons only for slots that explicitly set `icon`, or `icon_style = 'none'`
 for label-only slots.
+
+For structured command slots, `use_action_name_label` defaults to `true`, so the
+displayed label is resolved from the saved command. Set
+`use_action_name_label = false` on a slot when you want its configured `label`
+to display instead.
 
 `show_recasts = true` draws a dark cooldown wipe and remaining time on slots
 whose commands resolve to `/ma`, `/magic`, `/ja`, or `/jobability` recast data.

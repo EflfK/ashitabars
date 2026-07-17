@@ -37,6 +37,11 @@ most one configured action or static macro.
 - Done: single-command and multi-line macro modes in the button editor, with
   per-line command-prefix validation, a Validate & Run editor button, and
   attended execution only.
+- Done: structured command-mode dropdowns for spells, items, weapon skills, job
+  abilities, ranged attack, and target/assist actions, backed by live local
+  spell/item/ability lists where Ashita exposes them.
+- Done: item command mode previews and renders the selected item's in-game icon
+  instead of requiring a manual icon token.
 - Done: shared button definitions that can be assigned by name to slots across
   jobs/rows, with linked updates when an attached shared button is edited.
 
@@ -52,4 +57,7 @@ most one configured action or static macro.
   available and semantics are clear.
 - Display-only range or usability dimming if it can be implemented without
   automated action choice.
+- Additional structured editor modes such as pet commands, trust commands,
+  equipment-set commands, chat/party callouts, and common target-management
+  templates, as long as each saved button remains a fixed attended action.
 - Drag-to-reorder UI, guarded so it only changes static profile configuration.
