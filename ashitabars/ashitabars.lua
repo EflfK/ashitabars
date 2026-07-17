@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.23.1';
+addon.version   = '0.23.2';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -98,6 +98,9 @@ local ALLOWED_PREFIXES = T{
     ['/shoot'] = true,
     ['/item'] = true,
     ['/mount'] = true,
+    ['/wait'] = true,
+    ['/equip'] = true,
+    ['/lac'] = true,
     ['/heal'] = true,
     ['/target'] = true,
     ['/assist'] = true,
@@ -154,13 +157,13 @@ local LIMITS = {
     label_vertical_position_max = 100,
     macro_label_max = 32,
     macro_command_max = 256,
+    macro_commands_text_max = 4096,
     macro_icon_max = 32,
     command_list_cache_seconds = 3.0,
     frameless_window_padding = 4,
 };
 local MACRO = {
-    COMMANDS_MAX = 6,
-    COMMANDS_TEXT_MAX = (LIMITS.macro_command_max + 1) * 6,
+    COMMANDS_TEXT_MAX = LIMITS.macro_commands_text_max,
 };
 local COMMAND_MODE = {};
 local SHARED = {
@@ -610,11 +613,9 @@ function MACRO.sanitize_command_line(value)
     return trim_one_line(value, LIMITS.macro_command_max);
 end
 
-function MACRO.commands_from_text(value, max_commands)
+function MACRO.commands_from_text(value)
     local commands = {};
-    local too_many = false;
     local text = MACRO.normalize_line_endings(value);
-    max_commands = tonumber(max_commands) or MACRO.COMMANDS_MAX;
 
     if (text == '') then
         return commands, false;
@@ -627,20 +628,15 @@ function MACRO.commands_from_text(value, max_commands)
     for line in text:gmatch('([^\n]*)\n') do
         local command = MACRO.sanitize_command_line(line);
         if (command ~= '') then
-            if (#commands >= max_commands) then
-                too_many = true;
-            else
-                table.insert(commands, command);
-            end
+            table.insert(commands, command);
         end
     end
 
-    return commands, too_many;
+    return commands, false;
 end
 
-function MACRO.commands_from_table(value, max_commands)
+function MACRO.commands_from_table(value)
     local commands = {};
-    max_commands = tonumber(max_commands) or MACRO.COMMANDS_MAX;
 
     if (type(value) ~= 'table') then
         return commands;
@@ -650,9 +646,6 @@ function MACRO.commands_from_table(value, max_commands)
         local command = MACRO.sanitize_command_line(line);
         if (command ~= '') then
             table.insert(commands, command);
-            if (#commands >= max_commands) then
-                break;
-            end
         end
     end
 
@@ -1608,7 +1601,7 @@ local function sanitize_slot_override(slot, allow_shared)
         sanitized.command = MACRO.sanitize_command_line(slot.command);
     end
     if (slot.commands ~= nil) then
-        sanitized.commands = MACRO.commands_from_table(slot.commands, MACRO.COMMANDS_MAX);
+        sanitized.commands = MACRO.commands_from_table(slot.commands);
         if (#sanitized.commands == 0) then
             sanitized.commands = nil;
         end
@@ -1893,7 +1886,7 @@ local function apply_slot_override(base_slot, override)
         slot.macro_mode = override.macro_mode;
     end
     if (override.commands ~= nil) then
-        slot.commands = MACRO.commands_from_table(override.commands, MACRO.COMMANDS_MAX);
+        slot.commands = MACRO.commands_from_table(override.commands);
     end
     if (override.icon ~= nil) then
         slot.icon = override.icon;
@@ -1938,7 +1931,7 @@ function MACRO.normalize_slot_runtime(slot)
 
     local normalized = copy_slot(slot);
     local mode = MACRO.normalize_mode(normalized.macro_mode);
-    local commands = MACRO.commands_from_table(normalized.commands, MACRO.COMMANDS_MAX);
+    local commands = MACRO.commands_from_table(normalized.commands);
     local command = MACRO.sanitize_command_line(normalized.command);
 
     if (mode == 'multi' or #commands > 0) then
@@ -1981,7 +1974,7 @@ function MACRO.slot_commands(slot)
     end
 
     if (MACRO.slot_mode(slot) == 'multi') then
-        local commands = MACRO.commands_from_table(slot.commands, MACRO.COMMANDS_MAX);
+        local commands = MACRO.commands_from_table(slot.commands);
         if (#commands == 0) then
             local fallback = MACRO.sanitize_command_line(slot.command);
             if (fallback ~= '') then
@@ -3802,10 +3795,6 @@ function MACRO.commands_validation_error(commands)
         return nil;
     end
 
-    if (#commands > MACRO.COMMANDS_MAX) then
-        return ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
-    end
-
     for index, command in ipairs(commands) do
         local error = command_validation_error(command);
         if (error ~= nil) then
@@ -3824,8 +3813,8 @@ function MACRO.editor_commands()
 
     local mode = MACRO.normalize_mode(editor.macro_mode);
     if (mode == 'multi') then
-        local commands, too_many = MACRO.commands_from_text(editor.commands_buffer[1], MACRO.COMMANDS_MAX);
-        return mode, commands[1] or '', commands, too_many;
+        local commands = MACRO.commands_from_text(editor.commands_buffer[1]);
+        return mode, commands[1] or '', commands, false;
     end
     if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability' or mode == 'ranged' or mode == 'target') then
         local command = MACRO.sanitize_command_line(COMMAND_MODE.editor_command(mode, editor));
@@ -3837,10 +3826,7 @@ function MACRO.editor_commands()
 end
 
 function MACRO.editor_validation_error()
-    local mode, command, commands, too_many = MACRO.editor_commands();
-    if (too_many) then
-        return ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
-    end
+    local mode, command, commands = MACRO.editor_commands();
 
     local selection_error = COMMAND_MODE.editor_selection_validation_error(mode, state.macro_editor);
     if (selection_error ~= nil) then
@@ -3860,10 +3846,7 @@ function MACRO.run_editor_commands()
         return false, 'No button selected.';
     end
 
-    local mode, _, commands, too_many = MACRO.editor_commands();
-    if (too_many) then
-        return false, ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
-    end
+    local mode, _, commands = MACRO.editor_commands();
 
     local selection_error = COMMAND_MODE.editor_selection_validation_error(mode, editor);
     if (selection_error ~= nil) then
@@ -3963,7 +3946,7 @@ local function set_slot_override(profile_key, group, index, label, command, icon
             slot.use_action_name_label = use_action_name_label ~= false;
         end
         if (slot.macro_mode == 'multi') then
-            slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
+            slot.commands = MACRO.commands_from_table(commands);
             if (#slot.commands == 0 and slot.command ~= '') then
                 slot.commands = { slot.command };
             end
@@ -3985,10 +3968,7 @@ function SHARED.editor_slot(require_command)
         return nil, 'No button selected.';
     end
 
-    local mode, command, commands, too_many = MACRO.editor_commands();
-    if (too_many) then
-        return nil, ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
-    end
+    local mode, command, commands = MACRO.editor_commands();
 
     local selection_error = COMMAND_MODE.editor_selection_validation_error(mode, editor);
     if (selection_error ~= nil) then
@@ -4019,7 +3999,7 @@ function SHARED.editor_slot(require_command)
         slot.icon = slot_icon;
     end
     if (mode == 'multi') then
-        slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
+        slot.commands = MACRO.commands_from_table(commands);
         slot.command = slot.commands[1] or '';
     end
 
@@ -4202,7 +4182,7 @@ local function save_macro_editor(clear_slot)
         return true;
     end
 
-    local mode, command, commands, too_many = MACRO.editor_commands();
+    local mode, command, commands = MACRO.editor_commands();
     local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
     local label = clear_slot and '' or (use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max));
     command = clear_slot and '' or command;
@@ -4211,8 +4191,7 @@ local function save_macro_editor(clear_slot)
     if (mode == 'item' or mode == 'mount') then
         icon = '';
     end
-    local validation_error = too_many and ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX)
-        or ((not clear_slot) and COMMAND_MODE.editor_selection_validation_error(mode, editor))
+    local validation_error = ((not clear_slot) and COMMAND_MODE.editor_selection_validation_error(mode, editor))
         or MACRO.commands_validation_error(commands);
     if (validation_error ~= nil) then
         editor.message = validation_error;
