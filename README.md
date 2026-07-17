@@ -41,10 +41,13 @@ This addon can send real FFXI slash commands when configured to do so. Keep it
 to one intentional keypress or click producing one configured action: either
 one command line, one structured command that generates a normal slash command,
 or one static multi-line macro. Static per-job profiles are fine; do not add
-timers, waits, loops, reactive combat-state action choice, packet injection,
+timers, loops, reactive combat-state action choice, packet injection,
 unattended behavior, or detection-evasion behavior. The in-game button editor
 follows the same boundary: each saved macro is a fixed list of allowed slash
-command lines and only runs from the attended button press.
+command lines and only runs from the attended button press. `/wait` is allowed
+inside saved multi-line macros, matching normal FFXI macro behavior. Common
+attended macro helpers such as `/equip` and `/lac` are allowed so saved buttons
+can wrap normal item-use and gear-state flows.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
@@ -245,15 +248,19 @@ Each slot has a label and command, and may also include an `icon` token:
 
 Slots can also store a static multi-line macro. Each line is validated against
 the same allowed prefix list and is queued only from the attended key press or
-click:
+click. By default, each line is queued directly. Set `script = true` to run the
+macro through Ashita's native `/exec` script runner, which lets `/wait`
+pause between commands:
 
 ```lua
 [2] = {
     label = 'Buffs',
     icon = 'buff',
     macro_mode = 'multi',
+    script = true,
     commands = {
         '/ma "Protect" <me>',
+        '/wait 2',
         '/ma "Shell" <me>',
     },
 },
@@ -300,7 +307,13 @@ or macro lines and queues them immediately without saving the button.
 Command mode options are:
 
 - `Freeform Command`: hand-enter one allowed slash command.
-- `Multi-Line Macro`: hand-enter up to six allowed slash command lines.
+- `Multi-Line Macro`: hand-enter allowed slash command lines, including
+  `/wait`; the editor no longer applies a command-count cap. Check
+  `Run As Ashita Script` when the macro should use Ashita's `/exec` runner
+  so `/wait` pauses between lines. AshitaBars writes generated script files to
+  `Ashita/scripts/` using `ashitabars_` filename prefixes. Script-backed
+  macros show a display-only countdown on the button based on the sum of their
+  `/wait` lines after they are pressed.
 - `Spell`: filter usable learned spells by magic type, element, and search text,
   then choose from the filtered spell list and select a target; generates `/ma`.
   The type and element dropdowns only show values that still have matching

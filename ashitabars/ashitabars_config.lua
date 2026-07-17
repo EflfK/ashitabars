@@ -162,8 +162,10 @@ return {
         --             label = 'Buffs',
         --             icon = 'buff',
         --             macro_mode = 'multi',
+        --             script = true, -- Use Ashita's /exec runner so /wait pauses between commands.
         --             commands = {
         --                 '/ma "Protect" <me>',
+        --                 '/wait 2',
         --                 '/ma "Shell" <me>',
         --             },
         --         },
