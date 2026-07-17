@@ -37,6 +37,8 @@ local default_profile = {
         [9]  = { label = 'A9', command = '/echo AshitaBars DEFAULT alt 9' },
         [10] = { label = 'A0', command = '/echo AshitaBars DEFAULT alt 0' },
     },
+
+    click = {},
 };
 
 local whm_profile = {
@@ -78,6 +80,8 @@ local whm_profile = {
         [9]  = { label = 'Reraise', icon = 'raise',   command = '/ma "Reraise" <me>' },
         [10] = { label = 'DivSeal', icon = 'ability', command = '/ja "Divine Seal" <me>' },
     },
+
+    click = {},
 };
 
 local bst_profile = {
@@ -119,12 +123,12 @@ local bst_profile = {
         [9]  = { label = 'Slow',    icon = 'debuff', command = '/ma "Slow" <t>' },
         [10] = { label = 'Heal',    icon = 'rest',   command = '/heal' },
     },
+
+    click = {},
 };
 
 return {
     settings = {
-        visible = true,
-        display_mode = 'single', -- Use 'stacked' for the existing three-row view.
         theme = 'ffxi', -- Other built-in options: 'jeuno', 'sandoria'.
         show_hotkeys = true,
         show_labels = true,
@@ -133,16 +137,31 @@ return {
         show_availability = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
-        slot_size = 64,
-        button_gap = 6,
-        slot_glow_size = 100,
-        slot_glow_opacity = 100,
-        label_vertical_position = 100,
-        show_bar_frame = false,
         row_gap = 6,
-        window_x = 820,
-        window_y = 760,
         block_native_macro_modifiers = true,
+        main_bar = {
+            visible = true,
+            display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            show_frame = false,
+            window_x = 820,
+            window_y = 760,
+        },
+        extra_bar_1 = {
+            visible = true,
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            show_frame = false,
+            window_x = 820,
+            window_y = 680,
+        },
     },
 
     profiles = {
@@ -172,6 +191,7 @@ return {
         --     },
         --     ctrl = {},
         --     alt = {},
+        --     click = {}, -- Optional click-only row. Never bound to keys.
         -- },
     },
 }
