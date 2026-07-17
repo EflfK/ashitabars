@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.23.0';
+addon.version   = '0.23.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -138,37 +138,41 @@ local ROW_THEME = {
     alt  = { 1.00, 0.55, 0.26, 1.00 },
 };
 
-local ROW_TRANSITION_SECONDS = 0.24;
-local ITEM_COUNT_CONTAINER_IDS = { 0, 3 };
-local ITEM_COUNT_CACHE_SECONDS = 0.40;
-local SLOT_SIZE_MIN = 40;
-local SLOT_SIZE_MAX = 96;
-local BUTTON_GAP_MIN = 0;
-local BUTTON_GAP_MAX = 24;
-local SLOT_GLOW_SIZE_MIN = 0;
-local SLOT_GLOW_SIZE_MAX = 200;
-local SLOT_GLOW_OPACITY_MIN = 0;
-local SLOT_GLOW_OPACITY_MAX = 100;
-local LABEL_VERTICAL_POSITION_MIN = 0;
-local LABEL_VERTICAL_POSITION_MAX = 100;
-local MACRO_LABEL_MAX = 32;
-local MACRO_COMMAND_MAX = 256;
+local LIMITS = {
+    row_transition_seconds = 0.24,
+    item_count_containers = { 0, 3 },
+    item_count_cache_seconds = 0.40,
+    slot_size_min = 40,
+    slot_size_max = 96,
+    button_gap_min = 0,
+    button_gap_max = 24,
+    slot_glow_size_min = 0,
+    slot_glow_size_max = 200,
+    slot_glow_opacity_min = 0,
+    slot_glow_opacity_max = 100,
+    label_vertical_position_min = 0,
+    label_vertical_position_max = 100,
+    macro_label_max = 32,
+    macro_command_max = 256,
+    macro_icon_max = 32,
+    command_list_cache_seconds = 3.0,
+    frameless_window_padding = 4,
+};
 local MACRO = {
     COMMANDS_MAX = 6,
-    COMMANDS_TEXT_MAX = (MACRO_COMMAND_MAX + 1) * 6,
+    COMMANDS_TEXT_MAX = (LIMITS.macro_command_max + 1) * 6,
 };
 local COMMAND_MODE = {};
 local SHARED = {
     NAME_MAX = 48,
 };
-local MACRO_ICON_MAX = 32;
-local COMMAND_LIST_CACHE_SECONDS = 3.0;
-local FRAMELESS_WINDOW_PADDING = 4;
-local CONFIG_HEADER_COLOR = { 1.00, 0.70, 0.36, 1.00 };
-local CONFIG_SUCCESS_COLOR = { 0.45, 1.00, 0.58, 1.00 };
-local CONFIG_ERROR_COLOR = { 1.00, 0.36, 0.30, 1.00 };
-local EDIT_HANDLE_COLOR = { 0.92, 0.72, 0.32, 0.92 };
-local EDIT_HANDLE_HOVER_COLOR = { 1.00, 0.88, 0.48, 1.00 };
+local UI_COLORS = {
+    config_header = { 1.00, 0.70, 0.36, 1.00 },
+    success = { 0.45, 1.00, 0.58, 1.00 },
+    error = { 1.00, 0.36, 0.30, 1.00 },
+    edit_handle = { 0.92, 0.72, 0.32, 0.92 },
+    edit_handle_hover = { 1.00, 0.88, 0.48, 1.00 },
+};
 
 local THEMES = {
     ffxi = {
@@ -452,7 +456,7 @@ local state = {
     visible = T{ true },
     config_visible = T{ false },
     config_save_message = nil,
-    config_save_message_color = CONFIG_SUCCESS_COLOR,
+    config_save_message_color = UI_COLORS.success,
     config_error = nil,
     profile = nil,
     display_mode_override = nil,
@@ -470,8 +474,8 @@ local state = {
     bar_anchor_lock_y = nil,
     bar_frame_offset_x = nil,
     bar_frame_offset_y = nil,
-    bar_hidden_offset_x = FRAMELESS_WINDOW_PADDING,
-    bar_hidden_offset_y = FRAMELESS_WINDOW_PADDING,
+    bar_hidden_offset_x = LIMITS.frameless_window_padding,
+    bar_hidden_offset_y = LIMITS.frameless_window_padding,
     recast_cache = {},
     recast_totals = {},
     item_source_cache = {},
@@ -510,7 +514,7 @@ local state = {
         mount_search_buffer = T{ '' },
         preview_icon = nil,
         message = nil,
-        message_color = CONFIG_SUCCESS_COLOR,
+        message_color = UI_COLORS.success,
     },
 };
 
@@ -603,7 +607,7 @@ function MACRO.normalize_line_endings(value)
 end
 
 function MACRO.sanitize_command_line(value)
-    return trim_one_line(value, MACRO_COMMAND_MAX);
+    return trim_one_line(value, LIMITS.macro_command_max);
 end
 
 function MACRO.commands_from_text(value, max_commands)
@@ -663,10 +667,7 @@ function MACRO.commands_to_text(commands)
     return table.concat(commands, '\n');
 end
 
-local load_button_overrides = nil;
-local load_visual_settings = nil;
-local normalize_icon_token = nil;
-local item_count = nil;
+local DEFERRED = {};
 
 local function normalize_profile_key(value)
     if (type(value) ~= 'string') then
@@ -779,8 +780,8 @@ local function load_config()
     if (not ok or type(config) ~= 'table') then
         state.config_error = tostring(config);
         state.config = DEFAULT_CONFIG;
-        if (load_visual_settings ~= nil) then
-            load_visual_settings();
+        if (DEFERRED.load_visual_settings ~= nil) then
+            DEFERRED.load_visual_settings();
         end
         state.visible[1] = true;
         state.profile = nil;
@@ -799,15 +800,15 @@ local function load_config()
         state.bar_anchor_lock_y = nil;
         state.bar_frame_offset_x = nil;
         state.bar_frame_offset_y = nil;
-        state.bar_hidden_offset_x = FRAMELESS_WINDOW_PADDING;
-        state.bar_hidden_offset_y = FRAMELESS_WINDOW_PADDING;
+        state.bar_hidden_offset_x = LIMITS.frameless_window_padding;
+        state.bar_hidden_offset_y = LIMITS.frameless_window_padding;
         state.recast_cache = {};
         state.recast_totals = {};
         state.item_source_cache = {};
         state.item_count_cache = {};
         state.command_mode_cache = {};
-        if (load_button_overrides ~= nil) then
-            load_button_overrides();
+        if (DEFERRED.load_button_overrides ~= nil) then
+            DEFERRED.load_button_overrides();
         end
         return;
     end
@@ -824,8 +825,8 @@ local function load_config()
         state.config.bars = DEFAULT_CONFIG.bars;
     end
 
-    if (load_visual_settings ~= nil) then
-        load_visual_settings();
+    if (DEFERRED.load_visual_settings ~= nil) then
+        DEFERRED.load_visual_settings();
     end
 
     state.visible[1] = (state.config.settings.visible ~= false);
@@ -845,15 +846,15 @@ local function load_config()
     state.bar_anchor_lock_y = nil;
     state.bar_frame_offset_x = nil;
     state.bar_frame_offset_y = nil;
-    state.bar_hidden_offset_x = FRAMELESS_WINDOW_PADDING;
-    state.bar_hidden_offset_y = FRAMELESS_WINDOW_PADDING;
+    state.bar_hidden_offset_x = LIMITS.frameless_window_padding;
+    state.bar_hidden_offset_y = LIMITS.frameless_window_padding;
     state.recast_cache = {};
     state.recast_totals = {};
     state.item_source_cache = {};
     state.item_count_cache = {};
     state.command_mode_cache = {};
-    if (load_button_overrides ~= nil) then
-        load_button_overrides();
+    if (DEFERRED.load_button_overrides ~= nil) then
+        DEFERRED.load_button_overrides();
     end
 end
 
@@ -958,11 +959,11 @@ local function normalize_slot_size(value)
     end
 
     size = math.floor(size + 0.5);
-    if (size < SLOT_SIZE_MIN) then
-        return SLOT_SIZE_MIN;
+    if (size < LIMITS.slot_size_min) then
+        return LIMITS.slot_size_min;
     end
-    if (size > SLOT_SIZE_MAX) then
-        return SLOT_SIZE_MAX;
+    if (size > LIMITS.slot_size_max) then
+        return LIMITS.slot_size_max;
     end
 
     return size;
@@ -997,11 +998,11 @@ local function normalize_button_gap(value)
     end
 
     gap = math.floor(gap + 0.5);
-    if (gap < BUTTON_GAP_MIN) then
-        return BUTTON_GAP_MIN;
+    if (gap < LIMITS.button_gap_min) then
+        return LIMITS.button_gap_min;
     end
-    if (gap > BUTTON_GAP_MAX) then
-        return BUTTON_GAP_MAX;
+    if (gap > LIMITS.button_gap_max) then
+        return LIMITS.button_gap_max;
     end
 
     return gap;
@@ -1058,11 +1059,11 @@ local function normalize_percent(value, min_value, max_value)
 end
 
 local function normalize_slot_glow_size(value)
-    return normalize_percent(value, SLOT_GLOW_SIZE_MIN, SLOT_GLOW_SIZE_MAX);
+    return normalize_percent(value, LIMITS.slot_glow_size_min, LIMITS.slot_glow_size_max);
 end
 
 local function normalize_slot_glow_opacity(value)
-    return normalize_percent(value, SLOT_GLOW_OPACITY_MIN, SLOT_GLOW_OPACITY_MAX);
+    return normalize_percent(value, LIMITS.slot_glow_opacity_min, LIMITS.slot_glow_opacity_max);
 end
 
 local function slot_glow_size()
@@ -1118,7 +1119,7 @@ local function slot_glow_alpha_scale()
 end
 
 local function normalize_label_vertical_position(value)
-    return normalize_percent(value, LABEL_VERTICAL_POSITION_MIN, LABEL_VERTICAL_POSITION_MAX);
+    return normalize_percent(value, LIMITS.label_vertical_position_min, LIMITS.label_vertical_position_max);
 end
 
 local function label_vertical_position()
@@ -1201,7 +1202,7 @@ local function estimated_frame_offset()
 end
 
 local function frameless_window_padding()
-    return math.max(FRAMELESS_WINDOW_PADDING, math.ceil((3 * slot_glow_scale()) + 1));
+    return math.max(LIMITS.frameless_window_padding, math.ceil((3 * slot_glow_scale()) + 1));
 end
 
 local function bar_window_offset(show_frame)
@@ -1378,7 +1379,7 @@ function SHARED.slot_parts(slot)
     if (slot.use_action_name_label ~= nil) then
         table.insert(parts, ('use_action_name_label = %s'):fmt(slot.use_action_name_label ~= false and 'true' or 'false'));
     end
-    if (slot.icon ~= nil and trim_one_line(slot.icon, MACRO_ICON_MAX) ~= '') then
+    if (slot.icon ~= nil and trim_one_line(slot.icon, LIMITS.macro_icon_max) ~= '') then
         table.insert(parts, ('icon = %s'):fmt(lua_string_literal(slot.icon)));
     end
     if (slot.command ~= nil) then
@@ -1531,7 +1532,7 @@ local function serialize_visual_settings(settings)
     return table.concat(lines, '\n');
 end
 
-load_visual_settings = function ()
+DEFERRED.load_visual_settings = function ()
     local path = visual_settings_file_path();
     if (path == nil or ashita == nil or ashita.fs == nil or not ashita.fs.exists(path)) then
         return true;
@@ -1594,7 +1595,7 @@ local function sanitize_slot_override(slot, allow_shared)
 
     local sanitized = {};
     if (slot.label ~= nil) then
-        sanitized.label = trim_one_line(slot.label, MACRO_LABEL_MAX);
+        sanitized.label = trim_one_line(slot.label, LIMITS.macro_label_max);
     end
     local use_action_name_label = slot.use_action_name_label;
     if (use_action_name_label == nil) then
@@ -1629,7 +1630,7 @@ local function sanitize_slot_override(slot, allow_shared)
         end
     end
     if (slot.icon ~= nil) then
-        local icon = trim_one_line(slot.icon, MACRO_ICON_MAX);
+        local icon = trim_one_line(slot.icon, LIMITS.macro_icon_max);
         if (icon ~= '') then
             sanitized.icon = icon;
         end
@@ -1689,7 +1690,7 @@ local function sanitize_button_overrides(overrides)
     return sanitized;
 end
 
-load_button_overrides = function ()
+DEFERRED.load_button_overrides = function ()
     local path = button_overrides_file_path();
     if (path == nil or ashita == nil or ashita.fs == nil or not ashita.fs.exists(path)) then
         state.macro_overrides = { profiles = {}, shared = {} };
@@ -2014,7 +2015,7 @@ local function apply_editor_preview(slot, profile_key, group, index)
     if (mode ~= 'item' and mode ~= 'mount') then
         local preview_icon = editor.preview_icon;
         if (preview_icon == nil) then
-            preview_icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
+            preview_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
         end
         preview_slot.icon = preview_icon;
     end
@@ -2042,11 +2043,11 @@ local function row_transition_alpha(row_id, mode)
     end
 
     local elapsed = now - (state.visual.changed_at or now);
-    if (elapsed < 0 or elapsed >= ROW_TRANSITION_SECONDS) then
+    if (elapsed < 0 or elapsed >= LIMITS.row_transition_seconds) then
         return 0;
     end
 
-    local progress = elapsed / ROW_TRANSITION_SECONDS;
+    local progress = elapsed / LIMITS.row_transition_seconds;
     local remaining = 1.0 - progress;
     return remaining * remaining;
 end
@@ -2572,7 +2573,7 @@ function COMMAND_MODE.item_actions()
     local inventory = safe_read(function () return AshitaCore:GetMemoryManager():GetInventory(); end, nil);
     local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
     if (inventory ~= nil and resources ~= nil) then
-        for _, container_id in ipairs(ITEM_COUNT_CONTAINER_IDS) do
+        for _, container_id in ipairs(LIMITS.item_count_containers) do
             local max = tonumber(safe_read(function ()
                 return inventory:GetContainerCountMax(container_id);
             end, 0)) or 0;
@@ -2588,7 +2589,7 @@ function COMMAND_MODE.item_actions()
                     end, nil);
                     local name = COMMAND_MODE.resource_name(resource);
                     if (name ~= '') then
-                        local count = item_count(id);
+                        local count = DEFERRED.item_count(id);
                         local source = COMMAND_MODE.ITEM_SOURCE_BY_CONTAINER[container_id] or { key = 'other', label = 'Other' };
                         COMMAND_MODE.add_action(list, lookup, name, id, count ~= nil and ('x%d'):fmt(count) or nil, {
                             item_source = source.key,
@@ -2677,13 +2678,13 @@ function COMMAND_MODE.editor_item_label(editor)
     local action, resource = COMMAND_MODE.selected_item_action(editor);
     local resource_name = COMMAND_MODE.resource_name(resource);
     if (resource_name ~= '') then
-        return trim_one_line(resource_name, MACRO_LABEL_MAX);
+        return trim_one_line(resource_name, LIMITS.macro_label_max);
     end
     if (action ~= nil and COMMAND_MODE.clean_name(action.name) ~= '') then
-        return trim_one_line(action.name, MACRO_LABEL_MAX);
+        return trim_one_line(action.name, LIMITS.macro_label_max);
     end
 
-    return trim_one_line(editor.command_action, MACRO_LABEL_MAX);
+    return trim_one_line(editor.command_action, LIMITS.macro_label_max);
 end
 
 function COMMAND_MODE.target_action_label(prefix)
@@ -2703,13 +2704,13 @@ function COMMAND_MODE.editor_action_label(editor, mode)
         return COMMAND_MODE.editor_item_label(editor);
     end
     if (mode == 'target') then
-        return trim_one_line(COMMAND_MODE.target_action_label(editor ~= nil and editor.target_action or nil), MACRO_LABEL_MAX);
+        return trim_one_line(COMMAND_MODE.target_action_label(editor ~= nil and editor.target_action or nil), LIMITS.macro_label_max);
     end
     if (mode == 'ranged') then
         return 'Ranged Attack';
     end
 
-    return trim_one_line(editor ~= nil and editor.command_action or '', MACRO_LABEL_MAX);
+    return trim_one_line(editor ~= nil and editor.command_action or '', LIMITS.macro_label_max);
 end
 
 function COMMAND_MODE.apply_editor_action_label(editor, mode)
@@ -2874,7 +2875,7 @@ function COMMAND_MODE.render_item_resource_tooltip(action, resource)
         imgui.SameLine(0, 8);
     end
 
-    imgui.TextColored(CONFIG_HEADER_COLOR, name ~= '' and name or 'Item');
+    imgui.TextColored(UI_COLORS.config_header, name ~= '' and name or 'Item');
     if (item_id ~= nil) then
         imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('Item ID: %d'):fmt(item_id));
     end
@@ -2981,7 +2982,7 @@ function COMMAND_MODE.actions(mode)
 
     local now = os.clock();
     local cached = state.command_mode_cache[mode];
-    if (cached ~= nil and cached.items ~= nil and (now - cached.at) <= COMMAND_LIST_CACHE_SECONDS) then
+    if (cached ~= nil and cached.items ~= nil and (now - cached.at) <= LIMITS.command_list_cache_seconds) then
         return cached.items;
     end
 
@@ -3013,7 +3014,7 @@ function COMMAND_MODE.set_default_label(editor, name)
         return;
     end
 
-    buffer_set(editor.label_buffer, trim_one_line(name, MACRO_LABEL_MAX));
+    buffer_set(editor.label_buffer, trim_one_line(name, LIMITS.macro_label_max));
 end
 
 function COMMAND_MODE.ensure_structured_selection(editor, mode)
@@ -3543,7 +3544,7 @@ end
 function COMMAND_MODE.render_action_result_list(editor, mode, actions, empty_label)
     mode = MACRO.normalize_mode(mode);
     actions = actions or {};
-    imgui.TextColored(CONFIG_HEADER_COLOR, (COMMAND_MODE.DEFS[mode] and COMMAND_MODE.DEFS[mode].action_label) or 'Action');
+    imgui.TextColored(UI_COLORS.config_header, (COMMAND_MODE.DEFS[mode] and COMMAND_MODE.DEFS[mode].action_label) or 'Action');
     COMMAND_MODE.clear_missing_filtered_selection(editor, actions);
     if (#actions == 0) then
         imgui.Text(empty_label);
@@ -3577,7 +3578,7 @@ function COMMAND_MODE.render_action_result_list(editor, mode, actions, empty_lab
 end
 
 function COMMAND_MODE.render_spell_action_list(editor, actions, empty_label)
-    imgui.TextColored(CONFIG_HEADER_COLOR, 'Spell');
+    imgui.TextColored(UI_COLORS.config_header, 'Spell');
     actions = actions or {};
     COMMAND_MODE.clear_missing_filtered_selection(editor, actions);
 
@@ -3612,7 +3613,7 @@ end
 function COMMAND_MODE.render_action_selector(editor, mode)
     mode = MACRO.normalize_mode(mode);
     local def = COMMAND_MODE.DEFS[mode] or COMMAND_MODE.DEFS.single;
-    imgui.TextColored(CONFIG_HEADER_COLOR, def.action_label or 'Action');
+    imgui.TextColored(UI_COLORS.config_header, def.action_label or 'Action');
     imgui.SameLine(0, 8);
     if (imgui.Button('Refresh Lists##ashitabars_button_refresh_action_lists')) then
         COMMAND_MODE.invalidate_cache();
@@ -3748,7 +3749,7 @@ function COMMAND_MODE.render_target_selector(editor, mode)
     end
 
     local label = COMMAND_MODE.TARGET_LABELS[current] or current;
-    imgui.TextColored(CONFIG_HEADER_COLOR, 'Target');
+    imgui.TextColored(UI_COLORS.config_header, 'Target');
     imgui.PushItemWidth(360);
     if (imgui.BeginCombo('Target##ashitabars_button_target_select', label, ImGuiComboFlags_None)) then
         for _, target in ipairs(targets) do
@@ -3770,7 +3771,7 @@ function COMMAND_MODE.render_structured_editor(editor, mode)
 
     local command = COMMAND_MODE.editor_command(mode, editor);
     buffer_set(editor.command_buffer, command);
-    imgui.TextColored(CONFIG_HEADER_COLOR, 'Generated Command');
+    imgui.TextColored(UI_COLORS.config_header, 'Generated Command');
     imgui.Text(command ~= '' and command or '(choose an action)');
 end
 
@@ -3950,10 +3951,10 @@ local function set_slot_override(profile_key, group, index, label, command, icon
         slot = { shared = shared_name };
     else
         slot = {
-            label = trim_one_line(label, MACRO_LABEL_MAX),
+            label = trim_one_line(label, LIMITS.macro_label_max),
             command = MACRO.sanitize_command_line(command),
         };
-        local slot_icon = trim_one_line(icon, MACRO_ICON_MAX);
+        local slot_icon = trim_one_line(icon, LIMITS.macro_icon_max);
         if (slot_icon ~= '') then
             slot.icon = slot_icon;
         end
@@ -4004,8 +4005,8 @@ function SHARED.editor_slot(require_command)
     end
 
     local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
-    local slot_icon = (mode == 'item' or mode == 'mount') and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
-    local label = use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX);
+    local slot_icon = (mode == 'item' or mode == 'mount') and '' or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    local label = use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max);
     local slot = {
         label = label,
         command = command,
@@ -4164,7 +4165,7 @@ local function save_macro_editor(clear_slot)
     local editor = state.macro_editor;
     if (editor.profile_key == nil or editor.group == nil or editor.index == nil) then
         editor.message = 'No button selected.';
-        editor.message_color = CONFIG_ERROR_COLOR;
+        editor.message_color = UI_COLORS.error;
         return false;
     end
 
@@ -4173,7 +4174,7 @@ local function save_macro_editor(clear_slot)
         local slot, slot_error = SHARED.editor_slot(true);
         if (slot == nil) then
             editor.message = slot_error;
-            editor.message_color = CONFIG_ERROR_COLOR;
+            editor.message_color = UI_COLORS.error;
             return false;
         end
 
@@ -4181,14 +4182,14 @@ local function save_macro_editor(clear_slot)
         local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, nil, nil, nil, nil, nil, shared_ref);
         if (not set_ok) then
             editor.message = set_err;
-            editor.message_color = CONFIG_ERROR_COLOR;
+            editor.message_color = UI_COLORS.error;
             return false;
         end
 
         local save_ok, save_message = save_button_overrides();
         if (not save_ok) then
             editor.message = save_message;
-            editor.message_color = CONFIG_ERROR_COLOR;
+            editor.message_color = UI_COLORS.error;
             log_warn(save_message);
             return false;
         end
@@ -4196,17 +4197,17 @@ local function save_macro_editor(clear_slot)
         editor.source = 'shared: ' .. shared_ref;
         buffer_set(editor.shared_name_buffer, shared_ref);
         editor.message = ('Saved shared: %s'):fmt(shared_ref);
-        editor.message_color = CONFIG_SUCCESS_COLOR;
+        editor.message_color = UI_COLORS.success;
         log_info(save_message);
         return true;
     end
 
     local mode, command, commands, too_many = MACRO.editor_commands();
     local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
-    local label = clear_slot and '' or (use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX));
+    local label = clear_slot and '' or (use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max));
     command = clear_slot and '' or command;
     commands = clear_slot and {} or commands;
-    local icon = clear_slot and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
+    local icon = clear_slot and '' or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
     if (mode == 'item' or mode == 'mount') then
         icon = '';
     end
@@ -4215,21 +4216,21 @@ local function save_macro_editor(clear_slot)
         or MACRO.commands_validation_error(commands);
     if (validation_error ~= nil) then
         editor.message = validation_error;
-        editor.message_color = CONFIG_ERROR_COLOR;
+        editor.message_color = UI_COLORS.error;
         return false;
     end
 
     local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label);
     if (not set_ok) then
         editor.message = set_err;
-        editor.message_color = CONFIG_ERROR_COLOR;
+        editor.message_color = UI_COLORS.error;
         return false;
     end
 
     local save_ok, save_message = save_button_overrides();
     if (not save_ok) then
         editor.message = save_message;
-        editor.message_color = CONFIG_ERROR_COLOR;
+        editor.message_color = UI_COLORS.error;
         log_warn(save_message);
         return false;
     end
@@ -4242,7 +4243,7 @@ local function save_macro_editor(clear_slot)
     buffer_set(editor.icon_buffer, icon);
     editor.source = 'saved edit';
     editor.message = clear_slot and 'Cleared.' or 'Saved.';
-    editor.message_color = CONFIG_SUCCESS_COLOR;
+    editor.message_color = UI_COLORS.success;
     log_info(save_message);
     return true;
 end
@@ -4257,7 +4258,7 @@ local function reset_macro_editor()
     local save_ok, save_message = save_button_overrides();
     if (not save_ok) then
         editor.message = save_message;
-        editor.message_color = CONFIG_ERROR_COLOR;
+        editor.message_color = UI_COLORS.error;
         log_warn(save_message);
         return false;
     end
@@ -4274,18 +4275,18 @@ local function reset_macro_editor()
     COMMAND_MODE.load_editor_slot(editor, slot);
     editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or profile.source;
     editor.message = 'Reset to config.';
-    editor.message_color = CONFIG_SUCCESS_COLOR;
+    editor.message_color = UI_COLORS.success;
     log_info(save_message);
     return true;
 end
 
 local function icon_selector_label(token)
-    token = trim_one_line(token, MACRO_ICON_MAX);
+    token = trim_one_line(token, LIMITS.macro_icon_max);
     if (token == '') then
         return 'Auto (infer from command)';
     end
 
-    local normalized = normalize_icon_token(token);
+    local normalized = DEFERRED.normalize_icon_token(token);
     if (normalized ~= nil and ICON_DEFS[normalized] ~= nil) then
         return normalized;
     end
@@ -4294,8 +4295,8 @@ local function icon_selector_label(token)
 end
 
 local function render_icon_selector(editor, width)
-    local current_icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
-    local normalized_current = normalize_icon_token(current_icon);
+    local current_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    local normalized_current = DEFERRED.normalize_icon_token(current_icon);
     local selected_label = icon_selector_label(current_icon);
     local changed = false;
 
@@ -4344,7 +4345,7 @@ function SHARED.render_selector(editor)
                 local ok, message = SHARED.load_into_editor(name);
                 if (not ok) then
                     editor.message = message;
-                    editor.message_color = CONFIG_ERROR_COLOR;
+                    editor.message_color = UI_COLORS.error;
                 end
             end
         end
@@ -4710,7 +4711,7 @@ local function item_source_for_command(command)
     return source;
 end
 
-item_count = function (item_id)
+DEFERRED.item_count = function (item_id)
     item_id = tonumber(item_id);
     if (item_id == nil or item_id <= 0) then
         return nil;
@@ -4718,7 +4719,7 @@ item_count = function (item_id)
 
     local now = os.clock();
     local cached = state.item_count_cache[item_id];
-    if (cached ~= nil and (now - cached.at) <= ITEM_COUNT_CACHE_SECONDS) then
+    if (cached ~= nil and (now - cached.at) <= LIMITS.item_count_cache_seconds) then
         return cached.count;
     end
 
@@ -4730,7 +4731,7 @@ item_count = function (item_id)
     end
 
     local total = 0;
-    for _, container_id in ipairs(ITEM_COUNT_CONTAINER_IDS) do
+    for _, container_id in ipairs(LIMITS.item_count_containers) do
         local max = tonumber(safe_read(function ()
             return inventory:GetContainerCountMax(container_id);
         end, 0)) or 0;
@@ -4801,7 +4802,7 @@ local function slot_visual_state(slot)
     if (prefix == '/item') then
         local source = item_source_for_command(slot.command);
         if (source ~= nil) then
-            local count = item_count(source.id);
+            local count = DEFERRED.item_count(source.id);
             if (count ~= nil) then
                 state_info.kind = 'item';
                 state_info.count = count;
@@ -4878,7 +4879,7 @@ local function current_theme()
     return THEMES[default_key] or THEMES.ffxi, default_key;
 end
 
-normalize_icon_token = function (value)
+DEFERRED.normalize_icon_token = function (value)
     if (type(value) ~= 'string') then
         return nil;
     end
@@ -5002,7 +5003,7 @@ local function infer_icon_token(slot, family)
 end
 
 local function icon_def_for_token(token, family)
-    local normalized = normalize_icon_token(token);
+    local normalized = DEFERRED.normalize_icon_token(token);
     if (normalized == nil) then
         return nil, nil;
     end
@@ -5030,7 +5031,7 @@ local function slot_icon(slot, family)
         return nil, nil;
     end
 
-    local explicit = normalize_icon_token(slot.icon);
+    local explicit = DEFERRED.normalize_icon_token(slot.icon);
     if (explicit ~= nil) then
         return icon_def_for_token(explicit, family);
     end
@@ -5470,7 +5471,7 @@ end
 
 local function draw_edit_handle(draw_list, x, y, slot_size, hovered)
     local size = edit_handle_size(slot_size);
-    local color = hovered and EDIT_HANDLE_HOVER_COLOR or EDIT_HANDLE_COLOR;
+    local color = hovered and UI_COLORS.edit_handle_hover or UI_COLORS.edit_handle;
     local bg = color_u32(color_with_alpha({ 0.00, 0.00, 0.00, 1.00 }, hovered and 0.82 or 0.68));
     local fg = color_u32(color);
     local dim = color_u32(color_with_alpha(color, hovered and 0.48 or 0.30));
@@ -5507,7 +5508,7 @@ local function render_editor_icon_preview(editor)
     local _, command = MACRO.editor_commands();
     local slot = {
         command = command,
-        icon = editor.preview_icon ~= nil and editor.preview_icon or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX),
+        icon = editor.preview_icon ~= nil and editor.preview_icon or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max),
     };
 
     if (slot.command == '') then
@@ -5558,7 +5559,7 @@ function COMMAND_MODE.item_action_name_for_slot(slot)
         name = COMMAND_MODE.clean_name(source.name);
     end
 
-    return name ~= '' and trim_one_line(name, MACRO_LABEL_MAX) or nil;
+    return name ~= '' and trim_one_line(name, LIMITS.macro_label_max) or nil;
 end
 
 function COMMAND_MODE.action_name_for_slot(slot)
@@ -5573,14 +5574,14 @@ function COMMAND_MODE.action_name_for_slot(slot)
 
     local prefix, name = COMMAND_MODE.parse_command(slot.command);
     if (mode == 'target') then
-        return trim_one_line(COMMAND_MODE.target_action_label(prefix), MACRO_LABEL_MAX);
+        return trim_one_line(COMMAND_MODE.target_action_label(prefix), LIMITS.macro_label_max);
     end
     if (mode == 'ranged') then
         return 'Ranged Attack';
     end
 
     name = COMMAND_MODE.clean_name(name);
-    return name ~= '' and trim_one_line(name, MACRO_LABEL_MAX) or nil;
+    return name ~= '' and trim_one_line(name, LIMITS.macro_label_max) or nil;
 end
 
 function COMMAND_MODE.slot_label(slot)
@@ -5911,7 +5912,7 @@ local function render_runtime_int_control(label, id, value, source, min_value, m
     local text = (unit == '%') and ('%d%% (%s)'):fmt(value, source) or ('%d %s (%s)'):fmt(value, unit, source);
     local slider_format = (unit == '%') and '%d%%' or ('%d ' .. unit);
 
-    imgui.TextColored(CONFIG_HEADER_COLOR, label);
+    imgui.TextColored(UI_COLORS.config_header, label);
     imgui.SameLine(160);
     imgui.Text(text);
 
@@ -5933,7 +5934,7 @@ local function render_config_window()
     if (imgui.Begin(('AshitaBars v%s Configuration###AshitaBarsConfig'):fmt(addon.version), state.config_visible, ImGuiWindowFlags_AlwaysAutoResize)) then
         if (imgui.BeginTabBar('##ashitabars_config_tabs', ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) then
             if (imgui.BeginTabItem('General##ashitabars_config_general', nil)) then
-                imgui.TextColored(CONFIG_HEADER_COLOR, 'Display Mode');
+                imgui.TextColored(UI_COLORS.config_header, 'Display Mode');
                 local mode = display_mode();
                 if (imgui.RadioButton('Single##ashitabars_config_mode_single', mode == 'single')) then
                     state.display_mode_override = 'single';
@@ -5946,33 +5947,33 @@ local function render_config_window()
                 imgui.Text(('(%s)'):fmt(display_mode_source()));
 
                 imgui.Separator();
-                imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Layout');
-                render_runtime_int_control('Button Size', 'slot_size', slot_size(), slot_size_source(), SLOT_SIZE_MIN, SLOT_SIZE_MAX, function (value)
+                imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
+                render_runtime_int_control('Button Size', 'slot_size', slot_size(), slot_size_source(), LIMITS.slot_size_min, LIMITS.slot_size_max, function (value)
                     state.slot_size_override = normalize_slot_size(value);
                 end);
 
-                render_runtime_int_control('Button Gap', 'button_gap', button_gap(), button_gap_source(), BUTTON_GAP_MIN, BUTTON_GAP_MAX, function (value)
+                render_runtime_int_control('Button Gap', 'button_gap', button_gap(), button_gap_source(), LIMITS.button_gap_min, LIMITS.button_gap_max, function (value)
                     state.button_gap_override = normalize_button_gap(value);
                 end);
 
                 imgui.Separator();
-                imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Text');
-                render_runtime_int_control('Label Vertical', 'label_vertical_position', label_vertical_position(), label_vertical_position_source(), LABEL_VERTICAL_POSITION_MIN, LABEL_VERTICAL_POSITION_MAX, function (value)
+                imgui.TextColored(UI_COLORS.config_header, 'Button Text');
+                render_runtime_int_control('Label Vertical', 'label_vertical_position', label_vertical_position(), label_vertical_position_source(), LIMITS.label_vertical_position_min, LIMITS.label_vertical_position_max, function (value)
                     state.label_vertical_position_override = normalize_label_vertical_position(value);
                 end, '%');
 
                 imgui.Separator();
-                imgui.TextColored(CONFIG_HEADER_COLOR, 'Button Glow');
-                render_runtime_int_control('Glow Size', 'slot_glow_size', slot_glow_size(), slot_glow_size_source(), SLOT_GLOW_SIZE_MIN, SLOT_GLOW_SIZE_MAX, function (value)
+                imgui.TextColored(UI_COLORS.config_header, 'Button Glow');
+                render_runtime_int_control('Glow Size', 'slot_glow_size', slot_glow_size(), slot_glow_size_source(), LIMITS.slot_glow_size_min, LIMITS.slot_glow_size_max, function (value)
                     state.slot_glow_size_override = normalize_slot_glow_size(value);
                 end, '%');
 
-                render_runtime_int_control('Glow Opacity', 'slot_glow_opacity', slot_glow_opacity(), slot_glow_opacity_source(), SLOT_GLOW_OPACITY_MIN, SLOT_GLOW_OPACITY_MAX, function (value)
+                render_runtime_int_control('Glow Opacity', 'slot_glow_opacity', slot_glow_opacity(), slot_glow_opacity_source(), LIMITS.slot_glow_opacity_min, LIMITS.slot_glow_opacity_max, function (value)
                     state.slot_glow_opacity_override = normalize_slot_glow_opacity(value);
                 end, '%');
 
                 imgui.Separator();
-                imgui.TextColored(CONFIG_HEADER_COLOR, 'Bar Window');
+                imgui.TextColored(UI_COLORS.config_header, 'Bar Window');
                 local show_frame = bar_frame_visible();
                 if (imgui.Checkbox('Show Bar Frame##ashitabars_config_show_bar_frame', { show_frame })) then
                     lock_bar_anchor();
@@ -5985,7 +5986,7 @@ local function render_config_window()
                 if (imgui.Button('Save##ashitabars_config_save')) then
                     local ok, message = save_runtime_settings();
                     state.config_save_message = ok and 'Saved.' or 'Save failed. See chat log.';
-                    state.config_save_message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+                    state.config_save_message_color = ok and UI_COLORS.success or UI_COLORS.error;
                     if (ok) then
                         log_info(message);
                     else
@@ -6016,12 +6017,12 @@ local function render_macro_editor_window()
     local title = ('AshitaBars Button Editor###AshitaBarsButtonEditor');
     imgui.SetNextWindowSize({ 560, 0 }, ImGuiCond_FirstUseEver);
     if (imgui.Begin(title, editor.visible, ImGuiWindowFlags_AlwaysAutoResize)) then
-        imgui.TextColored(CONFIG_HEADER_COLOR, ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, digit));
+        imgui.TextColored(UI_COLORS.config_header, ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, digit));
         imgui.SameLine(0, 8);
         imgui.Text(('(%s)'):fmt(editor.source or 'config'));
 
         imgui.Separator();
-        imgui.TextColored(CONFIG_HEADER_COLOR, 'Shared Button');
+        imgui.TextColored(UI_COLORS.config_header, 'Shared Button');
         SHARED.render_selector(editor);
         imgui.PushItemWidth(360);
         imgui.InputText('Shared Name##ashitabars_button_shared_name', editor.shared_name_buffer, SHARED.NAME_MAX);
@@ -6029,7 +6030,7 @@ local function render_macro_editor_window()
         if (imgui.Button('Save Shared##ashitabars_button_save_shared')) then
             local ok, message = SHARED.save_editor_shared();
             editor.message = message;
-            editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+            editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
             if (not ok) then
                 log_warn(message);
             end
@@ -6038,7 +6039,7 @@ local function render_macro_editor_window()
         if (imgui.Button('Assign Shared##ashitabars_button_assign_shared')) then
             local ok, message = SHARED.assign_editor_shared();
             editor.message = message;
-            editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+            editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
             if (not ok) then
                 log_warn(message);
             end
@@ -6049,13 +6050,13 @@ local function render_macro_editor_window()
             SHARED.detach_editor_shared();
             if (save_macro_editor(false)) then
                 editor.message = detached ~= nil and ('Detached local copy from: ' .. detached) or 'Saved local copy.';
-                editor.message_color = CONFIG_SUCCESS_COLOR;
+                editor.message_color = UI_COLORS.success;
             end
         end
 
         imgui.Separator();
         local mode = MACRO.normalize_mode(editor.macro_mode);
-        imgui.TextColored(CONFIG_HEADER_COLOR, 'Command Mode');
+        imgui.TextColored(UI_COLORS.config_header, 'Command Mode');
         COMMAND_MODE.render_mode_selector(editor);
 
         mode = MACRO.normalize_mode(editor.macro_mode);
@@ -6069,14 +6070,14 @@ local function render_macro_editor_window()
             end
         end
         if (not COMMAND_MODE.is_structured_mode(mode) or editor.use_action_name_label[1] == false) then
-            imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, MACRO_LABEL_MAX);
+            imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, LIMITS.macro_label_max);
         elseif (COMMAND_MODE.is_structured_mode(mode)) then
             COMMAND_MODE.apply_editor_action_label(editor, mode);
         end
         if (mode == 'multi') then
             MACRO.render_multiline_input('Commands##ashitabars_button_commands', editor.commands_buffer, MACRO.COMMANDS_TEXT_MAX, { 360, 122 });
         elseif (mode == 'single') then
-            imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, MACRO_COMMAND_MAX);
+            imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, LIMITS.macro_command_max);
         end
         imgui.PopItemWidth();
         if (mode ~= 'single' and mode ~= 'multi') then
@@ -6090,7 +6091,7 @@ local function render_macro_editor_window()
 
         local validation_error = MACRO.editor_validation_error();
         if (validation_error ~= nil) then
-            imgui.TextColored(CONFIG_ERROR_COLOR, validation_error);
+            imgui.TextColored(UI_COLORS.error, validation_error);
         end
 
         imgui.Separator();
@@ -6102,7 +6103,7 @@ local function render_macro_editor_window()
             if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
                 local ok, message = MACRO.run_editor_commands();
                 editor.message = message;
-                editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+                editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
                 if (not ok) then
                     log_warn(message);
                 end
@@ -6123,7 +6124,7 @@ local function render_macro_editor_window()
 
         if (editor.message ~= nil) then
             imgui.SameLine(0, 8);
-            imgui.TextColored(editor.message_color or CONFIG_SUCCESS_COLOR, editor.message);
+            imgui.TextColored(editor.message_color or UI_COLORS.success, editor.message);
         end
     end
     imgui.End();
@@ -6135,8 +6136,8 @@ local function print_help()
     log_info('/ashitabars hide - Hide the bars.');
     log_info('/ashitabars config - Toggle the runtime configuration window.');
     log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
-    log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(SLOT_SIZE_MIN, SLOT_SIZE_MAX));
-    log_info(('/ashitabars gap %d-%d|config - Change button spacing until config reload.'):fmt(BUTTON_GAP_MIN, BUTTON_GAP_MAX));
+    log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(LIMITS.slot_size_min, LIMITS.slot_size_max));
+    log_info(('/ashitabars gap %d-%d|config - Change button spacing until config reload.'):fmt(LIMITS.button_gap_min, LIMITS.button_gap_max));
     log_info('/ashitabars reload - Reload ashitabars_config.lua.');
     log_info('/ashitabars status - Print input status.');
 end
@@ -6198,7 +6199,7 @@ ashita.events.register('command', 'command_cb', function (e)
         else
             local size = normalize_slot_size(requested);
             if (size == nil) then
-                log_warn(('/ashitabars size expects %d-%d or config.'):fmt(SLOT_SIZE_MIN, SLOT_SIZE_MAX));
+                log_warn(('/ashitabars size expects %d-%d or config.'):fmt(LIMITS.slot_size_min, LIMITS.slot_size_max));
             else
                 state.slot_size_override = size;
                 log_info(('Button size set to %d px (runtime).'):fmt(size));
@@ -6214,7 +6215,7 @@ ashita.events.register('command', 'command_cb', function (e)
         else
             local gap = normalize_button_gap(requested);
             if (gap == nil) then
-                log_warn(('/ashitabars gap expects %d-%d or config.'):fmt(BUTTON_GAP_MIN, BUTTON_GAP_MAX));
+                log_warn(('/ashitabars gap expects %d-%d or config.'):fmt(LIMITS.button_gap_min, LIMITS.button_gap_max));
             else
                 state.button_gap_override = gap;
                 log_info(('Button gap set to %d px (runtime).'):fmt(gap));
