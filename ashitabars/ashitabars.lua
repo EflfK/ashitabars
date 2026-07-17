@@ -106,6 +106,7 @@ local ALLOWED_PREFIXES = T{
     ['/shoot'] = true,
     ['/item'] = true,
     ['/mount'] = true,
+    ['/dismount'] = true,
     ['/wait'] = true,
     ['/equip'] = true,
     ['/lac'] = true,
@@ -339,6 +340,10 @@ local ICON_ALIASES = {
     bard = 'song',
     summon = 'summon',
     avatar = 'summon',
+    pet = 'pet',
+    fight = 'fight',
+    charm = 'charm',
+    reward = 'reward',
     weapon = 'weapon',
     weaponskill = 'weapon',
     weapon_skill = 'weapon',
@@ -380,6 +385,10 @@ local ICON_DEFS = {
     ability     = { family = 'ability',     mark = 'spark',   accent = { 1.00, 0.76, 0.32, 1.00 } },
     song        = { family = 'ability',     mark = 'note',    accent = { 1.00, 0.82, 0.46, 1.00 } },
     summon      = { family = 'ability',     mark = 'avatar',  accent = { 0.64, 0.92, 1.00, 1.00 } },
+    pet         = { family = 'ability',     mark = 'paw',     accent = { 1.00, 0.70, 0.34, 1.00 } },
+    fight       = { family = 'ability',     mark = 'claw',    accent = { 1.00, 0.58, 0.28, 1.00 } },
+    charm       = { family = 'ability',     mark = 'heart',   accent = { 1.00, 0.50, 0.72, 1.00 } },
+    reward      = { family = 'item',        mark = 'gift',    accent = { 0.76, 1.00, 0.58, 1.00 } },
     weapon      = { family = 'weapon',      mark = 'blade',   accent = { 1.00, 0.48, 0.36, 1.00 } },
     ranged      = { family = 'weapon',      mark = 'ranged',  accent = { 0.98, 0.64, 0.34, 1.00 } },
     item        = { family = 'item',        mark = 'bag',     accent = { 0.54, 0.94, 0.54, 1.00 } },
@@ -392,38 +401,12 @@ local ICON_DEFS = {
     command     = { family = 'command',     mark = 'diamond', accent = { 0.76, 0.70, 0.54, 1.00 } },
 };
 
-local ICON_SELECTOR_TOKENS = {
-    'cure',
-    'holy',
-    'buff',
-    'status',
-    'raise',
-    'stealth',
-    'white_magic',
-    'black_magic',
-    'debuff',
-    'fire',
-    'ice',
-    'wind',
-    'earth',
-    'lightning',
-    'water',
-    'light',
-    'dark',
-    'ability',
-    'song',
-    'summon',
-    'weapon',
-    'ranged',
-    'item',
-    'mount',
-    'target',
-    'assist',
-    'check',
-    'chat',
-    'rest',
-    'test',
-    'command',
+local ICON_SELECTOR_CATEGORIES = {
+    { label = 'Magic', tokens = { 'cure', 'holy', 'buff', 'status', 'raise', 'stealth', 'white_magic', 'black_magic', 'debuff' } },
+    { label = 'Elements', tokens = { 'fire', 'ice', 'wind', 'earth', 'lightning', 'water', 'light', 'dark' } },
+    { label = 'Combat', tokens = { 'ability', 'weapon', 'ranged' } },
+    { label = 'Pet', tokens = { 'pet', 'fight', 'charm', 'reward', 'summon' } },
+    { label = 'Utility', tokens = { 'item', 'mount', 'target', 'assist', 'check', 'chat', 'rest', 'song', 'test', 'command' } },
 };
 
 local DEFAULT_CONFIG = {
@@ -443,9 +426,7 @@ local DEFAULT_CONFIG = {
         slot_glow_size = 100,
         slot_glow_opacity = 100,
         label_vertical_position = 100,
-        show_bar_frame = false,
         show_click_bar = true,
-        show_click_bar_frame = false,
         row_gap = 6,
         window_x = 820,
         window_y = 760,
@@ -460,7 +441,6 @@ local DEFAULT_CONFIG = {
             slot_glow_size = 100,
             slot_glow_opacity = 100,
             label_vertical_position = 100,
-            show_frame = false,
             window_x = 820,
             window_y = 760,
         },
@@ -471,7 +451,6 @@ local DEFAULT_CONFIG = {
             slot_glow_size = 100,
             slot_glow_opacity = 100,
             label_vertical_position = 100,
-            show_frame = false,
             window_x = 820,
             window_y = 680,
         },
@@ -497,6 +476,7 @@ local state = {
     macro_overrides = { profiles = {}, shared = {} },
     visible = T{ true },
     config_visible = T{ false },
+    config_frames_visible = false,
     config_save_message = nil,
     config_save_message_color = UI_COLORS.success,
     config_error = nil,
@@ -508,7 +488,6 @@ local state = {
     slot_glow_opacity_override = nil,
     label_vertical_position_override = nil,
     main_bar_visible_override = nil,
-    bar_frame_override = nil,
     bar_window_x = nil,
     bar_window_y = nil,
     bar_anchor_x = nil,
@@ -526,7 +505,6 @@ local state = {
     click_bar_slot_glow_size_override = nil,
     click_bar_slot_glow_opacity_override = nil,
     click_bar_label_vertical_position_override = nil,
-    click_bar_frame_override = nil,
     click_bar_window_x = nil,
     click_bar_window_y = nil,
     click_bar_anchor_x = nil,
@@ -539,6 +517,7 @@ local state = {
     click_bar_hidden_offset_y = LIMITS.frameless_window_padding,
     recast_cache = {},
     recast_totals = {},
+    mount_recast_overlay = nil,
     macro_runs = {},
     item_source_cache = {},
     item_count_cache = {},
@@ -576,11 +555,12 @@ local state = {
         ability_search_buffer = T{ '' },
         pet_search_buffer = T{ '' },
         mount_search_buffer = T{ '' },
-        preview_icon = nil,
         message = nil,
         message_color = UI_COLORS.success,
     },
 };
+
+local ICON_ART_STYLE = {};
 
 local function log_info(message)
     print(chat.header(addon.name):append(chat.message(message)));
@@ -853,7 +833,6 @@ local function load_config()
         state.slot_glow_opacity_override = nil;
         state.label_vertical_position_override = nil;
         state.main_bar_visible_override = nil;
-        state.bar_frame_override = nil;
         local main_bar_settings = type(state.config.settings.main_bar) == 'table' and state.config.settings.main_bar or {};
         local extra_bar_settings = type(state.config.settings.extra_bar_1) == 'table' and state.config.settings.extra_bar_1 or {};
         state.visible[1] = main_bar_settings.visible ~= false;
@@ -874,7 +853,6 @@ local function load_config()
         state.click_bar_slot_glow_size_override = nil;
         state.click_bar_slot_glow_opacity_override = nil;
         state.click_bar_label_vertical_position_override = nil;
-        state.click_bar_frame_override = nil;
         state.click_bar_window_x = tonumber(extra_bar_settings.window_x) or tonumber(state.config.settings.click_bar_window_x) or DEFAULT_CONFIG.settings.click_bar_window_x;
         state.click_bar_window_y = tonumber(extra_bar_settings.window_y) or tonumber(state.config.settings.click_bar_window_y) or DEFAULT_CONFIG.settings.click_bar_window_y;
         state.click_bar_anchor_x = state.click_bar_window_x;
@@ -928,7 +906,6 @@ local function load_config()
     state.slot_glow_opacity_override = nil;
     state.label_vertical_position_override = nil;
     state.main_bar_visible_override = nil;
-    state.bar_frame_override = nil;
     state.bar_window_x = tonumber(main_bar_settings.window_x) or tonumber(state.config.settings.window_x) or DEFAULT_CONFIG.settings.window_x;
     state.bar_window_y = tonumber(main_bar_settings.window_y) or tonumber(state.config.settings.window_y) or DEFAULT_CONFIG.settings.window_y;
     state.bar_anchor_x = state.bar_window_x;
@@ -946,7 +923,6 @@ local function load_config()
     state.click_bar_slot_glow_size_override = nil;
     state.click_bar_slot_glow_opacity_override = nil;
     state.click_bar_label_vertical_position_override = nil;
-    state.click_bar_frame_override = nil;
     state.click_bar_window_x = tonumber(extra_bar_settings.window_x) or tonumber(state.config.settings.click_bar_window_x) or DEFAULT_CONFIG.settings.click_bar_window_x;
     state.click_bar_window_y = tonumber(extra_bar_settings.window_y) or tonumber(state.config.settings.click_bar_window_y) or DEFAULT_CONFIG.settings.click_bar_window_y;
     state.click_bar_anchor_x = state.click_bar_window_x;
@@ -1049,7 +1025,6 @@ BAR.LEGACY_SETTING_KEY = {
         slot_glow_size = 'slot_glow_size',
         slot_glow_opacity = 'slot_glow_opacity',
         label_vertical_position = 'label_vertical_position',
-        show_frame = 'show_bar_frame',
         window_x = 'window_x',
         window_y = 'window_y',
     },
@@ -1060,7 +1035,6 @@ BAR.LEGACY_SETTING_KEY = {
         slot_glow_size = 'slot_glow_size',
         slot_glow_opacity = 'slot_glow_opacity',
         label_vertical_position = 'label_vertical_position',
-        show_frame = 'show_click_bar_frame',
         window_x = 'click_bar_window_x',
         window_y = 'click_bar_window_y',
     },
@@ -1115,7 +1089,6 @@ BAR.OVERRIDE_STATE_KEY = {
         slot_glow_size = 'slot_glow_size_override',
         slot_glow_opacity = 'slot_glow_opacity_override',
         label_vertical_position = 'label_vertical_position_override',
-        show_frame = 'bar_frame_override',
     },
     extra1 = {
         visible = 'click_bar_visible_override',
@@ -1124,7 +1097,6 @@ BAR.OVERRIDE_STATE_KEY = {
         slot_glow_size = 'click_bar_slot_glow_size_override',
         slot_glow_opacity = 'click_bar_slot_glow_opacity_override',
         label_vertical_position = 'click_bar_label_vertical_position_override',
-        show_frame = 'click_bar_frame_override',
     },
 };
 
@@ -1389,29 +1361,16 @@ local function label_vertical_position_source(bar_key)
     return 'default';
 end
 
-local function configured_bar_frame_visible()
-    local raw, source = BAR.raw_setting('main', 'show_frame');
-    return raw ~= false, source;
-end
-
 local function bar_frame_visible()
-    local override = BAR.override('main', 'show_frame');
-    if (override ~= nil) then
-        return override == true;
-    end
-
-    local visible = configured_bar_frame_visible();
-    return visible;
+    return state.config_visible[1] == true;
 end
 
 local function bar_frame_source()
-    local source = BAR.override_source('main', 'show_frame');
-    if (source ~= nil) then
-        return source;
+    if (state.config_visible[1]) then
+        return 'config window';
     end
 
-    local _, source = configured_bar_frame_visible();
-    return source;
+    return 'closed';
 end
 
 local function configured_main_bar_visible()
@@ -1463,29 +1422,16 @@ local function click_bar_visible_source()
     return source;
 end
 
-local function configured_click_bar_frame_visible()
-    local raw, source = BAR.raw_setting('extra1', 'show_frame');
-    return raw ~= false, source;
-end
-
 local function click_bar_frame_visible()
-    local override = BAR.override('extra1', 'show_frame');
-    if (override ~= nil) then
-        return override == true;
-    end
-
-    local visible = configured_click_bar_frame_visible();
-    return visible;
+    return state.config_visible[1] == true;
 end
 
 local function click_bar_frame_source()
-    local source = BAR.override_source('extra1', 'show_frame');
-    if (source ~= nil) then
-        return source;
+    if (state.config_visible[1]) then
+        return 'config window';
     end
 
-    local _, source = configured_click_bar_frame_visible();
-    return source;
+    return 'closed';
 end
 
 local function bar_window_position(settings)
@@ -1565,6 +1511,17 @@ local function lock_click_bar_anchor()
     local anchor_x, anchor_y = click_bar_window_position(settings);
     state.click_bar_anchor_lock_x = anchor_x;
     state.click_bar_anchor_lock_y = anchor_y;
+end
+
+local function sync_config_frame_visibility()
+    local visible = state.config_visible[1] == true;
+    if (state.config_frames_visible == visible) then
+        return;
+    end
+
+    lock_bar_anchor();
+    lock_click_bar_anchor();
+    state.config_frames_visible = visible;
 end
 
 local function imgui_wants_keyboard()
@@ -1957,7 +1914,6 @@ local function current_runtime_visual_settings()
         slot_glow_size = slot_glow_size('main'),
         slot_glow_opacity = slot_glow_opacity('main'),
         label_vertical_position = label_vertical_position('main'),
-        show_frame = bar_frame_visible(),
         window_x = window_x,
         window_y = window_y,
     };
@@ -1968,7 +1924,6 @@ local function current_runtime_visual_settings()
         slot_glow_size = slot_glow_size('extra1'),
         slot_glow_opacity = slot_glow_opacity('extra1'),
         label_vertical_position = label_vertical_position('extra1'),
-        show_frame = click_bar_frame_visible(),
         window_x = click_bar_window_x,
         window_y = click_bar_window_y,
     };
@@ -1982,11 +1937,9 @@ local function current_runtime_visual_settings()
         slot_glow_size = main_bar.slot_glow_size,
         slot_glow_opacity = main_bar.slot_glow_opacity,
         label_vertical_position = main_bar.label_vertical_position,
-        show_bar_frame = main_bar.show_frame,
         window_x = main_bar.window_x,
         window_y = main_bar.window_y,
         show_click_bar = extra_bar_1.visible,
-        show_click_bar_frame = extra_bar_1.show_frame,
         click_bar_window_x = extra_bar_1.window_x,
         click_bar_window_y = extra_bar_1.window_y,
     };
@@ -2013,7 +1966,6 @@ function BAR.apply_visual_settings(target, settings, bar_key)
     if (glow_size ~= nil) then target.slot_glow_size = glow_size; end
     if (glow_opacity ~= nil) then target.slot_glow_opacity = glow_opacity; end
     if (label_position ~= nil) then target.label_vertical_position = label_position; end
-    if (settings.show_frame ~= nil) then target.show_frame = settings.show_frame ~= false; end
     if (window_x ~= nil) then target.window_x = math.floor(window_x + 0.5); end
     if (window_y ~= nil) then target.window_y = math.floor(window_y + 0.5); end
 end
@@ -2071,11 +2023,9 @@ local function apply_visual_settings(settings)
         target.main_bar.label_vertical_position = label_position;
         if (settings.extra_bar_1 == nil) then target.extra_bar_1.label_vertical_position = label_position; end
     end
-    if (settings.show_bar_frame ~= nil) then target.main_bar.show_frame = settings.show_bar_frame ~= false; end
     if (window_x ~= nil) then target.main_bar.window_x = math.floor(window_x + 0.5); end
     if (window_y ~= nil) then target.main_bar.window_y = math.floor(window_y + 0.5); end
     if (settings.show_click_bar ~= nil) then target.extra_bar_1.visible = settings.show_click_bar ~= false; end
-    if (settings.show_click_bar_frame ~= nil) then target.extra_bar_1.show_frame = settings.show_click_bar_frame ~= false; end
     if (click_bar_window_x ~= nil) then target.extra_bar_1.window_x = math.floor(click_bar_window_x + 0.5); end
     if (click_bar_window_y ~= nil) then target.extra_bar_1.window_y = math.floor(click_bar_window_y + 0.5); end
 
@@ -2086,11 +2036,9 @@ local function apply_visual_settings(settings)
     target.slot_glow_size = target.main_bar.slot_glow_size or target.slot_glow_size;
     target.slot_glow_opacity = target.main_bar.slot_glow_opacity or target.slot_glow_opacity;
     target.label_vertical_position = target.main_bar.label_vertical_position or target.label_vertical_position;
-    target.show_bar_frame = target.main_bar.show_frame ~= false;
     target.window_x = target.main_bar.window_x or target.window_x;
     target.window_y = target.main_bar.window_y or target.window_y;
     target.show_click_bar = target.extra_bar_1.visible ~= false;
-    target.show_click_bar_frame = target.extra_bar_1.show_frame ~= false;
     target.click_bar_window_x = target.extra_bar_1.window_x or target.click_bar_window_x;
     target.click_bar_window_y = target.extra_bar_1.window_y or target.click_bar_window_y;
 end
@@ -2111,7 +2059,6 @@ local function serialize_visual_settings(settings)
         ('            slot_glow_size = %d,'):fmt(main.slot_glow_size or settings.slot_glow_size),
         ('            slot_glow_opacity = %d,'):fmt(main.slot_glow_opacity or settings.slot_glow_opacity),
         ('            label_vertical_position = %d,'):fmt(main.label_vertical_position or settings.label_vertical_position),
-        ('            show_frame = %s,'):fmt(tostring(main.show_frame ~= false)),
         ('            window_x = %d,'):fmt(main.window_x or settings.window_x),
         ('            window_y = %d,'):fmt(main.window_y or settings.window_y),
         '        },',
@@ -2122,7 +2069,6 @@ local function serialize_visual_settings(settings)
         ('            slot_glow_size = %d,'):fmt(extra.slot_glow_size or settings.slot_glow_size),
         ('            slot_glow_opacity = %d,'):fmt(extra.slot_glow_opacity or settings.slot_glow_opacity),
         ('            label_vertical_position = %d,'):fmt(extra.label_vertical_position or settings.label_vertical_position),
-        ('            show_frame = %s,'):fmt(tostring(extra.show_frame ~= false)),
         ('            window_x = %d,'):fmt(extra.window_x or settings.click_bar_window_x),
         ('            window_y = %d,'):fmt(extra.window_y or settings.click_bar_window_y),
         '        },',
@@ -2132,11 +2078,9 @@ local function serialize_visual_settings(settings)
         ('        slot_glow_size = %d,'):fmt(settings.slot_glow_size),
         ('        slot_glow_opacity = %d,'):fmt(settings.slot_glow_opacity),
         ('        label_vertical_position = %d,'):fmt(settings.label_vertical_position),
-        ('        show_bar_frame = %s,'):fmt(tostring(settings.show_bar_frame)),
         ('        window_x = %d,'):fmt(settings.window_x),
         ('        window_y = %d,'):fmt(settings.window_y),
         ('        show_click_bar = %s,'):fmt(tostring(settings.show_click_bar)),
-        ('        show_click_bar_frame = %s,'):fmt(tostring(settings.show_click_bar_frame)),
         ('        click_bar_window_x = %d,'):fmt(settings.click_bar_window_x),
         ('        click_bar_window_y = %d,'):fmt(settings.click_bar_window_y),
         '    },',
@@ -2190,14 +2134,12 @@ local function save_visual_settings()
     state.slot_glow_opacity_override = nil;
     state.label_vertical_position_override = nil;
     state.main_bar_visible_override = nil;
-    state.bar_frame_override = nil;
     state.click_bar_visible_override = nil;
     state.click_bar_slot_size_override = nil;
     state.click_bar_button_gap_override = nil;
     state.click_bar_slot_glow_size_override = nil;
     state.click_bar_slot_glow_opacity_override = nil;
     state.click_bar_label_vertical_position_override = nil;
-    state.click_bar_frame_override = nil;
     state.bar_window_x = settings.window_x;
     state.bar_window_y = settings.window_y;
     state.bar_anchor_x = settings.window_x;
@@ -2653,11 +2595,7 @@ local function apply_editor_preview(slot, profile_key, group, index)
         preview_slot.script = nil;
     end
     if (mode ~= 'item' and mode ~= 'mount') then
-        local preview_icon = editor.preview_icon;
-        if (preview_icon == nil) then
-            preview_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
-        end
-        preview_slot.icon = preview_icon;
+        preview_slot.icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
     end
     return preview_slot;
 end
@@ -2874,6 +2812,68 @@ function COMMAND_MODE.resource_name(resource)
         or safe_read(function () return resource.Name[0]; end, nil);
 
     return COMMAND_MODE.clean_name(name);
+end
+
+function COMMAND_MODE.player_is_mounted()
+    local player = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetPlayer();
+    end, nil);
+    local resources = safe_read(function ()
+        return AshitaCore:GetResourceManager();
+    end, nil);
+    local icons = player ~= nil and safe_read(function ()
+        return player:GetStatusIcons();
+    end, nil) or nil;
+
+    if (icons == nil or resources == nil) then
+        return false;
+    end
+
+    for slot = 0, 31, 1 do
+        local icon = tonumber(safe_read(function ()
+            return icons[slot + 1];
+        end, nil));
+        if (icon ~= nil and icon > 0 and icon ~= 255) then
+            local name = COMMAND_MODE.clean_name(safe_read(function ()
+                return resources:GetString('buffs.names', icon);
+            end, '')):lower();
+            if (name == 'mount' or name == 'mounted' or name == 'chocobo') then
+                return true;
+            end
+        end
+    end
+
+    return false;
+end
+
+function COMMAND_MODE.start_mount_recast_overlay()
+    local total = 60;
+    local now = os.time();
+    state.mount_recast_overlay = {
+        started_at = now,
+        total = total,
+        expires_at = now + total,
+    };
+end
+
+function COMMAND_MODE.mount_recast_overlay_info()
+    local overlay = state.mount_recast_overlay;
+    if (type(overlay) ~= 'table') then
+        return nil;
+    end
+
+    local now = os.time();
+    local remaining = (tonumber(overlay.expires_at) or 0) - now;
+    if (remaining <= 0) then
+        state.mount_recast_overlay = nil;
+        return nil;
+    end
+
+    local total = math.max(1, tonumber(overlay.total) or 60);
+    return {
+        timer = remaining,
+        total = total,
+    };
 end
 
 function COMMAND_MODE.resource_id(resource)
@@ -3649,6 +3649,34 @@ function COMMAND_MODE.pet_command_actions()
     return COMMAND_MODE.sort_actions(list);
 end
 
+function COMMAND_MODE.pet_command_available_now(name)
+    name = COMMAND_MODE.clean_name(name);
+    if (name == '') then
+        return nil;
+    end
+
+    if (state.command_mode_cache == nil) then
+        state.command_mode_cache = {};
+    end
+
+    local now = os.clock();
+    local cached = state.command_mode_cache.pet_visual;
+    if (cached ~= nil and cached.lookup ~= nil and (now - cached.at) <= 0.50) then
+        return cached.lookup[name:lower()] == true;
+    end
+
+    local lookup = {};
+    for _, action in ipairs(COMMAND_MODE.pet_command_actions()) do
+        local key = COMMAND_MODE.clean_name(action.name):lower();
+        if (key ~= '') then
+            lookup[key] = true;
+        end
+    end
+
+    state.command_mode_cache.pet_visual = { at = now, lookup = lookup };
+    return lookup[name:lower()] == true;
+end
+
 function COMMAND_MODE.mount_actions()
     local list = {};
     local lookup = {};
@@ -3783,7 +3811,6 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     end
     if (mode == 'item' or mode == 'mount') then
         buffer_set(editor.icon_buffer, '');
-        editor.preview_icon = nil;
     end
     if (COMMAND_MODE.mode_from_command(current_command) ~= mode) then
         current_command = '';
@@ -4583,15 +4610,18 @@ function MACRO.run_editor_commands()
         return false, validation_error;
     end
 
-    local queue_ok, queue_message = MACRO.queue_commands(commands, {
+    local context = {
         profile_key = editor.profile_key,
         group = editor.group,
         index = editor.index,
         script = mode == 'multi' and editor.run_as_script[1] == true,
-    });
+    };
+    local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
+    local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
         return false, queue_message;
     end
+    COMMAND_MODE.track_command_execution(commands_to_queue);
 
     if (mode == 'multi') then
         if (editor.run_as_script[1] == true) then
@@ -4619,16 +4649,19 @@ local function execute_slot(group, index, source)
     end
 
     local profile = state.profile or refresh_profile_context();
-    local queue_ok, queue_message = MACRO.queue_commands(commands, {
+    local context = {
         profile_key = editable_profile_key(profile),
         group = group,
         index = index,
         script = MACRO.script_enabled(slot),
-    });
+    };
+    local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
+    local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
         log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, DIGIT_LABELS[index], source, queue_message));
         return false;
     end
+    COMMAND_MODE.track_command_execution(commands_to_queue);
 
     return true;
 end
@@ -5013,45 +5046,23 @@ local function icon_selector_label(token)
     end
 
     local normalized = DEFERRED.normalize_icon_token(token);
-    if (normalized ~= nil and ICON_DEFS[normalized] ~= nil) then
-        return normalized;
+    if (normalized ~= nil) then
+        local base = normalized;
+        local sigil_base = normalized:match('^sigil_(.+)$');
+        if (sigil_base ~= nil) then
+            base = sigil_base;
+        end
+
+        if (ICON_DEFS[base] ~= nil) then
+            if (sigil_base ~= nil) then
+                return ('%s (sigil)'):fmt(base);
+            end
+
+            return base;
+        end
     end
 
     return 'Custom: ' .. token;
-end
-
-local function render_icon_selector(editor, width)
-    local current_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
-    local normalized_current = DEFERRED.normalize_icon_token(current_icon);
-    local selected_label = icon_selector_label(current_icon);
-    local changed = false;
-
-    editor.preview_icon = nil;
-    imgui.PushItemWidth(width or 360);
-    if (imgui.BeginCombo('Icon Preset##ashitabars_button_icon_select', selected_label, ImGuiComboFlags_None)) then
-        if (imgui.Selectable('Auto (infer from command)', current_icon == '')) then
-            buffer_set(editor.icon_buffer, '');
-            changed = true;
-        end
-        if (imgui.IsItemHovered()) then
-            editor.preview_icon = '';
-        end
-
-        for _, token in ipairs(ICON_SELECTOR_TOKENS) do
-            local selected = normalized_current == token;
-            if (imgui.Selectable(token, selected)) then
-                buffer_set(editor.icon_buffer, token);
-                changed = true;
-            end
-            if (imgui.IsItemHovered()) then
-                editor.preview_icon = token;
-            end
-        end
-
-        imgui.EndCombo();
-    end
-        imgui.PopItemWidth();
-    return changed;
 end
 
 function SHARED.render_selector(editor)
@@ -5112,6 +5123,30 @@ local function command_prefix_and_name(command)
 
     local name = rest:match('^"([^"]+)"') or rest:match("^'([^']+)'") or rest:match('^(%S+)');
     return prefix:lower(), name;
+end
+
+function COMMAND_MODE.commands_for_execution(commands, options)
+    if (type(commands) ~= 'table' or #commands ~= 1 or (type(options) == 'table' and options.script == true)) then
+        return commands;
+    end
+
+    local prefix = command_prefix_and_name(commands[1]);
+    if (prefix == '/mount' and COMMAND_MODE.player_is_mounted()) then
+        return { '/dismount' };
+    end
+
+    return commands;
+end
+
+function COMMAND_MODE.track_command_execution(commands)
+    if (type(commands) ~= 'table' or #commands ~= 1) then
+        return;
+    end
+
+    local prefix = command_prefix_and_name(commands[1]);
+    if (prefix == '/mount') then
+        COMMAND_MODE.start_mount_recast_overlay();
+    end
 end
 
 local function command_recast_action(command)
@@ -5237,6 +5272,8 @@ local function recast_source_for_command(command)
             kind = 'mount',
             key = 'mount',
             name = name ~= '' and name or 'Mount',
+            total = 60,
+            timer_units = 'seconds',
         };
         return state.recast_cache[command];
     end
@@ -5337,12 +5374,12 @@ local function slot_recast(slot)
     elseif (source.kind == 'ability') then
         timer = ability_recast_timer(source.timer_id);
     elseif (source.kind == 'mount') then
-        local player = safe_read(function ()
-            return AshitaCore:GetMemoryManager():GetPlayer();
-        end, nil);
-        timer = tonumber(player ~= nil and safe_read(function ()
-            return player:GetMountRecast();
-        end, 0) or 0) or 0;
+        local mount_overlay = COMMAND_MODE.mount_recast_overlay_info();
+        if (mount_overlay == nil) then
+            return nil;
+        end
+        timer = mount_overlay.timer;
+        source.total = mount_overlay.total;
     end
 
     if (timer <= 0) then
@@ -5368,7 +5405,7 @@ local function slot_recast(slot)
         fraction = 1;
     end
 
-    local seconds = seconds_from_recast_timer(timer);
+    local seconds = (source.timer_units == 'seconds') and math.max(1, math.ceil(timer)) or seconds_from_recast_timer(timer);
     return {
         kind = source.kind,
         name = source.name,
@@ -5548,7 +5585,7 @@ local function slot_visual_state(slot)
         return nil;
     end
 
-    local prefix = command_prefix_and_name(slot.command);
+    local prefix, action_name = command_prefix_and_name(slot.command);
     local state_info = {
         available = true,
     };
@@ -5586,6 +5623,14 @@ local function slot_visual_state(slot)
             state_info.available = false;
             state_info.reason = ('TP %d/%d'):fmt(tp, threshold);
             state_info.reason_label = 'TP';
+        end
+    elseif (prefix == '/pet') then
+        local available = COMMAND_MODE.pet_command_available_now(action_name);
+        if (show_availability and available == false) then
+            state_info.kind = 'pet';
+            state_info.available = false;
+            state_info.reason = ('%s unavailable'):fmt(action_name or 'Pet command');
+            state_info.reason_label = 'PET';
         end
     end
 
@@ -5641,6 +5686,11 @@ DEFERRED.normalize_icon_token = function (value)
     local token = value:lower():gsub('[%s%-]+', '_'):gsub('[^%w_]+', ''):gsub('_+', '_'):gsub('^_', ''):gsub('_$', '');
     if (token == '') then
         return nil;
+    end
+
+    local sigil_base = token:match('^sigil_(.+)$');
+    if (sigil_base ~= nil) then
+        return 'sigil_' .. (ICON_ALIASES[sigil_base] or sigil_base);
     end
 
     return ICON_ALIASES[token] or token;
@@ -5762,16 +5812,39 @@ local function icon_def_for_token(token, family)
         return nil, nil;
     end
 
-    local known = ICON_DEFS[normalized];
+    local base_token = normalized;
+    local art_style = nil;
+    local sigil_base = normalized:match('^sigil_(.+)$');
+    if (sigil_base ~= nil) then
+        base_token = sigil_base;
+        art_style = 'sigil';
+    end
+
+    local known = ICON_DEFS[base_token];
     if (known ~= nil) then
-        return known, normalized;
+        if (art_style == nil) then
+            return known, normalized;
+        end
+
+        local icon_def = {};
+        for key, value in pairs(known) do
+            icon_def[key] = value;
+        end
+        icon_def.art_style = art_style;
+        return icon_def, normalized;
+    end
+
+    local text = base_token:sub(1, 2):upper();
+    if (art_style ~= nil and text == '') then
+        text = '?';
     end
 
     return {
         family = family,
         mark = 'text',
-        text = normalized:sub(1, 2):upper(),
+        text = text,
         accent = COMMAND_THEME[family] or COMMAND_THEME.command,
+        art_style = art_style,
     }, normalized;
 end
 
@@ -5857,6 +5930,247 @@ local function draw_centered_text(draw_list, cx, cy, color, text)
     draw_text_shadow(draw_list, cx - (tw * 0.5), cy - (th * 0.5), color, text);
 end
 
+function ICON_ART_STYLE.draw_sigil_mark(draw_list, icon_def, x, y, size, fallback_color)
+    if (icon_def == nil) then
+        return false;
+    end
+
+    local color = icon_def.accent or fallback_color or COMMAND_THEME.command;
+    local col = color_u32(color_with_alpha(color, 0.94));
+    local dim = color_u32(color_with_alpha(color, 0.45));
+    local mark = icon_def.mark or 'diamond';
+    local thick = math.max(1.1, size * 0.13);
+    local fine = math.max(1.0, size * 0.08);
+
+    local function point(px, py)
+        return { x + (px * size), y + (py * size) };
+    end
+
+    local function line(x1, y1, x2, y2, color_value, width)
+        draw_list:AddLine(point(x1, y1), point(x2, y2), color_value or col, width or fine);
+    end
+
+    local function diamond(scale, color_value, width)
+        line(0, -scale, scale, 0, color_value, width);
+        line(scale, 0, 0, scale, color_value, width);
+        line(0, scale, -scale, 0, color_value, width);
+        line(-scale, 0, 0, -scale, color_value, width);
+    end
+
+    local function box(x1, y1, x2, y2, color_value, width)
+        draw_list:AddRect(point(x1, y1), point(x2, y2), color_value or col, 1.0, ImDrawCornerFlags_All, width or fine);
+    end
+
+    if (mark == 'text') then
+        draw_centered_text(draw_list, x, y, color, icon_def.text or '?');
+        return true;
+    end
+
+    if (mark == 'plus') then
+        diamond(0.86, dim, fine);
+        line(0, -0.72, 0, 0.72, col, thick);
+        line(-0.72, 0, 0.72, 0, col, thick);
+        return true;
+    end
+
+    if (mark == 'spark' or mark == 'ray') then
+        diamond(0.62, dim, fine);
+        line(0, -1.0, 0, 1.0, col, thick);
+        line(-1.0, 0, 1.0, 0, col, thick);
+        line(-0.70, -0.70, 0.70, 0.70, dim, fine);
+        line(0.70, -0.70, -0.70, 0.70, dim, fine);
+        return true;
+    end
+
+    if (mark == 'burst') then
+        diamond(0.84, col, fine);
+        diamond(0.36, dim, fine);
+        line(0, -1.0, 0, -0.52, col, thick);
+        line(0, 0.52, 0, 1.0, col, thick);
+        line(-1.0, 0, -0.52, 0, col, thick);
+        line(0.52, 0, 1.0, 0, col, thick);
+        return true;
+    end
+
+    if (mark == 'flame') then
+        line(0, -1.0, 0.52, -0.10, col, thick);
+        line(0.52, -0.10, 0.18, 0.84, col, thick);
+        line(0.18, 0.84, -0.56, 0.34, dim, thick);
+        line(-0.56, 0.34, -0.18, -0.18, dim, fine);
+        line(-0.18, -0.18, 0, -1.0, col, fine);
+        return true;
+    end
+
+    if (mark == 'snow') then
+        line(0, -1.0, 0, 1.0, col, fine);
+        line(-1.0, 0, 1.0, 0, col, fine);
+        line(-0.72, -0.72, 0.72, 0.72, dim, fine);
+        line(0.72, -0.72, -0.72, 0.72, dim, fine);
+        diamond(0.24, col, fine);
+        return true;
+    end
+
+    if (mark == 'wind') then
+        line(-0.96, -0.46, 0.68, -0.46, col, fine);
+        line(0.68, -0.46, 0.36, -0.16, dim, fine);
+        line(-0.78, 0.00, 0.94, 0.00, col, fine);
+        line(0.94, 0.00, 0.62, 0.28, dim, fine);
+        line(-0.48, 0.46, 0.54, 0.46, col, fine);
+        return true;
+    end
+
+    if (mark == 'stone') then
+        line(0, -0.92, 0.78, -0.22, col, thick);
+        line(0.78, -0.22, 0.42, 0.74, col, thick);
+        line(0.42, 0.74, -0.58, 0.60, dim, thick);
+        line(-0.58, 0.60, -0.78, -0.22, dim, thick);
+        line(-0.78, -0.22, 0, -0.92, col, thick);
+        return true;
+    end
+
+    if (mark == 'bolt') then
+        line(0.26, -1.0, -0.28, -0.08, col, thick);
+        line(-0.28, -0.08, 0.18, -0.08, col, thick);
+        line(0.18, -0.08, -0.34, 1.0, col, thick);
+        line(-0.02, 0.02, 0.54, 0.02, dim, fine);
+        return true;
+    end
+
+    if (mark == 'wave') then
+        line(-0.96, -0.30, -0.44, -0.52, col, fine);
+        line(-0.44, -0.52, 0.10, -0.30, col, fine);
+        line(0.10, -0.30, 0.64, -0.52, col, fine);
+        line(-0.82, 0.18, -0.28, -0.04, dim, fine);
+        line(-0.28, -0.04, 0.28, 0.18, dim, fine);
+        line(0.28, 0.18, 0.82, -0.04, dim, fine);
+        return true;
+    end
+
+    if (mark == 'moon') then
+        line(0.38, -1.0, -0.32, -0.52, col, thick);
+        line(-0.32, -0.52, -0.52, 0.16, col, thick);
+        line(-0.52, 0.16, -0.06, 0.78, dim, thick);
+        line(0.02, -0.46, 0.40, 0.46, col, fine);
+        return true;
+    end
+
+    if (mark == 'snare') then
+        diamond(0.72, dim, fine);
+        line(-0.70, -0.70, 0.70, 0.70, col, thick);
+        line(0.70, -0.70, -0.70, 0.70, col, thick);
+        return true;
+    end
+
+    if (mark == 'shield') then
+        line(0, -1.0, 0.76, -0.46, col, thick);
+        line(0.76, -0.46, 0.50, 0.50, col, thick);
+        line(0.50, 0.50, 0, 1.0, dim, thick);
+        line(0, 1.0, -0.50, 0.50, dim, thick);
+        line(-0.50, 0.50, -0.76, -0.46, dim, thick);
+        line(-0.76, -0.46, 0, -1.0, col, thick);
+        return true;
+    end
+
+    if (mark == 'blade') then
+        line(-0.56, 0.72, 0.72, -0.72, col, thick);
+        line(0.20, -0.16, 0.72, -0.72, dim, fine);
+        line(-0.64, 0.18, -0.18, 0.64, col, fine);
+        return true;
+    end
+
+    if (mark == 'ranged') then
+        line(-0.80, -0.74, -0.80, 0.74, col, thick);
+        line(-0.80, -0.74, -0.32, 0, dim, fine);
+        line(-0.80, 0.74, -0.32, 0, dim, fine);
+        line(-0.54, 0, 0.88, 0, col, thick);
+        line(0.88, 0, 0.48, -0.30, col, fine);
+        line(0.88, 0, 0.48, 0.30, col, fine);
+        return true;
+    end
+
+    if (mark == 'bag' or mark == 'gift') then
+        box(-0.70, -0.12, 0.70, 0.80, col, fine);
+        line(-0.34, -0.12, -0.12, -0.62, dim, fine);
+        line(-0.12, -0.62, 0.12, -0.62, dim, fine);
+        line(0.12, -0.62, 0.34, -0.12, dim, fine);
+        if (mark == 'gift') then
+            line(0, -0.12, 0, 0.80, dim, fine);
+            line(-0.70, 0.30, 0.70, 0.30, dim, fine);
+        end
+        return true;
+    end
+
+    if (mark == 'reticle') then
+        diamond(0.88, dim, fine);
+        line(0, -1.0, 0, -0.38, col, fine);
+        line(0, 0.38, 0, 1.0, col, fine);
+        line(-1.0, 0, -0.38, 0, col, fine);
+        line(0.38, 0, 1.0, 0, col, fine);
+        return true;
+    end
+
+    if (mark == 'arrow') then
+        line(-0.82, 0, 0.68, 0, col, thick);
+        line(0.68, 0, 0.22, -0.44, col, thick);
+        line(0.68, 0, 0.22, 0.44, col, thick);
+        return true;
+    end
+
+    if (mark == 'chat') then
+        box(-0.78, -0.52, 0.78, 0.42, col, fine);
+        line(-0.24, 0.42, -0.48, 0.76, dim, fine);
+        line(-0.48, 0.76, 0.08, 0.42, dim, fine);
+        line(-0.44, -0.16, 0.44, -0.16, dim, fine);
+        line(-0.44, 0.10, 0.24, 0.10, dim, fine);
+        return true;
+    end
+
+    if (mark == 'note') then
+        line(0.24, -0.86, 0.24, 0.50, col, thick);
+        line(0.24, -0.86, 0.72, -0.62, dim, fine);
+        line(0.72, -0.62, 0.72, -0.18, dim, fine);
+        line(-0.48, 0.46, 0.24, 0.28, col, thick);
+        return true;
+    end
+
+    if (mark == 'avatar') then
+        diamond(0.76, col, fine);
+        diamond(0.42, dim, fine);
+        line(-1.0, 0, -0.46, -0.30, dim, fine);
+        line(0.46, 0.30, 1.0, 0, dim, fine);
+        return true;
+    end
+
+    if (mark == 'paw') then
+        diamond(0.34, col, thick);
+        box(-0.74, -0.58, -0.46, -0.28, dim, fine);
+        box(-0.20, -0.78, 0.08, -0.46, dim, fine);
+        box(0.38, -0.58, 0.66, -0.28, dim, fine);
+        return true;
+    end
+
+    if (mark == 'claw') then
+        line(-0.56, -0.86, -0.22, 0.72, col, thick);
+        line(0, -0.96, 0.08, 0.78, col, thick);
+        line(0.56, -0.86, 0.34, 0.72, col, thick);
+        return true;
+    end
+
+    if (mark == 'heart') then
+        line(0, 0.84, -0.68, 0.08, col, thick);
+        line(-0.68, 0.08, -0.32, -0.58, col, thick);
+        line(-0.32, -0.58, 0, -0.22, dim, fine);
+        line(0, -0.22, 0.32, -0.58, dim, fine);
+        line(0.32, -0.58, 0.68, 0.08, col, thick);
+        line(0.68, 0.08, 0, 0.84, col, thick);
+        return true;
+    end
+
+    diamond(0.86, col, fine);
+    diamond(0.42, dim, fine);
+    return true;
+end
+
 local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
     if (icon_def == nil) then
         return;
@@ -5867,6 +6181,10 @@ local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
     local dim = color_u32(color_with_alpha(color, 0.48));
     local mark = icon_def.mark or 'diamond';
     local thick = math.max(2, math.floor(size * 0.18));
+
+    if (icon_def.art_style == 'sigil' and ICON_ART_STYLE.draw_sigil_mark(draw_list, icon_def, x, y, size, fallback_color)) then
+        return;
+    end
 
     if (mark == 'plus') then
         draw_list:AddRectFilled({ x - thick, y - size }, { x + thick, y + size }, col, 1.0);
@@ -6066,6 +6384,40 @@ local function draw_icon_mark(draw_list, icon_def, x, y, size, fallback_color)
         return;
     end
 
+    if (mark == 'paw') then
+        draw_crystal_mark(draw_list, x, y + size * 0.22, size * 0.34, color, 0.82);
+        draw_list:AddRectFilled({ x - size * 0.72, y - size * 0.58 }, { x - size * 0.44, y - size * 0.28 }, dim, 1.0);
+        draw_list:AddRectFilled({ x - size * 0.14, y - size * 0.82 }, { x + size * 0.14, y - size * 0.50 }, col, 1.0);
+        draw_list:AddRectFilled({ x + size * 0.44, y - size * 0.58 }, { x + size * 0.72, y - size * 0.28 }, dim, 1.0);
+        return;
+    end
+
+    if (mark == 'claw') then
+        draw_list:AddLine({ x - size * 0.56, y - size * 0.86 }, { x - size * 0.22, y + size * 0.72 }, col, 2.0);
+        draw_list:AddLine({ x, y - size * 0.96 }, { x + size * 0.08, y + size * 0.78 }, col, 2.0);
+        draw_list:AddLine({ x + size * 0.56, y - size * 0.86 }, { x + size * 0.34, y + size * 0.72 }, dim, 2.0);
+        return;
+    end
+
+    if (mark == 'heart') then
+        draw_list:AddLine({ x, y + size * 0.86 }, { x - size * 0.68, y + size * 0.08 }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.68, y + size * 0.08 }, { x - size * 0.32, y - size * 0.58 }, col, 1.8);
+        draw_list:AddLine({ x - size * 0.32, y - size * 0.58 }, { x, y - size * 0.22 }, dim, 1.2);
+        draw_list:AddLine({ x, y - size * 0.22 }, { x + size * 0.32, y - size * 0.58 }, dim, 1.2);
+        draw_list:AddLine({ x + size * 0.32, y - size * 0.58 }, { x + size * 0.68, y + size * 0.08 }, col, 1.8);
+        draw_list:AddLine({ x + size * 0.68, y + size * 0.08 }, { x, y + size * 0.86 }, col, 1.8);
+        return;
+    end
+
+    if (mark == 'gift') then
+        draw_list:AddRect({ x - size * 0.70, y - size * 0.12 }, { x + size * 0.70, y + size * 0.80 }, col, 2.0, ImDrawCornerFlags_All, 1.4);
+        draw_list:AddLine({ x, y - size * 0.12 }, { x, y + size * 0.80 }, dim, 1.1);
+        draw_list:AddLine({ x - size * 0.70, y + size * 0.30 }, { x + size * 0.70, y + size * 0.30 }, dim, 1.1);
+        draw_list:AddLine({ x - size * 0.26, y - size * 0.12 }, { x - size * 0.46, y - size * 0.52 }, col, 1.2);
+        draw_list:AddLine({ x + size * 0.26, y - size * 0.12 }, { x + size * 0.46, y - size * 0.52 }, col, 1.2);
+        return;
+    end
+
     if (mark == 'text') then
         draw_centered_text(draw_list, x, y, color, icon_def.text or '?');
         return;
@@ -6256,21 +6608,104 @@ local function draw_icon_preview_tile(draw_list, x, y, size, slot)
     draw_list:AddRect({ x, y }, { x + size, y + size }, color_u32(color_with_alpha(theme.hover_border or { 1.00, 0.96, 0.72, 0.52 }, 0.45)), 4.0, ImDrawCornerFlags_All, 1.0);
 end
 
-local function render_editor_icon_preview(editor)
-    local preview_size = 54;
-    local x, y = imgui.GetCursorScreenPos();
+local function editor_icon_preview_slot(editor, icon)
     local _, command = MACRO.editor_commands();
     local slot = {
         command = command,
-        icon = editor.preview_icon ~= nil and editor.preview_icon or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max),
+        icon = icon,
     };
 
     if (slot.command == '') then
         slot.command = '/echo AshitaBars icon preview';
     end
 
-    imgui.InvisibleButton('##ashitabars_button_icon_preview', { preview_size, preview_size });
-    draw_icon_preview_tile(imgui.GetWindowDrawList(), x, y, preview_size, slot);
+    return slot;
+end
+
+local function render_icon_picker_tile(editor, token, selected, tile_size)
+    local theme = current_theme();
+    local x, y = imgui.GetCursorScreenPos();
+    local id_token = (token == '') and 'auto' or token;
+    local clicked = imgui.InvisibleButton(('##ashitabars_icon_picker_%s'):fmt(id_token), { tile_size, tile_size });
+    local hovered = imgui.IsItemHovered();
+    local draw_list = imgui.GetWindowDrawList();
+    local border_color = selected and (theme.active_border or { 1.00, 0.84, 0.34, 0.95 }) or (theme.window_border or { 0.58, 0.44, 0.20, 0.62 });
+    local bg_alpha = hovered and 0.34 or 0.18;
+
+    if (hovered) then
+        border_color = theme.hover_border or { 1.00, 0.96, 0.72, 0.80 };
+    end
+
+    draw_list:AddRectFilled({ x, y }, { x + tile_size, y + tile_size }, color_u32(color_with_alpha(theme.button_bg or { 0.04, 0.04, 0.05, 1.00 }, bg_alpha)), 4.0);
+    draw_icon_preview_tile(draw_list, x + 4, y + 4, tile_size - 8, editor_icon_preview_slot(editor, token));
+    draw_list:AddRect({ x, y }, { x + tile_size, y + tile_size }, color_u32(border_color), 4.0, ImDrawCornerFlags_All, selected and 2.0 or 1.0);
+
+    if (hovered) then
+        imgui.BeginTooltip();
+        imgui.Text(icon_selector_label(token));
+        imgui.EndTooltip();
+    end
+
+    return clicked;
+end
+
+local function render_icon_selector(editor, width)
+    local current_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    local normalized_current = DEFERRED.normalize_icon_token(current_icon);
+    local changed = false;
+    local picker_width = width or 360;
+    local tile_size = 40;
+    local gap = 6;
+    local columns = math.max(1, math.floor((picker_width + gap) / (tile_size + gap)));
+    local rows = 1;
+    for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
+        rows = rows + 1 + math.ceil((#category.tokens * 2) / columns);
+    end
+    local visible_rows = math.min(rows, 6);
+    local picker_height = math.max(tile_size + 8, (visible_rows * tile_size) + ((visible_rows - 1) * gap) + 8);
+    local child_open = false;
+    local child_visible = true;
+    local index = 0;
+
+    if (type(imgui.BeginChild) == 'function' and type(imgui.EndChild) == 'function') then
+        local ok, result = pcall(imgui.BeginChild, '##ashitabars_icon_picker_grid', { picker_width, picker_height }, true);
+        child_open = ok;
+        child_visible = (not ok) or result ~= false;
+    end
+
+    local function render_option(token, selected)
+        index = index + 1;
+        if (index > 1 and ((index - 1) % columns) ~= 0) then
+            imgui.SameLine(0, gap);
+        end
+
+        if (render_icon_picker_tile(editor, token, selected, tile_size)) then
+            buffer_set(editor.icon_buffer, token);
+            changed = true;
+        end
+    end
+
+    local function render_token_variants(token)
+        render_option(token, normalized_current == token);
+        render_option(('sigil_%s'):fmt(token), normalized_current == ('sigil_%s'):fmt(token));
+    end
+
+    if (child_visible) then
+        render_option('', current_icon == '');
+        for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
+            imgui.TextColored(UI_COLORS.config_header, category.label);
+            index = 0;
+            for _, token in ipairs(category.tokens) do
+                render_token_variants(token);
+            end
+        end
+    end
+
+    if (child_open) then
+        imgui.EndChild();
+    end
+
+    return changed;
 end
 
 function COMMAND_MODE.item_icon_handle_for_slot(slot)
@@ -6849,20 +7284,6 @@ function BAR.render_config_tab(bar_key)
     render_runtime_int_control('Glow Opacity', ('%s_slot_glow_opacity'):fmt(bar_key), slot_glow_opacity(bar_key), slot_glow_opacity_source(bar_key), LIMITS.slot_glow_opacity_min, LIMITS.slot_glow_opacity_max, function (value)
         BAR.set_override(bar_key, 'slot_glow_opacity', normalize_slot_glow_opacity(value));
     end, '%');
-
-    imgui.Separator();
-    imgui.TextColored(UI_COLORS.config_header, 'Bar Window');
-    local show_frame = is_main and bar_frame_visible() or click_bar_frame_visible();
-    if (imgui.Checkbox(('Show Bar Frame##ashitabars_config_%s_show_frame'):fmt(bar_key), { show_frame })) then
-        if (is_main) then
-            lock_bar_anchor();
-        else
-            lock_click_bar_anchor();
-        end
-        BAR.set_override(bar_key, 'show_frame', not show_frame);
-    end
-    imgui.SameLine(0, 8);
-    imgui.Text(('(%s)'):fmt(is_main and bar_frame_source() or click_bar_frame_source()));
 end
 
 local function render_config_window()
@@ -6987,9 +7408,7 @@ local function render_macro_editor_window()
             COMMAND_MODE.render_structured_editor(editor, mode);
         end
         if (mode ~= 'item' and mode ~= 'mount') then
-            render_editor_icon_preview(editor);
-            imgui.SameLine(0, 10);
-            render_icon_selector(editor, 296);
+            render_icon_selector(editor, 360);
         end
 
         local validation_error = MACRO.editor_validation_error();
@@ -7234,6 +7653,7 @@ ashita.events.register('key', 'key_cb', function (e)
 end);
 
 ashita.events.register('d3d_present', 'present_cb', function ()
+    sync_config_frame_visibility();
     render_bars();
     render_click_bar();
     render_config_window();

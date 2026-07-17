@@ -30,7 +30,7 @@ text input is open.
   spell, item, and weapon-skill slots.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
-- When the bar frame is visible, each button shows a small edit corner that
+- When `/ashitabars config` is open, each button shows a small edit corner that
   opens an in-game editor for that button's label, command mode, command data,
   and optional icon.
 - Ships default test commands that only `/echo`.
@@ -125,7 +125,6 @@ settings = {
         slot_glow_size = 100,
         slot_glow_opacity = 100,
         label_vertical_position = 100,
-        show_frame = false,
         window_x = 820,
         window_y = 760,
     },
@@ -136,7 +135,6 @@ settings = {
         slot_glow_size = 100,
         slot_glow_opacity = 100,
         label_vertical_position = 100,
-        show_frame = false,
         window_x = 820,
         window_y = 680,
     },
@@ -166,10 +164,10 @@ also clears runtime overrides and reapplies saved visual settings.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
 and `Extra Bar 1` tabs. The bar tabs expose independent visibility, sizing,
-spacing, text placement, glow, frame, and position settings. Numeric controls
-use sliders. Changes apply immediately as runtime overrides; click `Save` in
-the window to persist display mode, button size, button gap, button glow, label
-placement, bar frame visibility, and bar positions to:
+spacing, text placement, glow, and position settings. Numeric controls use
+sliders. Changes apply immediately as runtime overrides; click `Save` in the
+window to persist display mode, button size, button gap, button glow, label
+placement, and bar positions to:
 
 ```txt
 Ashita/config/addons/ashitabars/visual_settings.lua
@@ -187,12 +185,9 @@ Button glow is controlled by each bar's `slot_glow_size` and
 `0` disables the glow, and `200` doubles the original glow size.
 `slot_glow_opacity` is a `0` to `100` percent alpha multiplier.
 
-`show_frame = true` keeps the normal ImGui title bar and background visible so
-that bar can be dragged. `show_frame = false` hides the title bar and window
-background, hides row labels where applicable, and locks the first action
-button at the saved position for that bar. To move either frameless bar, open
-`/ashitabars config`, enable that bar's frame, drag the bar, then click `Save`
-after setting the frame visibility you want.
+Bar frames are hidden while the configuration window is closed. Opening
+`/ashitabars config` temporarily shows all visible bar frames so bars can be
+dragged and buttons can be edited; click `Save` to persist any new positions.
 
 Button size is controlled by each bar's `slot_size`, clamped from `40` to `96`
 pixels. The sample config defaults to `64` so count badges, recast text, and
@@ -232,7 +227,7 @@ clears the runtime gap override.
 
 Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
 preserves the current brass-and-crystal look; the other themes only change the
-window, frame, and overlay palette.
+window chrome and overlay palette.
 
 Profiles are keyed by main-job abbreviation. `DEFAULT` is used when the current
 job does not have a configured profile:
@@ -304,15 +299,15 @@ return {
 }
 ```
 
-You can edit visible buttons in game while that bar's frame is shown. Open
-`/ashitabars config`, enable `Show Bar Frame` for the keyboard bar or
-`Show Click Bar Frame` for the click-only bar, then click the small top-left
-corner of a button. The editor can save a label, command mode, command data,
-and an optional icon chosen from a built-in selector. The edited button previews
-the selected icon in the editor preview tile, and previews hovered icon presets
-while the selector is open. Item mode does not show the manual icon selector
-because item buttons use the selected item's in-game icon automatically. These
-runtime edits are stored outside the addon folder in:
+You can edit visible buttons in game while `/ashitabars config` is open. Bar
+frames are shown automatically while the configuration window is open; click the
+small top-left corner of a button to edit it. The editor can save a label,
+command mode, command data, and an optional icon chosen from a built-in visual
+picker grouped by category. Each picker option stores its own button art token,
+so individual buttons can mix the default crystal art and alternate sigil art.
+Item mode does not show the manual icon selector because item buttons use the
+selected item's in-game icon automatically. These runtime edits are stored
+outside the addon folder in:
 
 ```txt
 Ashita/config/addons/ashitabars/button_overrides.lua
@@ -351,7 +346,8 @@ Command mode options are:
   generate `/mount`. Mount buttons do not show a target selector or icon token
   selector; the action bar uses the automatic mount icon. The selector lists
   mount resource names and does not claim whether the current character has
-  unlocked each mount.
+  unlocked each mount. When a single-command mount button is pressed while the
+  player is already mounted, AshitaBars sends `/dismount` instead.
 - `Weapon Skill`: search known weapon skills, choose one, and select a target;
   generates `/ws`.
 - `Job Ability`: search known job abilities, choose one, and select a target;
@@ -400,6 +396,9 @@ For multi-line macros, recast display is based on the first command. This is
 display-only; key and click execution still runs the configured command or
 macro exactly as saved. Set `show_recasts = false` globally, or `recast = false` on
 an individual slot, to hide the overlay.
+Mount buttons use a local 60-second display countdown after AshitaBars queues a
+single `/mount` command; the game server still decides whether mounting is
+actually allowed.
 
 `show_counts = true` draws a compact count badge for `/item` slots when the item
 can be resolved in the local Ashita resource table. Counts are read from
@@ -417,13 +416,17 @@ This dimming is display-only. It does not block the keypress, pick alternate
 actions, or change the configured command. Set `show_availability = false`
 globally, or `availability = false` on an individual slot, to hide the dimming.
 Set `count = false` on an individual slot to hide only its count badge.
+Pet command buttons are also struck out when Ashita no longer reports that
+specific pet command as currently usable.
 
 Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
 `raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,
 `earth`, `lightning`, `water`, `light`, `dark`, `ability`, `song`, `summon`,
-`weapon`, `ranged`, `item`, `target`, `assist`, `check`, `chat`, `rest`,
-`test`, and `command`. Unknown icon tokens fall back to a small two-letter text
-glyph.
+`pet`, `fight`, `charm`, `reward`, `weapon`, `ranged`, `item`, `target`,
+`assist`, `check`, `chat`, `rest`, `test`, and `command`. Unknown icon tokens
+fall back to a small two-letter text glyph. Prefix any built-in icon token with
+`sigil_` to use that alternate line-art variant on a single button, for example
+`sigil_cure` or `sigil_weapon`.
 
 In `auto` mode, common FFXI spell names infer matching icons. For example,
 `Fire`/`Blizzard`/`Aero` use elemental glyphs, `Drain`/`Aspir`/`Bio` use dark,
@@ -444,9 +447,8 @@ Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
 display-mode source, button size/source, button gap/source, theme, icon style,
-click-bar visibility/frame/position, recast/count/availability settings, and
-weapon-skill TP threshold alongside input, profile, and modifier-blocking
-state.
+click-bar visibility/position, recast/count/availability settings, and
+weapon-skill TP threshold alongside input, profile, and modifier-blocking state.
 
 Modifier blocking is scoped to AshitaBars number hotkeys so native shortcuts
 such as `Ctrl+E` and `Ctrl+I` can continue to work. If modifier blocking still
