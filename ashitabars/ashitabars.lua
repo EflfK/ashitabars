@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.21.0';
+addon.version   = '0.22.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -144,10 +144,12 @@ local MACRO = {
     COMMANDS_MAX = 6,
     COMMANDS_TEXT_MAX = (MACRO_COMMAND_MAX + 1) * 6,
 };
+local COMMAND_MODE = {};
 local SHARED = {
     NAME_MAX = 48,
 };
 local MACRO_ICON_MAX = 32;
+local COMMAND_LIST_CACHE_SECONDS = 3.0;
 local FRAMELESS_WINDOW_PADDING = 4;
 local CONFIG_HEADER_COLOR = { 1.00, 0.70, 0.36, 1.00 };
 local CONFIG_SUCCESS_COLOR = { 0.45, 1.00, 0.58, 1.00 };
@@ -456,6 +458,9 @@ local state = {
     recast_totals = {},
     item_source_cache = {},
     item_count_cache = {},
+    item_texture_cache = {},
+    item_texture_handles = {},
+    command_mode_cache = {},
     visual = {
         row = 'base',
         changed_at = 0,
@@ -473,6 +478,17 @@ local state = {
         command_buffer = T{ '' },
         commands_buffer = T{ '' },
         icon_buffer = T{ '' },
+        command_action = '',
+        command_target = '<t>',
+        target_action = '/target',
+        use_action_name_label = T{ true },
+        spell_type_filter = 'all',
+        spell_element_filter = 'all',
+        spell_search_buffer = T{ '' },
+        item_source_filter = 'all',
+        item_search_buffer = T{ '' },
+        weaponskill_search_buffer = T{ '' },
+        ability_search_buffer = T{ '' },
         preview_icon = nil,
         message = nil,
         message_color = CONFIG_SUCCESS_COLOR,
@@ -528,8 +544,29 @@ function MACRO.normalize_mode(value)
     end
 
     local mode = value:lower():gsub('%s+', ''):gsub('_', '-');
+    if (mode == 'single' or mode == 'command' or mode == 'freeform' or mode == 'free-form') then
+        return 'single';
+    end
     if (mode == 'multi' or mode == 'multiline' or mode == 'multi-line' or mode == 'macro') then
         return 'multi';
+    end
+    if (mode == 'spell' or mode == 'magic' or mode == 'ma') then
+        return 'spell';
+    end
+    if (mode == 'item') then
+        return 'item';
+    end
+    if (mode == 'weaponskill' or mode == 'weapon-skill' or mode == 'ws') then
+        return 'weaponskill';
+    end
+    if (mode == 'ability' or mode == 'jobability' or mode == 'job-ability' or mode == 'ja') then
+        return 'ability';
+    end
+    if (mode == 'ranged' or mode == 'rangedattack' or mode == 'ranged-attack' or mode == 'ra' or mode == 'shoot') then
+        return 'ranged';
+    end
+    if (mode == 'target' or mode == 'targeting' or mode == 'assist') then
+        return 'target';
     end
 
     return 'single';
@@ -607,6 +644,7 @@ end
 local load_button_overrides = nil;
 local load_visual_settings = nil;
 local normalize_icon_token = nil;
+local item_count = nil;
 
 local function normalize_profile_key(value)
     if (type(value) ~= 'string') then
@@ -745,6 +783,7 @@ local function load_config()
         state.recast_totals = {};
         state.item_source_cache = {};
         state.item_count_cache = {};
+        state.command_mode_cache = {};
         if (load_button_overrides ~= nil) then
             load_button_overrides();
         end
@@ -790,6 +829,7 @@ local function load_config()
     state.recast_totals = {};
     state.item_source_cache = {};
     state.item_count_cache = {};
+    state.command_mode_cache = {};
     if (load_button_overrides ~= nil) then
         load_button_overrides();
     end
@@ -1304,7 +1344,10 @@ function SHARED.slot_parts(slot)
     if (slot.label ~= nil) then
         table.insert(parts, ('label = %s'):fmt(lua_string_literal(slot.label)));
     end
-    if (slot.icon ~= nil) then
+    if (slot.use_action_name_label ~= nil) then
+        table.insert(parts, ('use_action_name_label = %s'):fmt(slot.use_action_name_label ~= false and 'true' or 'false'));
+    end
+    if (slot.icon ~= nil and trim_one_line(slot.icon, MACRO_ICON_MAX) ~= '') then
         table.insert(parts, ('icon = %s'):fmt(lua_string_literal(slot.icon)));
     end
     if (slot.command ~= nil) then
@@ -1522,6 +1565,13 @@ local function sanitize_slot_override(slot, allow_shared)
     if (slot.label ~= nil) then
         sanitized.label = trim_one_line(slot.label, MACRO_LABEL_MAX);
     end
+    local use_action_name_label = slot.use_action_name_label;
+    if (use_action_name_label == nil) then
+        use_action_name_label = slot.use_item_name_label;
+    end
+    if (use_action_name_label ~= nil) then
+        sanitized.use_action_name_label = use_action_name_label ~= false;
+    end
     if (slot.command ~= nil) then
         sanitized.command = MACRO.sanitize_command_line(slot.command);
     end
@@ -1548,10 +1598,13 @@ local function sanitize_slot_override(slot, allow_shared)
         end
     end
     if (slot.icon ~= nil) then
-        sanitized.icon = trim_one_line(slot.icon, MACRO_ICON_MAX);
+        local icon = trim_one_line(slot.icon, MACRO_ICON_MAX);
+        if (icon ~= '') then
+            sanitized.icon = icon;
+        end
     end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil) then
         return nil;
     end
 
@@ -1794,6 +1847,13 @@ local function apply_slot_override(base_slot, override)
     if (override.label ~= nil) then
         slot.label = override.label;
     end
+    local use_action_name_label = override.use_action_name_label;
+    if (use_action_name_label == nil) then
+        use_action_name_label = override.use_item_name_label;
+    end
+    if (use_action_name_label ~= nil) then
+        slot.use_action_name_label = use_action_name_label ~= false;
+    end
     if (override.command ~= nil) then
         slot.command = override.command;
     end
@@ -1861,6 +1921,12 @@ function MACRO.normalize_slot_runtime(slot)
         normalized.commands = nil;
         normalized.command = command;
     end
+    if (normalized.use_action_name_label == nil and normalized.use_item_name_label ~= nil) then
+        normalized.use_action_name_label = normalized.use_item_name_label ~= false;
+        normalized.use_item_name_label = nil;
+    elseif (normalized.use_action_name_label ~= nil) then
+        normalized.use_action_name_label = normalized.use_action_name_label ~= false;
+    end
 
     return normalized;
 end
@@ -1912,13 +1978,15 @@ local function apply_editor_preview(slot, profile_key, group, index)
         return slot;
     end
 
-    local preview_icon = editor.preview_icon;
-    if (preview_icon == nil) then
-        preview_icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
-    end
-
     local preview_slot = copy_slot(slot);
-    preview_slot.icon = preview_icon;
+    local mode = MACRO.normalize_mode(editor.macro_mode);
+    if (mode ~= 'item') then
+        local preview_icon = editor.preview_icon;
+        if (preview_icon == nil) then
+            preview_icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
+        end
+        preview_slot.icon = preview_icon;
+    end
     return preview_slot;
 end
 
@@ -1966,6 +2034,1666 @@ local function get_slot(group, index)
     end
 
     return slot;
+end
+
+COMMAND_MODE.ORDER = {
+    'single',
+    'multi',
+    'spell',
+    'item',
+    'weaponskill',
+    'ability',
+    'ranged',
+    'target',
+};
+
+COMMAND_MODE.DEFS = {
+    single      = { label = 'Freeform Command' },
+    multi       = { label = 'Multi-Line Macro' },
+    spell       = { label = 'Spell', action_label = 'Spell', empty_label = 'No usable learned spells found.' },
+    item        = { label = 'Item', action_label = 'Item', empty_label = 'No inventory items found.' },
+    weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
+    ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
+    ranged      = { label = 'Ranged Attack', action_label = 'Action' },
+    target      = { label = 'Target / Assist', action_label = 'Action' },
+};
+
+COMMAND_MODE.TARGETS = {
+    spell       = { '<t>', '<stpt>', '<stpc>', '<me>', '<bt>' },
+    ability     = { '<t>', '<me>', '<bt>', '<stpc>', '<stpt>' },
+    weaponskill = { '<t>', '<bt>' },
+    ranged      = { '<t>', '<bt>' },
+    target      = { '<bt>', '<t>', '<stpc>', '<stpt>', '<me>' },
+};
+
+COMMAND_MODE.TARGET_LABELS = {
+    ['<t>']    = 'Current Target (<t>)',
+    ['<bt>']   = 'Battle Target (<bt>)',
+    ['<me>']   = 'Self (<me>)',
+    ['<stpc>'] = 'Select PC (<stpc>)',
+    ['<stpt>'] = 'Select Party (<stpt>)',
+};
+
+COMMAND_MODE.TARGET_ACTIONS = {
+    { prefix = '/target', label = 'Target' },
+    { prefix = '/assist', label = 'Assist' },
+    { prefix = '/attack', label = 'Attack' },
+    { prefix = '/check',  label = 'Check' },
+};
+
+COMMAND_MODE.SPELL_TYPE_OPTIONS = {
+    { key = 'all',       label = 'All Types' },
+    { key = 'white',     label = 'White Magic' },
+    { key = 'black',     label = 'Black Magic' },
+    { key = 'summoning', label = 'Summoning' },
+    { key = 'ninjutsu',  label = 'Ninjutsu' },
+    { key = 'song',      label = 'Songs' },
+    { key = 'blue',      label = 'Blue Magic' },
+    { key = 'geomancy',  label = 'Geomancy' },
+    { key = 'trust',     label = 'Trusts' },
+    { key = 'other',     label = 'Other' },
+};
+
+COMMAND_MODE.SPELL_ELEMENT_OPTIONS = {
+    { key = 'all',       label = 'All Elements' },
+    { key = 'fire',      label = 'Fire' },
+    { key = 'ice',       label = 'Ice' },
+    { key = 'wind',      label = 'Wind' },
+    { key = 'earth',     label = 'Earth' },
+    { key = 'lightning', label = 'Lightning' },
+    { key = 'water',     label = 'Water' },
+    { key = 'light',     label = 'Light' },
+    { key = 'dark',      label = 'Dark' },
+    { key = 'none',      label = 'Non-Elemental' },
+};
+
+COMMAND_MODE.ITEM_SOURCE_OPTIONS = {
+    { key = 'all',       label = 'All Sources' },
+    { key = 'inventory', label = 'Inventory' },
+    { key = 'temporary', label = 'Temporary' },
+};
+
+COMMAND_MODE.ITEM_SOURCE_BY_CONTAINER = {
+    [0] = { key = 'inventory', label = 'Inventory' },
+    [3] = { key = 'temporary', label = 'Temporary' },
+};
+
+COMMAND_MODE.SPELL_TYPE_BY_RESOURCE_TYPE = {
+    [2] = 'white',
+    [3] = 'black',
+    [4] = 'summoning',
+    [5] = 'ninjutsu',
+    [6] = 'song',
+    [7] = 'blue',
+    [8] = 'geomancy',
+    [9] = 'trust',
+};
+
+COMMAND_MODE.SPELL_TYPE_BY_SKILL = {
+    [33] = 'white',
+    [34] = 'white',
+    [35] = 'white',
+    [36] = 'white',
+    [37] = 'black',
+    [38] = 'black',
+    [39] = 'summoning',
+    [40] = 'ninjutsu',
+    [41] = 'song',
+    [44] = 'blue',
+    [45] = 'geomancy',
+};
+
+COMMAND_MODE.SPELL_ELEMENT_BY_RESOURCE_ELEMENT = {
+    [1] = 'fire',
+    [2] = 'ice',
+    [3] = 'wind',
+    [4] = 'earth',
+    [5] = 'lightning',
+    [6] = 'water',
+    [7] = 'light',
+    [8] = 'dark',
+    [16] = 'none',
+};
+
+function COMMAND_MODE.mode_label(mode)
+    mode = MACRO.normalize_mode(mode);
+    return (COMMAND_MODE.DEFS[mode] and COMMAND_MODE.DEFS[mode].label) or COMMAND_MODE.DEFS.single.label;
+end
+
+function COMMAND_MODE.clean_name(value)
+    if (type(value) ~= 'string') then
+        return '';
+    end
+
+    return trim_string(value:gsub('%z', ''));
+end
+
+function COMMAND_MODE.resource_name(resource)
+    if (resource == nil) then
+        return '';
+    end
+
+    local name = safe_read(function () return resource.Name[1]; end, nil)
+        or safe_read(function () return resource.Name[2]; end, nil)
+        or safe_read(function () return resource.Name[0]; end, nil);
+
+    return COMMAND_MODE.clean_name(name);
+end
+
+function COMMAND_MODE.resource_id(resource)
+    if (resource == nil) then
+        return nil;
+    end
+
+    return tonumber(safe_read(function () return resource.Id; end, safe_read(function () return resource.Index; end, nil)));
+end
+
+function COMMAND_MODE.option_label(options, key, fallback)
+    for _, option in ipairs(options or {}) do
+        if (option.key == key) then
+            return option.label;
+        end
+    end
+
+    return fallback or tostring(key or '');
+end
+
+function COMMAND_MODE.add_action(list, lookup, name, id, detail, meta)
+    name = COMMAND_MODE.clean_name(name);
+    if (name == '') then
+        return;
+    end
+
+    local key = name:lower();
+    if (lookup[key] ~= nil) then
+        if (detail ~= nil and detail ~= '' and lookup[key].detail == nil) then
+            lookup[key].detail = detail;
+        end
+        if (type(meta) == 'table') then
+            for meta_key, meta_value in pairs(meta) do
+                if (lookup[key][meta_key] == nil) then
+                    lookup[key][meta_key] = meta_value;
+                end
+            end
+        end
+        return;
+    end
+
+    local action = {
+        name = name,
+        id = id,
+        detail = detail,
+    };
+    if (type(meta) == 'table') then
+        for meta_key, meta_value in pairs(meta) do
+            action[meta_key] = meta_value;
+        end
+    end
+    lookup[key] = action;
+    table.insert(list, action);
+end
+
+function COMMAND_MODE.sort_actions(list)
+    table.sort(list, function (left, right)
+        if (left.name == right.name) then
+            return (tonumber(left.id) or 0) < (tonumber(right.id) or 0);
+        end
+
+        return left.name < right.name;
+    end);
+    return list;
+end
+
+function COMMAND_MODE.current_player_state()
+    local player = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetPlayer();
+    end, nil);
+    if (player == nil) then
+        return nil;
+    end
+
+    local main_job = safe_read(function () return player:GetMainJob(); end, nil);
+    local sub_job = safe_read(function () return player:GetSubJob(); end, nil);
+    return {
+        player = player,
+        main_job = main_job,
+        sub_job = sub_job,
+        main_level = safe_read(function () return player:GetMainJobLevel(); end, nil),
+        sub_level = safe_read(function () return player:GetSubJobLevel(); end, nil),
+        has_spell_data = safe_read(function () return player:HasSpellData(); end, false),
+        has_ability_data = safe_read(function () return player:HasAbilityData(); end, false),
+    };
+end
+
+function COMMAND_MODE.spell_level_required(spell, job_id)
+    if (spell == nil or spell.LevelRequired == nil or job_id == nil or job_id <= 0) then
+        return nil;
+    end
+
+    local level = tonumber(safe_read(function ()
+        return spell.LevelRequired[job_id + 1];
+    end, nil));
+    if (level == nil or level < 0 or level > 99) then
+        return nil;
+    end
+
+    return level;
+end
+
+function COMMAND_MODE.spell_usable_for_current_job(spell, player_state)
+    if (spell == nil or player_state == nil or spell.LevelRequired == nil) then
+        return true;
+    end
+
+    local main_required = COMMAND_MODE.spell_level_required(spell, player_state.main_job);
+    if (main_required ~= nil and player_state.main_level ~= nil and player_state.main_level >= main_required) then
+        return true;
+    end
+
+    local sub_required = COMMAND_MODE.spell_level_required(spell, player_state.sub_job);
+    if (sub_required ~= nil and player_state.sub_level ~= nil and player_state.sub_level >= sub_required) then
+        return true;
+    end
+
+    return false;
+end
+
+function COMMAND_MODE.parse_command(command)
+    if (type(command) ~= 'string') then
+        return nil, nil, '', '';
+    end
+
+    local prefix, rest = command:match('^%s*(/%S+)%s*(.*)$');
+    if (prefix == nil) then
+        return nil, nil, '', '';
+    end
+
+    local name = nil;
+    local remainder = '';
+    rest = rest or '';
+    name, remainder = rest:match('^"([^"]*)"%s*(.*)$');
+    if (name == nil) then
+        name, remainder = rest:match("^'([^']*)'%s*(.*)$");
+    end
+    if (name == nil) then
+        name, remainder = rest:match('^(%S+)%s*(.*)$');
+    end
+
+    return prefix:lower(), COMMAND_MODE.clean_name(name), trim_string(remainder or ''), trim_string(rest);
+end
+
+function COMMAND_MODE.mode_from_command(command)
+    local prefix = COMMAND_MODE.parse_command(command);
+    if (prefix == '/ma' or prefix == '/magic') then
+        return 'spell';
+    end
+    if (prefix == '/item') then
+        return 'item';
+    end
+    if (prefix == '/ws' or prefix == '/weaponskill') then
+        return 'weaponskill';
+    end
+    if (prefix == '/ja' or prefix == '/jobability') then
+        return 'ability';
+    end
+    if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then
+        return 'ranged';
+    end
+    if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
+        return 'target';
+    end
+
+    return 'single';
+end
+
+function COMMAND_MODE.is_structured_mode(mode)
+    mode = MACRO.normalize_mode(mode);
+    return mode ~= 'single' and mode ~= 'multi';
+end
+
+function COMMAND_MODE.mode_for_slot(slot)
+    if (MACRO.slot_mode(slot) == 'multi') then
+        return 'multi';
+    end
+
+    return COMMAND_MODE.mode_from_command(MACRO.primary_command(slot));
+end
+
+function COMMAND_MODE.command_action_for_mode(mode, command)
+    local prefix, name, target, raw_rest = COMMAND_MODE.parse_command(command);
+    mode = MACRO.normalize_mode(mode);
+    if (mode == 'ranged') then
+        return 'Ranged Attack', raw_rest ~= '' and raw_rest or COMMAND_MODE.default_target(mode);
+    end
+    if (mode == 'target') then
+        return prefix or '/target', raw_rest ~= '' and raw_rest or COMMAND_MODE.default_target(mode);
+    end
+    if (mode == 'item') then
+        return name or '', '<me>';
+    end
+    if (mode == 'spell' or mode == 'weaponskill' or mode == 'ability') then
+        return name or '', target ~= '' and target or COMMAND_MODE.default_target(mode);
+    end
+
+    return '', COMMAND_MODE.default_target(mode);
+end
+
+function COMMAND_MODE.default_target(mode)
+    local targets = COMMAND_MODE.TARGETS[MACRO.normalize_mode(mode)] or {};
+    return targets[1] or '<t>';
+end
+
+function COMMAND_MODE.load_editor_slot(editor, slot)
+    if (editor == nil) then
+        return;
+    end
+
+    local mode = COMMAND_MODE.mode_for_slot(slot);
+    local action, target = COMMAND_MODE.command_action_for_mode(mode, MACRO.primary_command(slot));
+    editor.macro_mode = mode;
+    editor.command_action = action or '';
+    editor.command_target = target or COMMAND_MODE.default_target(mode);
+    editor.use_action_name_label[1] = COMMAND_MODE.is_structured_mode(mode) and (slot == nil or slot.use_action_name_label ~= false) or false;
+    editor.spell_type_filter = 'all';
+    editor.spell_element_filter = 'all';
+    buffer_set(editor.spell_search_buffer, '');
+    editor.item_source_filter = 'all';
+    buffer_set(editor.item_search_buffer, '');
+    buffer_set(editor.weaponskill_search_buffer, '');
+    buffer_set(editor.ability_search_buffer, '');
+    if (mode == 'target') then
+        editor.target_action = action or '/target';
+    end
+end
+
+function COMMAND_MODE.quote_action_name(name)
+    name = COMMAND_MODE.clean_name(name);
+    if (name == '') then
+        return '';
+    end
+
+    return name:gsub('"', '');
+end
+
+function COMMAND_MODE.editor_command(mode, editor)
+    mode = MACRO.normalize_mode(mode);
+    if (editor == nil) then
+        return '';
+    end
+
+    local action = COMMAND_MODE.quote_action_name(editor.command_action);
+    local target = trim_string(editor.command_target);
+    if (target == '') then
+        target = COMMAND_MODE.default_target(mode);
+    end
+
+    if (mode == 'spell') then
+        return (action ~= '') and ('/ma "%s" %s'):fmt(action, target) or '';
+    end
+    if (mode == 'item') then
+        return (action ~= '') and ('/item "%s" <me>'):fmt(action) or '';
+    end
+    if (mode == 'weaponskill') then
+        return (action ~= '') and ('/ws "%s" %s'):fmt(action, target) or '';
+    end
+    if (mode == 'ability') then
+        return (action ~= '') and ('/ja "%s" %s'):fmt(action, target) or '';
+    end
+    if (mode == 'ranged') then
+        return ('/ra %s'):fmt(target);
+    end
+    if (mode == 'target') then
+        local prefix = editor.target_action or '/target';
+        return ('%s %s'):fmt(prefix, target);
+    end
+
+    return '';
+end
+
+function COMMAND_MODE.configured_action_fallback(mode, list, lookup)
+    for _, row in ipairs(ROWS) do
+        for index = 1, 10 do
+            local slot = get_slot(row.id, index);
+            local commands = MACRO.slot_commands(slot);
+            for _, command in ipairs(commands) do
+                if (COMMAND_MODE.mode_from_command(command) == mode) then
+                    local _, name = COMMAND_MODE.parse_command(command);
+                    COMMAND_MODE.add_action(list, lookup, name, nil, 'configured');
+                end
+            end
+        end
+    end
+end
+
+function COMMAND_MODE.spell_type_key(spell, spell_name)
+    spell_name = COMMAND_MODE.clean_name(spell_name);
+    if (spell_name:lower():match('^trust:') ~= nil) then
+        return 'trust';
+    end
+
+    local skill_id = tonumber(spell ~= nil and safe_read(function () return spell.Skill; end, nil));
+    if (skill_id == 0) then
+        return 'trust';
+    end
+
+    local type_id = tonumber(spell ~= nil and safe_read(function () return spell.Type; end, nil));
+    local from_type = COMMAND_MODE.SPELL_TYPE_BY_RESOURCE_TYPE[type_id];
+    if (from_type ~= nil) then
+        return from_type;
+    end
+
+    return COMMAND_MODE.SPELL_TYPE_BY_SKILL[skill_id] or 'other';
+end
+
+function COMMAND_MODE.spell_element_key(spell)
+    local element_id = tonumber(spell ~= nil and safe_read(function () return spell.Element; end, nil));
+    return COMMAND_MODE.SPELL_ELEMENT_BY_RESOURCE_ELEMENT[element_id] or 'none';
+end
+
+function COMMAND_MODE.spell_action_meta(spell, name)
+    local spell_type = COMMAND_MODE.spell_type_key(spell, name);
+    local element = COMMAND_MODE.spell_element_key(spell);
+    return {
+        spell_type = spell_type,
+        spell_type_label = COMMAND_MODE.option_label(COMMAND_MODE.SPELL_TYPE_OPTIONS, spell_type, 'Other'),
+        spell_element = element,
+        spell_element_label = COMMAND_MODE.option_label(COMMAND_MODE.SPELL_ELEMENT_OPTIONS, element, 'Non-Elemental'),
+    };
+end
+
+function COMMAND_MODE.spell_actions()
+    local list = {};
+    local lookup = {};
+    local state_info = COMMAND_MODE.current_player_state();
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (state_info ~= nil and resources ~= nil and state_info.has_spell_data) then
+        for id = 0, 2048, 1 do
+            if (safe_read(function () return state_info.player:HasSpell(id); end, false)) then
+                local spell = safe_read(function () return resources:GetSpellById(id); end, nil);
+                if (spell ~= nil and COMMAND_MODE.spell_usable_for_current_job(spell, state_info)) then
+                    local mp = tonumber(safe_read(function () return spell.ManaCost; end, nil));
+                    local name = COMMAND_MODE.resource_name(spell);
+                    COMMAND_MODE.add_action(list, lookup, name, id, mp ~= nil and ('MP %d'):fmt(mp) or nil, COMMAND_MODE.spell_action_meta(spell, name));
+                end
+            end
+        end
+    end
+
+    COMMAND_MODE.configured_action_fallback('spell', list, lookup);
+    return COMMAND_MODE.sort_actions(list);
+end
+
+function COMMAND_MODE.item_actions()
+    local list = {};
+    local lookup = {};
+    local inventory = safe_read(function () return AshitaCore:GetMemoryManager():GetInventory(); end, nil);
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (inventory ~= nil and resources ~= nil) then
+        for _, container_id in ipairs(ITEM_COUNT_CONTAINER_IDS) do
+            local max = tonumber(safe_read(function ()
+                return inventory:GetContainerCountMax(container_id);
+            end, 0)) or 0;
+
+            for slot = 0, max, 1 do
+                local item = safe_read(function ()
+                    return inventory:GetContainerItem(container_id, slot);
+                end, nil);
+                local id = item ~= nil and tonumber(item.Id) or nil;
+                if (id ~= nil and id > 0 and id ~= 65535) then
+                    local resource = safe_read(function ()
+                        return resources:GetItemById(id);
+                    end, nil);
+                    local name = COMMAND_MODE.resource_name(resource);
+                    if (name ~= '') then
+                        local count = item_count(id);
+                        local source = COMMAND_MODE.ITEM_SOURCE_BY_CONTAINER[container_id] or { key = 'other', label = 'Other' };
+                        COMMAND_MODE.add_action(list, lookup, name, id, count ~= nil and ('x%d'):fmt(count) or nil, {
+                            item_source = source.key,
+                            item_source_label = source.label,
+                        });
+                    end
+                end
+            end
+        end
+    end
+
+    COMMAND_MODE.configured_action_fallback('item', list, lookup);
+    return COMMAND_MODE.sort_actions(list);
+end
+
+function COMMAND_MODE.action_by_name(mode, name)
+    name = COMMAND_MODE.clean_name(name);
+    if (name == '') then
+        return nil;
+    end
+
+    for _, action in ipairs(COMMAND_MODE.actions(mode)) do
+        if (action.name == name) then
+            return action;
+        end
+    end
+
+    return {
+        name = name,
+    };
+end
+
+function COMMAND_MODE.item_resource(item_id, item_name)
+    local resources = safe_read(function ()
+        return AshitaCore:GetResourceManager();
+    end, nil);
+    if (resources == nil) then
+        return nil;
+    end
+
+    item_id = tonumber(item_id);
+    if (item_id ~= nil and item_id > 0) then
+        local by_id = safe_read(function ()
+            return resources:GetItemById(item_id);
+        end, nil);
+        if (by_id ~= nil) then
+            return by_id;
+        end
+    end
+
+    item_name = COMMAND_MODE.clean_name(item_name);
+    if (item_name ~= '') then
+        return safe_read(function ()
+            return resources:GetItemByName(item_name, 0);
+        end, safe_read(function ()
+            return resources:GetItemByName(item_name);
+        end, nil));
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.selected_item_action(editor)
+    if (editor == nil) then
+        return nil, nil;
+    end
+
+    local action = COMMAND_MODE.action_by_name('item', editor.command_action);
+    if (action == nil) then
+        return nil, nil;
+    end
+
+    local resource = COMMAND_MODE.item_resource(action.id, action.name);
+    if (action.id == nil and resource ~= nil) then
+        action.id = COMMAND_MODE.resource_id(resource);
+    end
+
+    return action, resource;
+end
+
+function COMMAND_MODE.editor_item_label(editor)
+    if (editor == nil) then
+        return '';
+    end
+
+    local action, resource = COMMAND_MODE.selected_item_action(editor);
+    local resource_name = COMMAND_MODE.resource_name(resource);
+    if (resource_name ~= '') then
+        return trim_one_line(resource_name, MACRO_LABEL_MAX);
+    end
+    if (action ~= nil and COMMAND_MODE.clean_name(action.name) ~= '') then
+        return trim_one_line(action.name, MACRO_LABEL_MAX);
+    end
+
+    return trim_one_line(editor.command_action, MACRO_LABEL_MAX);
+end
+
+function COMMAND_MODE.target_action_label(prefix)
+    prefix = type(prefix) == 'string' and prefix:lower() or '/target';
+    for _, action in ipairs(COMMAND_MODE.TARGET_ACTIONS) do
+        if (action.prefix == prefix) then
+            return action.label;
+        end
+    end
+
+    return 'Target';
+end
+
+function COMMAND_MODE.editor_action_label(editor, mode)
+    mode = MACRO.normalize_mode(mode or (editor ~= nil and editor.macro_mode) or 'single');
+    if (mode == 'item') then
+        return COMMAND_MODE.editor_item_label(editor);
+    end
+    if (mode == 'target') then
+        return trim_one_line(COMMAND_MODE.target_action_label(editor ~= nil and editor.target_action or nil), MACRO_LABEL_MAX);
+    end
+    if (mode == 'ranged') then
+        return 'Ranged Attack';
+    end
+
+    return trim_one_line(editor ~= nil and editor.command_action or '', MACRO_LABEL_MAX);
+end
+
+function COMMAND_MODE.apply_editor_action_label(editor, mode)
+    local label = COMMAND_MODE.editor_action_label(editor, mode);
+    if (label ~= '') then
+        buffer_set(editor.label_buffer, label);
+    end
+
+    return label;
+end
+
+function COMMAND_MODE.editor_selection_validation_error(mode, editor)
+    mode = MACRO.normalize_mode(mode);
+    if (COMMAND_MODE.clean_name(editor ~= nil and editor.command_action or '') == '') then
+        if (mode == 'spell') then
+            return 'Choose a spell.';
+        end
+        if (mode == 'item') then
+            return 'Choose an item.';
+        end
+        if (mode == 'weaponskill') then
+            return 'Choose a weapon skill.';
+        end
+        if (mode == 'ability') then
+            return 'Choose a job ability.';
+        end
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.ensure_texture_state()
+    if (state.item_texture_cache == nil) then
+        state.item_texture_cache = {};
+    end
+    if (state.item_texture_handles == nil) then
+        state.item_texture_handles = {};
+    end
+
+    if (COMMAND_MODE.d3d == nil) then
+        local ok, d3d = pcall(require, 'd3d8');
+        if (not ok or d3d == nil) then
+            COMMAND_MODE.d3d = false;
+            return false;
+        end
+
+        COMMAND_MODE.d3d = d3d;
+        COMMAND_MODE.d3d_device = d3d.get_device();
+    end
+
+    return COMMAND_MODE.d3d ~= false and COMMAND_MODE.d3d_device ~= nil;
+end
+
+function COMMAND_MODE.item_icon_handle(item_id, resource)
+    item_id = tonumber(item_id);
+    if (item_id == nil or item_id <= 0) then
+        return nil;
+    end
+    if (state.item_texture_handles ~= nil and state.item_texture_handles[item_id] ~= nil) then
+        return state.item_texture_handles[item_id];
+    end
+    if (state.item_texture_cache ~= nil and state.item_texture_cache[item_id] == false) then
+        return nil;
+    end
+    if (not COMMAND_MODE.ensure_texture_state()) then
+        return nil;
+    end
+
+    resource = resource or COMMAND_MODE.item_resource(item_id, nil);
+    local image_size = resource ~= nil and tonumber(safe_read(function () return resource.ImageSize; end, nil)) or nil;
+    local bitmap = resource ~= nil and safe_read(function () return resource.Bitmap; end, nil) or nil;
+    if (bitmap == nil or image_size == nil or image_size <= 0) then
+        state.item_texture_cache[item_id] = false;
+        return nil;
+    end
+
+    local ok, handle = pcall(function ()
+        local texture_ptr = ffi.new('IDirect3DTexture8*[1]');
+        local result = ffi.C.D3DXCreateTextureFromFileInMemoryEx(
+            COMMAND_MODE.d3d_device,
+            bitmap,
+            image_size,
+            0xFFFFFFFF,
+            0xFFFFFFFF,
+            1,
+            0,
+            ffi.C.D3DFMT_A8R8G8B8,
+            ffi.C.D3DPOOL_MANAGED,
+            ffi.C.D3DX_DEFAULT,
+            ffi.C.D3DX_DEFAULT,
+            0xFF000000,
+            nil,
+            nil,
+            texture_ptr);
+
+        if (result ~= ffi.C.S_OK) then
+            return nil;
+        end
+
+        local texture = COMMAND_MODE.d3d.gc_safe_release(ffi.cast('IDirect3DTexture8*', texture_ptr[0]));
+        state.item_texture_cache[item_id] = texture;
+        state.item_texture_handles[item_id] = tonumber(ffi.cast('uint32_t', texture));
+        return state.item_texture_handles[item_id];
+    end);
+
+    if (not ok or handle == nil) then
+        state.item_texture_cache[item_id] = false;
+        return nil;
+    end
+
+    return handle;
+end
+
+function COMMAND_MODE.item_description_text(resource)
+    local desc = resource ~= nil and safe_read(function ()
+        return resource.Description[1];
+    end, nil) or nil;
+    if (type(desc) ~= 'string') then
+        return '';
+    end
+
+    desc = desc:gsub('%z', ''):gsub('\r\n', '\n'):gsub('\r', '\n'):gsub('%%', '%%%%');
+    return trim_string(desc);
+end
+
+function COMMAND_MODE.render_item_badges(resource)
+    local flags = tonumber(resource ~= nil and safe_read(function () return resource.Flags; end, 0) or 0) or 0;
+    local rare = bit.band(flags, 0x8000) ~= 0;
+    local ex = bit.band(flags, 0x6040) ~= 0;
+    if (rare) then
+        imgui.TextColored({ 1.00, 0.86, 0.30, 1.00 }, 'Rare');
+    end
+    if (rare and ex) then
+        imgui.SameLine(0, 6);
+    end
+    if (ex) then
+        imgui.TextColored({ 0.48, 1.00, 0.48, 1.00 }, 'Ex');
+    end
+end
+
+function COMMAND_MODE.render_item_resource_tooltip(action, resource)
+    if (action == nil and resource == nil) then
+        return;
+    end
+
+    local item_id = action ~= nil and tonumber(action.id) or COMMAND_MODE.resource_id(resource);
+    local name = COMMAND_MODE.resource_name(resource);
+    if (name == '' and action ~= nil) then
+        name = action.name or '';
+    end
+
+    imgui.SetNextWindowSize({ 360, 0 }, ImGuiCond_Always);
+    imgui.BeginTooltip();
+    imgui.PushTextWrapPos(340);
+
+    local handle = COMMAND_MODE.item_icon_handle(item_id, resource);
+    if (handle ~= nil) then
+        imgui.Image(handle, { 32, 32 });
+        imgui.SameLine(0, 8);
+    end
+
+    imgui.TextColored(CONFIG_HEADER_COLOR, name ~= '' and name or 'Item');
+    if (item_id ~= nil) then
+        imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('Item ID: %d'):fmt(item_id));
+    end
+    if (action ~= nil and action.detail ~= nil) then
+        imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, action.detail);
+    end
+
+    if (resource ~= nil) then
+        COMMAND_MODE.render_item_badges(resource);
+        local stack_size = tonumber(safe_read(function () return resource.StackSize; end, nil));
+        if (stack_size ~= nil and stack_size > 1) then
+            imgui.Text(('Stack: %d'):fmt(stack_size));
+        end
+        local level = tonumber(safe_read(function () return resource.Level; end, nil));
+        if (level ~= nil and level > 0) then
+            imgui.Text(('Level: %d'):fmt(level));
+        end
+
+        local desc = COMMAND_MODE.item_description_text(resource);
+        if (desc ~= '') then
+            imgui.Separator();
+            imgui.TextWrapped(desc);
+        end
+    end
+
+    imgui.PopTextWrapPos();
+    imgui.EndTooltip();
+end
+
+function COMMAND_MODE.render_item_icon_preview(editor, size)
+    size = size or 36;
+    local action, resource = COMMAND_MODE.selected_item_action(editor);
+    local handle = action ~= nil and COMMAND_MODE.item_icon_handle(action.id, resource) or nil;
+    if (handle ~= nil) then
+        imgui.Image(handle, { size, size });
+    else
+        imgui.Dummy({ size, size });
+    end
+
+    return imgui.IsItemHovered(), action, resource;
+end
+
+function COMMAND_MODE.weapon_skill_actions()
+    local list = {};
+    local lookup = {};
+    local state_info = COMMAND_MODE.current_player_state();
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (state_info ~= nil and resources ~= nil) then
+        for id = 1, 0x200, 1 do
+            if (safe_read(function () return state_info.player:HasWeaponSkill(id); end, false)) then
+                local ability = safe_read(function () return resources:GetAbilityById(id); end, nil);
+                COMMAND_MODE.add_action(list, lookup, COMMAND_MODE.resource_name(ability), id, nil);
+            end
+        end
+    end
+
+    COMMAND_MODE.configured_action_fallback('weaponskill', list, lookup);
+    return COMMAND_MODE.sort_actions(list);
+end
+
+function COMMAND_MODE.ability_actions()
+    local list = {};
+    local lookup = {};
+    local state_info = COMMAND_MODE.current_player_state();
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (state_info ~= nil and resources ~= nil) then
+        for id = 0x201, 0x600, 1 do
+            if (safe_read(function () return state_info.player:HasAbility(id); end, false)) then
+                local ability = safe_read(function () return resources:GetAbilityById(id); end, nil);
+                local timer_id = ability ~= nil and tonumber(safe_read(function () return ability.RecastTimerId; end, nil)) or nil;
+                COMMAND_MODE.add_action(list, lookup, COMMAND_MODE.resource_name(ability), id, timer_id ~= nil and ('timer %d'):fmt(timer_id) or nil);
+            end
+        end
+    end
+
+    COMMAND_MODE.configured_action_fallback('ability', list, lookup);
+    return COMMAND_MODE.sort_actions(list);
+end
+
+function COMMAND_MODE.actions(mode)
+    mode = MACRO.normalize_mode(mode);
+    if (state.command_mode_cache == nil) then
+        state.command_mode_cache = {};
+    end
+
+    local now = os.clock();
+    local cached = state.command_mode_cache[mode];
+    if (cached ~= nil and cached.items ~= nil and (now - cached.at) <= COMMAND_LIST_CACHE_SECONDS) then
+        return cached.items;
+    end
+
+    local items = {};
+    if (mode == 'spell') then
+        items = COMMAND_MODE.spell_actions();
+    elseif (mode == 'item') then
+        items = COMMAND_MODE.item_actions();
+    elseif (mode == 'weaponskill') then
+        items = COMMAND_MODE.weapon_skill_actions();
+    elseif (mode == 'ability') then
+        items = COMMAND_MODE.ability_actions();
+    elseif (mode == 'ranged') then
+        items = { { name = 'Ranged Attack' } };
+    end
+
+    state.command_mode_cache[mode] = { at = now, items = items };
+    return items;
+end
+
+function COMMAND_MODE.invalidate_cache()
+    state.command_mode_cache = {};
+end
+
+function COMMAND_MODE.set_default_label(editor, name)
+    if (editor == nil or trim_string(editor.label_buffer[1]) ~= '') then
+        return;
+    end
+
+    buffer_set(editor.label_buffer, trim_one_line(name, MACRO_LABEL_MAX));
+end
+
+function COMMAND_MODE.ensure_structured_selection(editor, mode)
+    if (editor == nil) then
+        return;
+    end
+
+    mode = MACRO.normalize_mode(mode);
+    if (mode == 'target') then
+        editor.target_action = editor.target_action or '/target';
+        editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
+        return;
+    end
+    if (mode == 'ranged') then
+        editor.command_action = 'Ranged Attack';
+        editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
+        return;
+    end
+    if (mode == 'item') then
+        editor.command_target = '<me>';
+    else
+        editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
+    end
+    if (mode == 'spell' or mode == 'item' or mode == 'weaponskill' or mode == 'ability') then
+        return;
+    end
+
+    if (COMMAND_MODE.clean_name(editor.command_action) ~= '') then
+        return;
+    end
+
+    local actions = COMMAND_MODE.actions(mode);
+    if (#actions > 0) then
+        editor.command_action = actions[1].name;
+        COMMAND_MODE.set_default_label(editor, editor.command_action);
+    end
+end
+
+function COMMAND_MODE.change_editor_mode(editor, mode)
+    if (editor == nil) then
+        return;
+    end
+
+    local _, current_command, current_commands = MACRO.editor_commands();
+    mode = MACRO.normalize_mode(mode);
+    if (mode == 'multi') then
+        editor.macro_mode = 'multi';
+        if (trim_string(editor.commands_buffer[1]) == '') then
+            buffer_set(editor.commands_buffer, MACRO.commands_to_text((#current_commands > 0) and current_commands or { current_command }));
+        end
+        return;
+    end
+    if (mode == 'single') then
+        editor.macro_mode = 'single';
+        if (current_command ~= '') then
+            buffer_set(editor.command_buffer, current_command);
+        end
+        return;
+    end
+
+    editor.macro_mode = mode;
+    if (COMMAND_MODE.is_structured_mode(mode)) then
+        editor.use_action_name_label[1] = true;
+    end
+    if (mode == 'item') then
+        buffer_set(editor.icon_buffer, '');
+        editor.preview_icon = nil;
+    end
+    if (COMMAND_MODE.mode_from_command(current_command) ~= mode) then
+        current_command = '';
+    end
+    local action, target = COMMAND_MODE.command_action_for_mode(mode, current_command);
+    editor.command_action = action or '';
+    editor.command_target = target or COMMAND_MODE.default_target(mode);
+    if (mode == 'target') then
+        editor.target_action = action or '/target';
+    end
+    COMMAND_MODE.ensure_structured_selection(editor, mode);
+    if (COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false) then
+        COMMAND_MODE.apply_editor_action_label(editor, mode);
+    end
+    buffer_set(editor.command_buffer, COMMAND_MODE.editor_command(mode, editor));
+end
+
+function COMMAND_MODE.render_mode_selector(editor)
+    local mode = MACRO.normalize_mode(editor.macro_mode);
+    imgui.PushItemWidth(360);
+    if (imgui.BeginCombo('Command Mode##ashitabars_button_mode_select', COMMAND_MODE.mode_label(mode), ImGuiComboFlags_None)) then
+        for _, mode_id in ipairs(COMMAND_MODE.ORDER) do
+            if (imgui.Selectable(COMMAND_MODE.mode_label(mode_id), mode == mode_id)) then
+                COMMAND_MODE.change_editor_mode(editor, mode_id);
+            end
+        end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+end
+
+function COMMAND_MODE.action_combo_label(editor, mode, actions)
+    local current = COMMAND_MODE.clean_name(editor.command_action);
+    if (current ~= '') then
+        return current;
+    end
+
+    if (actions ~= nil and #actions > 0) then
+        return 'Choose ' .. (COMMAND_MODE.DEFS[mode].action_label or 'Action');
+    end
+
+    return COMMAND_MODE.DEFS[mode].empty_label or 'No actions found.';
+end
+
+function COMMAND_MODE.spell_filter_key(value, options)
+    if (type(value) ~= 'string' or value == '') then
+        return 'all';
+    end
+
+    for _, option in ipairs(options or {}) do
+        if (option.key == value) then
+            return value;
+        end
+    end
+
+    return 'all';
+end
+
+function COMMAND_MODE.spell_search_text(editor)
+    if (editor == nil or editor.spell_search_buffer == nil) then
+        return '';
+    end
+
+    return trim_string(editor.spell_search_buffer[1]):lower();
+end
+
+function COMMAND_MODE.action_search_buffer(editor, mode)
+    if (editor == nil) then
+        return nil;
+    end
+
+    mode = MACRO.normalize_mode(mode);
+    if (mode == 'item') then
+        return editor.item_search_buffer;
+    end
+    if (mode == 'weaponskill') then
+        return editor.weaponskill_search_buffer;
+    end
+    if (mode == 'ability') then
+        return editor.ability_search_buffer;
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.action_search_text(editor, mode)
+    local buffer = COMMAND_MODE.action_search_buffer(editor, mode);
+    if (buffer == nil) then
+        return '';
+    end
+
+    return trim_string(buffer[1]):lower();
+end
+
+function COMMAND_MODE.action_search_haystack(action)
+    if (type(action) ~= 'table') then
+        return '';
+    end
+
+    return table.concat({
+        action.name or '',
+        action.detail or '',
+        action.item_source_label or '',
+    }, ' '):lower();
+end
+
+function COMMAND_MODE.action_matches_search(action, search)
+    if (type(action) ~= 'table') then
+        return false;
+    end
+
+    search = type(search) == 'string' and search or '';
+    if (search == '') then
+        return true;
+    end
+
+    return COMMAND_MODE.action_search_haystack(action):find(search, 1, true) ~= nil;
+end
+
+function COMMAND_MODE.filtered_actions_by_search(actions, search)
+    local filtered = {};
+    for _, action in ipairs(actions or {}) do
+        if (COMMAND_MODE.action_matches_search(action, search)) then
+            table.insert(filtered, action);
+        end
+    end
+
+    return filtered;
+end
+
+function COMMAND_MODE.item_action_matches_filter_values(action, source_filter, search)
+    if (type(action) ~= 'table') then
+        return false;
+    end
+
+    source_filter = COMMAND_MODE.spell_filter_key(source_filter, COMMAND_MODE.ITEM_SOURCE_OPTIONS);
+    if (source_filter ~= 'all' and action.item_source ~= source_filter) then
+        return false;
+    end
+
+    return COMMAND_MODE.action_matches_search(action, search);
+end
+
+function COMMAND_MODE.filtered_item_actions(editor, actions)
+    local filtered = {};
+    local source_filter = COMMAND_MODE.spell_filter_key(editor ~= nil and editor.item_source_filter or 'all', COMMAND_MODE.ITEM_SOURCE_OPTIONS);
+    local search = COMMAND_MODE.action_search_text(editor, 'item');
+    for _, action in ipairs(actions or {}) do
+        if (COMMAND_MODE.item_action_matches_filter_values(action, source_filter, search)) then
+            table.insert(filtered, action);
+        end
+    end
+
+    return filtered;
+end
+
+function COMMAND_MODE.item_filter_options_for(actions, search)
+    local available = {};
+    for _, action in ipairs(actions or {}) do
+        if (COMMAND_MODE.action_matches_search(action, search)) then
+            local key = action.item_source;
+            if (type(key) == 'string' and key ~= '') then
+                available[key] = true;
+            end
+        end
+    end
+
+    local options = {};
+    for _, option in ipairs(COMMAND_MODE.ITEM_SOURCE_OPTIONS) do
+        if (option.key == 'all' or available[option.key] == true) then
+            table.insert(options, option);
+        end
+    end
+
+    return options;
+end
+
+function COMMAND_MODE.normalize_item_filter_options(editor, actions)
+    local search = COMMAND_MODE.action_search_text(editor, 'item');
+    local options = COMMAND_MODE.item_filter_options_for(actions, search);
+    editor.item_source_filter = COMMAND_MODE.spell_filter_key(editor.item_source_filter, options);
+    return options;
+end
+
+function COMMAND_MODE.spell_action_matches_filter_values(action, type_filter, element_filter, search)
+    if (type(action) ~= 'table') then
+        return false;
+    end
+
+    type_filter = COMMAND_MODE.spell_filter_key(type_filter, COMMAND_MODE.SPELL_TYPE_OPTIONS);
+    if (type_filter ~= 'all' and action.spell_type ~= type_filter) then
+        return false;
+    end
+
+    element_filter = COMMAND_MODE.spell_filter_key(element_filter, COMMAND_MODE.SPELL_ELEMENT_OPTIONS);
+    if (element_filter ~= 'all' and action.spell_element ~= element_filter) then
+        return false;
+    end
+
+    search = type(search) == 'string' and search or '';
+    if (search ~= '') then
+        local haystack = table.concat({
+            action.name or '',
+            action.detail or '',
+            action.spell_type_label or '',
+            action.spell_element_label or '',
+        }, ' '):lower();
+        if (haystack:find(search, 1, true) == nil) then
+            return false;
+        end
+    end
+
+    return true;
+end
+
+function COMMAND_MODE.spell_action_matches_filters(action, editor)
+    return COMMAND_MODE.spell_action_matches_filter_values(
+        action,
+        editor ~= nil and editor.spell_type_filter or 'all',
+        editor ~= nil and editor.spell_element_filter or 'all',
+        COMMAND_MODE.spell_search_text(editor)
+    );
+end
+
+function COMMAND_MODE.filtered_spell_actions(editor, actions)
+    local filtered = {};
+    for _, action in ipairs(actions or {}) do
+        if (COMMAND_MODE.spell_action_matches_filters(action, editor)) then
+            table.insert(filtered, action);
+        end
+    end
+
+    return filtered;
+end
+
+function COMMAND_MODE.spell_filter_options_for(actions, base_options, action_key, type_filter, element_filter, search)
+    local available = {};
+    for _, action in ipairs(actions or {}) do
+        if (COMMAND_MODE.spell_action_matches_filter_values(action, type_filter, element_filter, search)) then
+            local key = action[action_key];
+            if (type(key) == 'string' and key ~= '') then
+                available[key] = true;
+            end
+        end
+    end
+
+    local options = {};
+    for _, option in ipairs(base_options or {}) do
+        if (option.key == 'all' or available[option.key] == true) then
+            table.insert(options, option);
+        end
+    end
+
+    return options;
+end
+
+function COMMAND_MODE.normalize_spell_filter_options(editor, actions)
+    local search = COMMAND_MODE.spell_search_text(editor);
+    local type_filter = COMMAND_MODE.spell_filter_key(editor.spell_type_filter, COMMAND_MODE.SPELL_TYPE_OPTIONS);
+    local element_filter = COMMAND_MODE.spell_filter_key(editor.spell_element_filter, COMMAND_MODE.SPELL_ELEMENT_OPTIONS);
+    local type_options = nil;
+    local element_options = nil;
+
+    for _ = 1, 2 do
+        type_options = COMMAND_MODE.spell_filter_options_for(actions, COMMAND_MODE.SPELL_TYPE_OPTIONS, 'spell_type', 'all', element_filter, search);
+        type_filter = COMMAND_MODE.spell_filter_key(type_filter, type_options);
+        element_options = COMMAND_MODE.spell_filter_options_for(actions, COMMAND_MODE.SPELL_ELEMENT_OPTIONS, 'spell_element', type_filter, 'all', search);
+        element_filter = COMMAND_MODE.spell_filter_key(element_filter, element_options);
+    end
+
+    editor.spell_type_filter = type_filter;
+    editor.spell_element_filter = element_filter;
+    return type_options or COMMAND_MODE.SPELL_TYPE_OPTIONS, element_options or COMMAND_MODE.SPELL_ELEMENT_OPTIONS;
+end
+
+function COMMAND_MODE.render_filter_combo(label, id, current_key, options, width)
+    current_key = COMMAND_MODE.spell_filter_key(current_key, options);
+    imgui.PushItemWidth(width or 170);
+    if (imgui.BeginCombo(label .. '##' .. id, COMMAND_MODE.option_label(options, current_key, 'All'), ImGuiComboFlags_None)) then
+        for _, option in ipairs(options or {}) do
+            if (imgui.Selectable(option.label, option.key == current_key)) then
+                current_key = option.key;
+            end
+        end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+
+    return current_key;
+end
+
+function COMMAND_MODE.render_spell_filters(editor, actions)
+    if (editor == nil) then
+        return actions or {};
+    end
+
+    local type_options, element_options = COMMAND_MODE.normalize_spell_filter_options(editor, actions);
+    editor.spell_type_filter = COMMAND_MODE.render_filter_combo('Type', 'ashitabars_spell_type_filter', editor.spell_type_filter, type_options, 170);
+    imgui.SameLine(0, 8);
+    type_options, element_options = COMMAND_MODE.normalize_spell_filter_options(editor, actions);
+    editor.spell_element_filter = COMMAND_MODE.render_filter_combo('Element', 'ashitabars_spell_element_filter', editor.spell_element_filter, element_options, 170);
+    COMMAND_MODE.normalize_spell_filter_options(editor, actions);
+
+    imgui.PushItemWidth(360);
+    imgui.InputText('Search##ashitabars_spell_search_filter', editor.spell_search_buffer, 64);
+    imgui.PopItemWidth();
+
+    if (editor.spell_type_filter ~= 'all' or editor.spell_element_filter ~= 'all' or COMMAND_MODE.spell_search_text(editor) ~= '') then
+        if (imgui.Button('Clear Filters##ashitabars_spell_clear_filters')) then
+            editor.spell_type_filter = 'all';
+            editor.spell_element_filter = 'all';
+            buffer_set(editor.spell_search_buffer, '');
+        end
+    end
+
+    local filtered = COMMAND_MODE.filtered_spell_actions(editor, actions);
+    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('%d / %d spells'):fmt(#filtered, #(actions or {})));
+    return filtered;
+end
+
+function COMMAND_MODE.render_item_filters(editor, actions)
+    if (editor == nil) then
+        return actions or {};
+    end
+
+    local source_options = COMMAND_MODE.normalize_item_filter_options(editor, actions);
+    editor.item_source_filter = COMMAND_MODE.render_filter_combo('Source', 'ashitabars_item_source_filter', editor.item_source_filter, source_options, 170);
+    COMMAND_MODE.normalize_item_filter_options(editor, actions);
+
+    imgui.PushItemWidth(360);
+    imgui.InputText('Search##ashitabars_item_search_filter', editor.item_search_buffer, 64);
+    imgui.PopItemWidth();
+    COMMAND_MODE.normalize_item_filter_options(editor, actions);
+
+    if (editor.item_source_filter ~= 'all' or COMMAND_MODE.action_search_text(editor, 'item') ~= '') then
+        if (imgui.Button('Clear Filters##ashitabars_item_clear_filters')) then
+            editor.item_source_filter = 'all';
+            buffer_set(editor.item_search_buffer, '');
+        end
+    end
+
+    local filtered = COMMAND_MODE.filtered_item_actions(editor, actions);
+    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('%d / %d items'):fmt(#filtered, #(actions or {})));
+    return filtered;
+end
+
+function COMMAND_MODE.render_search_filter(editor, mode, actions)
+    if (editor == nil) then
+        return actions or {};
+    end
+
+    local buffer = COMMAND_MODE.action_search_buffer(editor, mode);
+    if (buffer == nil) then
+        return actions or {};
+    end
+
+    imgui.PushItemWidth(360);
+    imgui.InputText('Search##ashitabars_' .. mode .. '_search_filter', buffer, 64);
+    imgui.PopItemWidth();
+
+    local search = COMMAND_MODE.action_search_text(editor, mode);
+    if (search ~= '') then
+        if (imgui.Button('Clear Filter##ashitabars_' .. mode .. '_clear_filter')) then
+            buffer_set(buffer, '');
+            search = '';
+        end
+    end
+
+    local filtered = COMMAND_MODE.filtered_actions_by_search(actions, search);
+    local count_label = 'actions';
+    if (mode == 'weaponskill') then
+        count_label = 'weapon skills';
+    elseif (mode == 'ability') then
+        count_label = 'job abilities';
+    end
+    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('%d / %d %s'):fmt(#filtered, #(actions or {}), count_label));
+    return filtered;
+end
+
+function COMMAND_MODE.spell_action_list_label(action)
+    local label = action.name or '';
+    local details = {};
+    if (action.spell_type_label ~= nil and action.spell_type_label ~= '') then
+        table.insert(details, action.spell_type_label);
+    end
+    if (action.spell_element_label ~= nil and action.spell_element_label ~= '' and action.spell_element ~= 'none') then
+        table.insert(details, action.spell_element_label);
+    end
+    if (action.detail ~= nil and action.detail ~= '') then
+        table.insert(details, action.detail);
+    end
+    if (#details > 0) then
+        label = label .. '  (' .. table.concat(details, ', ') .. ')';
+    end
+
+    return label;
+end
+
+function COMMAND_MODE.select_editor_action(editor, mode, action)
+    if (type(action) ~= 'table' or action.name == nil) then
+        return;
+    end
+
+    editor.command_action = action.name;
+    if (COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false) then
+        COMMAND_MODE.apply_editor_action_label(editor, mode);
+    else
+        COMMAND_MODE.set_default_label(editor, action.name);
+    end
+end
+
+function COMMAND_MODE.action_list_label(mode, action)
+    mode = MACRO.normalize_mode(mode);
+    if (mode == 'spell') then
+        return COMMAND_MODE.spell_action_list_label(action);
+    end
+
+    local label = action.name or '';
+    local details = {};
+    if (action.item_source_label ~= nil and action.item_source_label ~= '') then
+        table.insert(details, action.item_source_label);
+    end
+    if (action.detail ~= nil and action.detail ~= '') then
+        table.insert(details, action.detail);
+    end
+    if (#details > 0) then
+        label = label .. '  (' .. table.concat(details, ', ') .. ')';
+    end
+
+    return label;
+end
+
+function COMMAND_MODE.clear_missing_filtered_selection(editor, actions)
+    local current = COMMAND_MODE.clean_name(editor ~= nil and editor.command_action or '');
+    if (current == '') then
+        return;
+    end
+
+    local found = false;
+    for _, action in ipairs(actions or {}) do
+        if (action.name == current) then
+            found = true;
+            break;
+        end
+    end
+
+    if (not found) then
+        editor.command_action = '';
+        if (editor.use_action_name_label[1] ~= false) then
+            buffer_set(editor.label_buffer, '');
+        end
+    end
+end
+
+function COMMAND_MODE.render_action_result_list(editor, mode, actions, empty_label)
+    mode = MACRO.normalize_mode(mode);
+    actions = actions or {};
+    imgui.TextColored(CONFIG_HEADER_COLOR, (COMMAND_MODE.DEFS[mode] and COMMAND_MODE.DEFS[mode].action_label) or 'Action');
+    COMMAND_MODE.clear_missing_filtered_selection(editor, actions);
+    if (#actions == 0) then
+        imgui.Text(empty_label);
+        return;
+    end
+
+    local child_open = false;
+    local child_visible = true;
+    if (type(imgui.BeginChild) == 'function' and type(imgui.EndChild) == 'function') then
+        local ok, result = pcall(imgui.BeginChild, '##ashitabars_' .. mode .. '_result_list', { 360, 128 }, true);
+        child_open = ok;
+        child_visible = (not ok) or result ~= false;
+    end
+
+    if (child_visible) then
+        for _, action in ipairs(actions) do
+            local label = COMMAND_MODE.action_list_label(mode, action);
+            local id = action.id or action.name or label;
+            if (imgui.Selectable(label .. '##ashitabars_' .. mode .. '_result_' .. tostring(id), editor.command_action == action.name)) then
+                COMMAND_MODE.select_editor_action(editor, mode, action);
+            end
+            if (mode == 'item' and imgui.IsItemHovered()) then
+                COMMAND_MODE.render_item_resource_tooltip(action, COMMAND_MODE.item_resource(action.id, action.name));
+            end
+        end
+    end
+
+    if (child_open) then
+        imgui.EndChild();
+    end
+end
+
+function COMMAND_MODE.render_spell_action_list(editor, actions, empty_label)
+    imgui.TextColored(CONFIG_HEADER_COLOR, 'Spell');
+    actions = actions or {};
+    COMMAND_MODE.clear_missing_filtered_selection(editor, actions);
+
+    if (#actions == 0) then
+        imgui.Text(empty_label);
+        return;
+    end
+
+    local child_open = false;
+    local child_visible = true;
+    if (type(imgui.BeginChild) == 'function' and type(imgui.EndChild) == 'function') then
+        local ok, result = pcall(imgui.BeginChild, '##ashitabars_spell_result_list', { 360, 128 }, true);
+        child_open = ok;
+        child_visible = (not ok) or result ~= false;
+    end
+
+    if (child_visible) then
+        for _, action in ipairs(actions) do
+            local label = COMMAND_MODE.spell_action_list_label(action);
+            local id = action.id or action.name or label;
+            if (imgui.Selectable(label .. '##ashitabars_spell_result_' .. tostring(id), editor.command_action == action.name)) then
+                COMMAND_MODE.select_editor_action(editor, 'spell', action);
+            end
+        end
+    end
+
+    if (child_open) then
+        imgui.EndChild();
+    end
+end
+
+function COMMAND_MODE.render_action_selector(editor, mode)
+    mode = MACRO.normalize_mode(mode);
+    local def = COMMAND_MODE.DEFS[mode] or COMMAND_MODE.DEFS.single;
+    imgui.TextColored(CONFIG_HEADER_COLOR, def.action_label or 'Action');
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Refresh Lists##ashitabars_button_refresh_action_lists')) then
+        COMMAND_MODE.invalidate_cache();
+    end
+
+    if (mode == 'target') then
+        local current = editor.target_action or '/target';
+        local label = 'Target';
+        for _, action in ipairs(COMMAND_MODE.TARGET_ACTIONS) do
+            if (action.prefix == current) then
+                label = action.label;
+                break;
+            end
+        end
+
+        imgui.PushItemWidth(360);
+        if (imgui.BeginCombo('Action##ashitabars_button_target_action', label, ImGuiComboFlags_None)) then
+            for _, action in ipairs(COMMAND_MODE.TARGET_ACTIONS) do
+                if (imgui.Selectable(action.label, action.prefix == current)) then
+                    editor.target_action = action.prefix;
+                    if (editor.use_action_name_label[1] ~= false) then
+                        COMMAND_MODE.apply_editor_action_label(editor, mode);
+                    else
+                        COMMAND_MODE.set_default_label(editor, action.label);
+                    end
+                end
+            end
+            imgui.EndCombo();
+        end
+        imgui.PopItemWidth();
+        return;
+    end
+
+    local actions = COMMAND_MODE.actions(mode);
+    local empty_label = def.empty_label or 'No actions found.';
+    if (mode == 'spell') then
+        actions = COMMAND_MODE.render_spell_filters(editor, actions);
+        empty_label = 'No spells match the current filters.';
+        COMMAND_MODE.render_spell_action_list(editor, actions, empty_label);
+        return;
+    end
+
+    if (mode == 'item') then
+        local item_hovered, tooltip_action, tooltip_resource = COMMAND_MODE.render_item_icon_preview(editor, 36);
+        imgui.SameLine(0, 8);
+        actions = COMMAND_MODE.render_item_filters(editor, actions);
+        empty_label = 'No items match the current filters.';
+        COMMAND_MODE.render_action_result_list(editor, mode, actions, empty_label);
+        if (item_hovered) then
+            COMMAND_MODE.render_item_resource_tooltip(tooltip_action, tooltip_resource);
+        end
+        return;
+    end
+
+    if (mode == 'weaponskill' or mode == 'ability') then
+        actions = COMMAND_MODE.render_search_filter(editor, mode, actions);
+        empty_label = mode == 'weaponskill' and 'No weapon skills match the current filter.' or 'No job abilities match the current filter.';
+        COMMAND_MODE.render_action_result_list(editor, mode, actions, empty_label);
+        return;
+    end
+
+    local item_hovered = false;
+    local tooltip_action = nil;
+    local tooltip_resource = nil;
+    if (mode == 'item') then
+        item_hovered, tooltip_action, tooltip_resource = COMMAND_MODE.render_item_icon_preview(editor, 36);
+        imgui.SameLine(0, 8);
+    end
+
+    imgui.PushItemWidth(mode == 'item' and 316 or 360);
+    if (imgui.BeginCombo((def.action_label or 'Action') .. '##ashitabars_button_action_select', COMMAND_MODE.action_combo_label(editor, mode, actions), ImGuiComboFlags_None)) then
+        if (#actions == 0) then
+            imgui.Text(empty_label);
+        end
+        for _, action in ipairs(actions) do
+            local label = action.name;
+            if (mode == 'spell') then
+                local details = {};
+                if (action.spell_type_label ~= nil and action.spell_type_label ~= '') then
+                    table.insert(details, action.spell_type_label);
+                end
+                if (action.spell_element_label ~= nil and action.spell_element_label ~= '' and action.spell_element ~= 'none') then
+                    table.insert(details, action.spell_element_label);
+                end
+                if (action.detail ~= nil and action.detail ~= '') then
+                    table.insert(details, action.detail);
+                end
+                if (#details > 0) then
+                    label = label .. '  (' .. table.concat(details, ', ') .. ')';
+                end
+            elseif (action.detail ~= nil and action.detail ~= '') then
+                label = label .. '  (' .. action.detail .. ')';
+            end
+            if (imgui.Selectable(label, editor.command_action == action.name)) then
+                editor.command_action = action.name;
+                if (COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false) then
+                    COMMAND_MODE.apply_editor_action_label(editor, mode);
+                else
+                    COMMAND_MODE.set_default_label(editor, action.name);
+                end
+            end
+            if (mode == 'item' and imgui.IsItemHovered()) then
+                COMMAND_MODE.render_item_resource_tooltip(action, COMMAND_MODE.item_resource(action.id, action.name));
+            end
+        end
+        imgui.EndCombo();
+    end
+    local combo_hovered = imgui.IsItemHovered();
+    imgui.PopItemWidth();
+
+    if (mode == 'item' and (item_hovered or combo_hovered)) then
+        COMMAND_MODE.render_item_resource_tooltip(tooltip_action, tooltip_resource);
+    end
+end
+
+function COMMAND_MODE.render_target_selector(editor, mode)
+    mode = MACRO.normalize_mode(mode);
+    local targets = COMMAND_MODE.TARGETS[mode];
+    if (type(targets) ~= 'table' or #targets == 0) then
+        return;
+    end
+
+    local current = trim_string(editor.command_target);
+    if (current == '') then
+        current = COMMAND_MODE.default_target(mode);
+        editor.command_target = current;
+    end
+
+    local label = COMMAND_MODE.TARGET_LABELS[current] or current;
+    imgui.TextColored(CONFIG_HEADER_COLOR, 'Target');
+    imgui.PushItemWidth(360);
+    if (imgui.BeginCombo('Target##ashitabars_button_target_select', label, ImGuiComboFlags_None)) then
+        for _, target in ipairs(targets) do
+            if (imgui.Selectable(COMMAND_MODE.TARGET_LABELS[target] or target, current == target)) then
+                editor.command_target = target;
+            end
+        end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+end
+
+function COMMAND_MODE.render_structured_editor(editor, mode)
+    COMMAND_MODE.ensure_structured_selection(editor, mode);
+    COMMAND_MODE.render_action_selector(editor, mode);
+    if (mode ~= 'item') then
+        COMMAND_MODE.render_target_selector(editor, mode);
+    end
+
+    local command = COMMAND_MODE.editor_command(mode, editor);
+    buffer_set(editor.command_buffer, command);
+    imgui.TextColored(CONFIG_HEADER_COLOR, 'Generated Command');
+    imgui.Text(command ~= '' and command or '(choose an action)');
 end
 
 local function allowed_command(command)
@@ -2020,6 +3748,10 @@ function MACRO.editor_commands()
         local commands, too_many = MACRO.commands_from_text(editor.commands_buffer[1], MACRO.COMMANDS_MAX);
         return mode, commands[1] or '', commands, too_many;
     end
+    if (mode == 'spell' or mode == 'item' or mode == 'weaponskill' or mode == 'ability' or mode == 'ranged' or mode == 'target') then
+        local command = MACRO.sanitize_command_line(COMMAND_MODE.editor_command(mode, editor));
+        return mode, command, (command ~= '') and { command } or {}, false;
+    end
 
     local command = MACRO.sanitize_command_line(editor.command_buffer[1]);
     return mode, command, (command ~= '') and { command } or {}, false;
@@ -2029,6 +3761,11 @@ function MACRO.editor_validation_error()
     local mode, command, commands, too_many = MACRO.editor_commands();
     if (too_many) then
         return ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
+    end
+
+    local selection_error = COMMAND_MODE.editor_selection_validation_error(mode, state.macro_editor);
+    if (selection_error ~= nil) then
+        return selection_error;
     end
 
     if (mode == 'multi') then
@@ -2047,6 +3784,11 @@ function MACRO.run_editor_commands()
     local mode, _, commands, too_many = MACRO.editor_commands();
     if (too_many) then
         return false, ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
+    end
+
+    local selection_error = COMMAND_MODE.editor_selection_validation_error(mode, editor);
+    if (selection_error ~= nil) then
+        return false, selection_error;
     end
 
     if (#commands == 0) then
@@ -2110,7 +3852,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > 10) then
         return false, 'Invalid button selection.';
@@ -2133,8 +3875,14 @@ local function set_slot_override(profile_key, group, index, label, command, icon
             label = trim_one_line(label, MACRO_LABEL_MAX),
             command = MACRO.sanitize_command_line(command),
         };
-        slot.icon = trim_one_line(icon, MACRO_ICON_MAX);
+        local slot_icon = trim_one_line(icon, MACRO_ICON_MAX);
+        if (slot_icon ~= '') then
+            slot.icon = slot_icon;
+        end
         slot.macro_mode = MACRO.normalize_mode(macro_mode);
+        if (COMMAND_MODE.is_structured_mode(slot.macro_mode)) then
+            slot.use_action_name_label = use_action_name_label ~= false;
+        end
         if (slot.macro_mode == 'multi') then
             slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
             if (#slot.commands == 0 and slot.command ~= '') then
@@ -2163,6 +3911,11 @@ function SHARED.editor_slot(require_command)
         return nil, ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX);
     end
 
+    local selection_error = COMMAND_MODE.editor_selection_validation_error(mode, editor);
+    if (selection_error ~= nil) then
+        return nil, selection_error;
+    end
+
     if (require_command and #commands == 0) then
         return nil, 'Shared button needs at least one command.';
     end
@@ -2172,12 +3925,20 @@ function SHARED.editor_slot(require_command)
         return nil, validation_error;
     end
 
+    local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
+    local slot_icon = (mode == 'item') and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
+    local label = use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX);
     local slot = {
-        label = trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX),
+        label = label,
         command = command,
-        icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX),
         macro_mode = mode,
     };
+    if (COMMAND_MODE.is_structured_mode(mode)) then
+        slot.use_action_name_label = use_action_name_label;
+    end
+    if (slot_icon ~= '') then
+        slot.icon = slot_icon;
+    end
     if (mode == 'multi') then
         slot.commands = MACRO.commands_from_table(commands, MACRO.COMMANDS_MAX);
         slot.command = slot.commands[1] or '';
@@ -2196,12 +3957,12 @@ function SHARED.load_into_editor(name)
     local slot = MACRO.normalize_slot_runtime(definition) or {};
     editor.shared_ref = shared_name;
     editor.source = 'shared: ' .. shared_name;
-    editor.macro_mode = MACRO.slot_mode(slot);
     buffer_set(editor.shared_name_buffer, shared_name);
     buffer_set(editor.label_buffer, slot.label or '');
     buffer_set(editor.command_buffer, MACRO.primary_command(slot));
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
+    COMMAND_MODE.load_editor_slot(editor, slot);
     return true;
 end
 
@@ -2312,12 +4073,12 @@ local function open_macro_editor(row, index)
     editor.index = index;
     editor.shared_ref = SHARED.normalize_name(slot.shared);
     editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or ((override ~= nil) and 'saved edit' or profile.source);
-    editor.macro_mode = MACRO.slot_mode(slot);
     buffer_set(editor.shared_name_buffer, editor.shared_ref or '');
     buffer_set(editor.label_buffer, slot.label or '');
     buffer_set(editor.command_buffer, MACRO.primary_command(slot));
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
+    COMMAND_MODE.load_editor_slot(editor, slot);
     editor.message = nil;
 end
 
@@ -2363,18 +4124,24 @@ local function save_macro_editor(clear_slot)
     end
 
     local mode, command, commands, too_many = MACRO.editor_commands();
-    local label = clear_slot and '' or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX);
+    local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
+    local label = clear_slot and '' or (use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX));
     command = clear_slot and '' or command;
     commands = clear_slot and {} or commands;
     local icon = clear_slot and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
-    local validation_error = too_many and ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX) or MACRO.commands_validation_error(commands);
+    if (mode == 'item') then
+        icon = '';
+    end
+    local validation_error = too_many and ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX)
+        or ((not clear_slot) and COMMAND_MODE.editor_selection_validation_error(mode, editor))
+        or MACRO.commands_validation_error(commands);
     if (validation_error ~= nil) then
         editor.message = validation_error;
         editor.message_color = CONFIG_ERROR_COLOR;
         return false;
     end
 
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands);
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = CONFIG_ERROR_COLOR;
@@ -2422,11 +4189,11 @@ local function reset_macro_editor()
     slot = MACRO.normalize_slot_runtime(slot) or {};
     editor.shared_ref = SHARED.normalize_name(slot.shared);
     buffer_set(editor.shared_name_buffer, editor.shared_ref or '');
-    editor.macro_mode = MACRO.slot_mode(slot);
     buffer_set(editor.label_buffer, slot.label or '');
     buffer_set(editor.command_buffer, MACRO.primary_command(slot));
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
+    COMMAND_MODE.load_editor_slot(editor, slot);
     editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or profile.source;
     editor.message = 'Reset to config.';
     editor.message_color = CONFIG_SUCCESS_COLOR;
@@ -2846,7 +4613,7 @@ local function item_source_for_command(command)
     return source;
 end
 
-local function item_count(item_id)
+item_count = function (item_id)
     item_id = tonumber(item_id);
     if (item_id == nil or item_id <= 0) then
         return nil;
@@ -3650,6 +5417,79 @@ local function render_editor_icon_preview(editor)
     draw_icon_preview_tile(imgui.GetWindowDrawList(), x, y, preview_size, slot);
 end
 
+function COMMAND_MODE.item_icon_handle_for_slot(slot)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+        return nil;
+    end
+
+    local prefix = command_prefix_and_name(slot.command);
+    if (prefix ~= '/item') then
+        return nil;
+    end
+
+    local source = item_source_for_command(slot.command);
+    if (source == nil) then
+        return nil;
+    end
+
+    local resource = COMMAND_MODE.item_resource(source.id, source.name);
+    return COMMAND_MODE.item_icon_handle(source.id, resource);
+end
+
+function COMMAND_MODE.action_name_label_enabled(slot)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+        return false;
+    end
+
+    local mode = COMMAND_MODE.mode_from_command(slot.command);
+    return COMMAND_MODE.is_structured_mode(mode) and slot.use_action_name_label ~= false;
+end
+
+function COMMAND_MODE.item_action_name_for_slot(slot)
+    local source = item_source_for_command(slot.command);
+    if (source == nil) then
+        return nil;
+    end
+
+    local resource = COMMAND_MODE.item_resource(source.id, source.name);
+    local name = COMMAND_MODE.resource_name(resource);
+    if (name == '') then
+        name = COMMAND_MODE.clean_name(source.name);
+    end
+
+    return name ~= '' and trim_one_line(name, MACRO_LABEL_MAX) or nil;
+end
+
+function COMMAND_MODE.action_name_for_slot(slot)
+    if (not COMMAND_MODE.action_name_label_enabled(slot)) then
+        return nil;
+    end
+
+    local mode = COMMAND_MODE.mode_from_command(slot.command);
+    if (mode == 'item') then
+        return COMMAND_MODE.item_action_name_for_slot(slot);
+    end
+
+    local prefix, name = COMMAND_MODE.parse_command(slot.command);
+    if (mode == 'target') then
+        return trim_one_line(COMMAND_MODE.target_action_label(prefix), MACRO_LABEL_MAX);
+    end
+    if (mode == 'ranged') then
+        return 'Ranged Attack';
+    end
+
+    name = COMMAND_MODE.clean_name(name);
+    return name ~= '' and trim_one_line(name, MACRO_LABEL_MAX) or nil;
+end
+
+function COMMAND_MODE.slot_label(slot)
+    if (COMMAND_MODE.action_name_label_enabled(slot)) then
+        return COMMAND_MODE.action_name_for_slot(slot) or slot.label;
+    end
+
+    return slot ~= nil and slot.label or nil;
+end
+
 function MACRO.render_multiline_input(label, buffer, max_length, size)
     if (type(imgui.InputTextMultiline) == 'function') then
         local ok, changed = pcall(imgui.InputTextMultiline, label, buffer, max_length, size);
@@ -3736,7 +5576,18 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ draw_icon_color[1] * 0.20, draw_icon_color[2] * 0.20, draw_icon_color[3] * 0.20, icon_alpha }), 2.5);
         local highlight = theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 };
         draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(highlight, command_supported and 0.05 or 0.02)), 2.0);
-        draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, draw_icon_color);
+        local drew_item_icon = false;
+        local item_handle = COMMAND_MODE.item_icon_handle_for_slot(slot);
+        if (item_handle ~= nil) then
+            local image_inset = math.max(2, math.floor(slot_size * 0.08));
+            local tint = available and { 1.00, 1.00, 1.00, icon_alpha } or { 0.58, 0.58, 0.58, icon_alpha };
+            drew_item_icon = pcall(function ()
+                draw_list:AddImage(item_handle, { ix1 + image_inset, iy1 + image_inset }, { ix2 - image_inset, iy2 - image_inset }, { 0, 0 }, { 1, 1 }, color_u32(tint));
+            end);
+        end
+        if (not drew_item_icon) then
+            draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, draw_icon_color);
+        end
     else
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32(theme.empty_bg or { 0.03, 0.03, 0.04, 0.82 }), 2.5);
         draw_empty_slot_overlay(draw_list, rx, ry, slot_size);
@@ -3756,8 +5607,9 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_hotkey_badge(draw_list, rx, ry, slot_size, hotkey, key_color, not has_command);
     end
 
-    if (setting_enabled('show_labels', true) and has_command and slot.label ~= nil) then
-        draw_label_overlay(draw_list, rx, ry, slot_size, slot.label, command_supported and draw_icon_color or { 1.00, 0.30, 0.24, 1.00 });
+    local label = COMMAND_MODE.slot_label(slot);
+    if (setting_enabled('show_labels', true) and has_command and label ~= nil and label ~= '') then
+        draw_label_overlay(draw_list, rx, ry, slot_size, label, command_supported and draw_icon_color or { 1.00, 0.30, 0.24, 1.00 });
     end
 
     if (has_command and command_supported and visual_state ~= nil and visual_state.count_label ~= nil) then
@@ -3794,12 +5646,14 @@ local function render_tooltip(row, index)
     local slot = get_slot(row.id, index);
     local family = command_family(slot);
     local _, icon_token = slot_icon(slot, family);
+    local prefix = slot ~= nil and command_prefix_and_name(slot.command) or nil;
     imgui.BeginTooltip();
     imgui.Text(row.label .. ' ' .. DIGIT_LABELS[index]);
-    if (slot and slot.label) then
-        imgui.Text(slot.label);
+    local label = COMMAND_MODE.slot_label(slot);
+    if (label ~= nil and label ~= '') then
+        imgui.Text(label);
     end
-    if (icon_token ~= nil) then
+    if (prefix ~= '/item' and icon_token ~= nil) then
         imgui.Text('icon: ' .. icon_token);
     end
     if (slot and slot.command) then
@@ -4101,34 +5955,37 @@ local function render_macro_editor_window()
         imgui.Separator();
         local mode = MACRO.normalize_mode(editor.macro_mode);
         imgui.TextColored(CONFIG_HEADER_COLOR, 'Command Mode');
-        if (imgui.RadioButton('Single Command##ashitabars_button_mode_single', mode == 'single')) then
-            editor.macro_mode = 'single';
-            if (MACRO.sanitize_command_line(editor.command_buffer[1]) == '') then
-                local commands = MACRO.commands_from_text(editor.commands_buffer[1], MACRO.COMMANDS_MAX);
-                buffer_set(editor.command_buffer, commands[1] or '');
-            end
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.RadioButton('Multi-Line Macro##ashitabars_button_mode_multi', mode == 'multi')) then
-            editor.macro_mode = 'multi';
-            if (trim_string(editor.commands_buffer[1]) == '') then
-                buffer_set(editor.commands_buffer, MACRO.sanitize_command_line(editor.command_buffer[1]));
-            end
-        end
+        COMMAND_MODE.render_mode_selector(editor);
 
         mode = MACRO.normalize_mode(editor.macro_mode);
 
         imgui.PushItemWidth(360);
-        imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, MACRO_LABEL_MAX);
+        if (COMMAND_MODE.is_structured_mode(mode)) then
+            if (imgui.Checkbox('Use Action Name As Label##ashitabars_button_action_name_label', editor.use_action_name_label)) then
+                if (editor.use_action_name_label[1] ~= false) then
+                    COMMAND_MODE.apply_editor_action_label(editor, mode);
+                end
+            end
+        end
+        if (not COMMAND_MODE.is_structured_mode(mode) or editor.use_action_name_label[1] == false) then
+            imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, MACRO_LABEL_MAX);
+        elseif (COMMAND_MODE.is_structured_mode(mode)) then
+            COMMAND_MODE.apply_editor_action_label(editor, mode);
+        end
         if (mode == 'multi') then
             MACRO.render_multiline_input('Commands##ashitabars_button_commands', editor.commands_buffer, MACRO.COMMANDS_TEXT_MAX, { 360, 122 });
-        else
+        elseif (mode == 'single') then
             imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, MACRO_COMMAND_MAX);
         end
         imgui.PopItemWidth();
-        render_editor_icon_preview(editor);
-        imgui.SameLine(0, 10);
-        render_icon_selector(editor, 296);
+        if (mode ~= 'single' and mode ~= 'multi') then
+            COMMAND_MODE.render_structured_editor(editor, mode);
+        end
+        if (mode ~= 'item') then
+            render_editor_icon_preview(editor);
+            imgui.SameLine(0, 10);
+            render_icon_selector(editor, 296);
+        end
 
         local validation_error = MACRO.editor_validation_error();
         if (validation_error ~= nil) then
@@ -4136,19 +5993,21 @@ local function render_macro_editor_window()
         end
 
         imgui.Separator();
-        if (imgui.Button('Save##ashitabars_button_save')) then
-            save_macro_editor(false);
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
-            local ok, message = MACRO.run_editor_commands();
-            editor.message = message;
-            editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
-            if (not ok) then
-                log_warn(message);
+        if (validation_error == nil) then
+            if (imgui.Button('Save##ashitabars_button_save')) then
+                save_macro_editor(false);
             end
+            imgui.SameLine(0, 8);
+            if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
+                local ok, message = MACRO.run_editor_commands();
+                editor.message = message;
+                editor.message_color = ok and CONFIG_SUCCESS_COLOR or CONFIG_ERROR_COLOR;
+                if (not ok) then
+                    log_warn(message);
+                end
+            end
+            imgui.SameLine(0, 8);
         end
-        imgui.SameLine(0, 8);
         if (imgui.Button('Clear##ashitabars_button_clear')) then
             save_macro_editor(true);
         end
