@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.25.0';
+addon.version   = '0.26.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -574,6 +574,7 @@ local state = {
         item_search_buffer = T{ '' },
         weaponskill_search_buffer = T{ '' },
         ability_search_buffer = T{ '' },
+        pet_search_buffer = T{ '' },
         mount_search_buffer = T{ '' },
         preview_icon = nil,
         message = nil,
@@ -650,6 +651,9 @@ function MACRO.normalize_mode(value)
     end
     if (mode == 'ability' or mode == 'jobability' or mode == 'job-ability' or mode == 'ja') then
         return 'ability';
+    end
+    if (mode == 'pet' or mode == 'petcommand' or mode == 'pet-command' or mode == 'petcommands' or mode == 'pet-commands') then
+        return 'pet';
     end
     if (mode == 'ranged' or mode == 'rangedattack' or mode == 'ranged-attack' or mode == 'ra' or mode == 'shoot') then
         return 'ranged';
@@ -2712,6 +2716,7 @@ COMMAND_MODE.ORDER = {
     'mount',
     'weaponskill',
     'ability',
+    'pet',
     'ranged',
     'target',
 };
@@ -2724,6 +2729,7 @@ COMMAND_MODE.DEFS = {
     mount       = { label = 'Mount', action_label = 'Mount', empty_label = 'No mount names found.' },
     weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
     ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
+    pet         = { label = 'Pet Command', action_label = 'Pet Command', empty_label = 'No usable pet commands found.' },
     ranged      = { label = 'Ranged Attack', action_label = 'Action' },
     target      = { label = 'Target / Assist', action_label = 'Action' },
 };
@@ -2731,6 +2737,7 @@ COMMAND_MODE.DEFS = {
 COMMAND_MODE.TARGETS = {
     spell       = { '<t>', '<stpt>', '<stpc>', '<me>', '<bt>' },
     ability     = { '<t>', '<me>', '<bt>', '<stpc>', '<stpt>' },
+    pet         = { '<t>', '<bt>', '<me>' },
     weaponskill = { '<t>', '<bt>' },
     ranged      = { '<t>', '<bt>' },
     target      = { '<bt>', '<t>', '<stpc>', '<stpt>', '<me>' },
@@ -2828,6 +2835,25 @@ COMMAND_MODE.SPELL_ELEMENT_BY_RESOURCE_ELEMENT = {
 function COMMAND_MODE.mode_label(mode)
     mode = MACRO.normalize_mode(mode);
     return (COMMAND_MODE.DEFS[mode] and COMMAND_MODE.DEFS[mode].label) or COMMAND_MODE.DEFS.single.label;
+end
+
+function COMMAND_MODE.mode_available(mode)
+    mode = MACRO.normalize_mode(mode);
+    if (mode == 'pet') then
+        return #COMMAND_MODE.actions('pet') > 0;
+    end
+
+    return true;
+end
+
+function COMMAND_MODE.pet_command_default_target(name)
+    local key = COMMAND_MODE.clean_name(name):lower():gsub('[%s%-]+', '');
+    if (key == 'heel' or key == 'stay' or key == 'leave' or key == 'release' or key == 'retreat'
+        or key == 'retrieve' or key == 'deactivate' or key == 'dismiss' or key == 'unsummon') then
+        return '<me>';
+    end
+
+    return '<t>';
 end
 
 function COMMAND_MODE.clean_name(value)
@@ -3009,6 +3035,9 @@ function COMMAND_MODE.mode_from_command(command)
     if (prefix == '/ja' or prefix == '/jobability') then
         return 'ability';
     end
+    if (prefix == '/pet') then
+        return 'pet';
+    end
     if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then
         return 'ranged';
     end
@@ -3047,6 +3076,9 @@ function COMMAND_MODE.command_action_for_mode(mode, command)
     if (mode == 'mount') then
         return name or '', '';
     end
+    if (mode == 'pet') then
+        return name or '', target ~= '' and target or COMMAND_MODE.pet_command_default_target(name);
+    end
     if (mode == 'spell' or mode == 'weaponskill' or mode == 'ability') then
         return name or '', target ~= '' and target or COMMAND_MODE.default_target(mode);
     end
@@ -3078,6 +3110,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.item_search_buffer, '');
     buffer_set(editor.weaponskill_search_buffer, '');
     buffer_set(editor.ability_search_buffer, '');
+    buffer_set(editor.pet_search_buffer, '');
     buffer_set(editor.mount_search_buffer, '');
     if (mode == 'target') then
         editor.target_action = action or '/target';
@@ -3119,6 +3152,9 @@ function COMMAND_MODE.editor_command(mode, editor)
     end
     if (mode == 'ability') then
         return (action ~= '') and ('/ja "%s" %s'):fmt(action, target) or '';
+    end
+    if (mode == 'pet') then
+        return (action ~= '') and ('/pet "%s" %s'):fmt(action, target) or '';
     end
     if (mode == 'ranged') then
         return ('/ra %s'):fmt(target);
@@ -3377,6 +3413,9 @@ function COMMAND_MODE.editor_selection_validation_error(mode, editor)
         if (mode == 'ability') then
             return 'Choose a job ability.';
         end
+        if (mode == 'pet') then
+            return 'Choose a pet command.';
+        end
     end
 
     return nil;
@@ -3592,6 +3631,24 @@ function COMMAND_MODE.ability_actions()
     return COMMAND_MODE.sort_actions(list);
 end
 
+function COMMAND_MODE.pet_command_actions()
+    local list = {};
+    local lookup = {};
+    local state_info = COMMAND_MODE.current_player_state();
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (state_info ~= nil and resources ~= nil) then
+        for id = 0x200, 0x800, 1 do
+            if (safe_read(function () return state_info.player:HasPetCommand(id); end, false)) then
+                local ability = safe_read(function () return resources:GetAbilityById(id); end, nil);
+                local timer_id = ability ~= nil and tonumber(safe_read(function () return ability.RecastTimerId; end, nil)) or nil;
+                COMMAND_MODE.add_action(list, lookup, COMMAND_MODE.resource_name(ability), id, timer_id ~= nil and ('timer %d'):fmt(timer_id) or nil);
+            end
+        end
+    end
+
+    return COMMAND_MODE.sort_actions(list);
+end
+
 function COMMAND_MODE.mount_actions()
     local list = {};
     local lookup = {};
@@ -3632,6 +3689,8 @@ function COMMAND_MODE.actions(mode)
         items = COMMAND_MODE.weapon_skill_actions();
     elseif (mode == 'ability') then
         items = COMMAND_MODE.ability_actions();
+    elseif (mode == 'pet') then
+        items = COMMAND_MODE.pet_command_actions();
     elseif (mode == 'mount') then
         items = COMMAND_MODE.mount_actions();
     elseif (mode == 'ranged') then
@@ -3672,10 +3731,12 @@ function COMMAND_MODE.ensure_structured_selection(editor, mode)
     end
     if (mode == 'item' or mode == 'mount') then
         editor.command_target = '<me>';
+    elseif (mode == 'pet') then
+        editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.pet_command_default_target(editor.command_action);
     else
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
         return;
     end
 
@@ -3745,8 +3806,10 @@ function COMMAND_MODE.render_mode_selector(editor)
     imgui.PushItemWidth(360);
     if (imgui.BeginCombo('Command Mode##ashitabars_button_mode_select', COMMAND_MODE.mode_label(mode), ImGuiComboFlags_None)) then
         for _, mode_id in ipairs(COMMAND_MODE.ORDER) do
-            if (imgui.Selectable(COMMAND_MODE.mode_label(mode_id), mode == mode_id)) then
-                COMMAND_MODE.change_editor_mode(editor, mode_id);
+            if (COMMAND_MODE.mode_available(mode_id) or mode == mode_id) then
+                if (imgui.Selectable(COMMAND_MODE.mode_label(mode_id), mode == mode_id)) then
+                    COMMAND_MODE.change_editor_mode(editor, mode_id);
+                end
             end
         end
         imgui.EndCombo();
@@ -3803,6 +3866,9 @@ function COMMAND_MODE.action_search_buffer(editor, mode)
     end
     if (mode == 'ability') then
         return editor.ability_search_buffer;
+    end
+    if (mode == 'pet') then
+        return editor.pet_search_buffer;
     end
     if (mode == 'mount') then
         return editor.mount_search_buffer;
@@ -4100,6 +4166,8 @@ function COMMAND_MODE.render_search_filter(editor, mode, actions)
         count_label = 'weapon skills';
     elseif (mode == 'ability') then
         count_label = 'job abilities';
+    elseif (mode == 'pet') then
+        count_label = 'pet commands';
     elseif (mode == 'mount') then
         count_label = 'mounts';
     end
@@ -4132,6 +4200,9 @@ function COMMAND_MODE.select_editor_action(editor, mode, action)
     end
 
     editor.command_action = action.name;
+    if (MACRO.normalize_mode(mode) == 'pet') then
+        editor.command_target = COMMAND_MODE.pet_command_default_target(action.name);
+    end
     if (COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false) then
         COMMAND_MODE.apply_editor_action_label(editor, mode);
     else
@@ -4309,12 +4380,14 @@ function COMMAND_MODE.render_action_selector(editor, mode)
         return;
     end
 
-    if (mode == 'weaponskill' or mode == 'ability' or mode == 'mount') then
+    if (mode == 'weaponskill' or mode == 'ability' or mode == 'pet' or mode == 'mount') then
         actions = COMMAND_MODE.render_search_filter(editor, mode, actions);
         if (mode == 'weaponskill') then
             empty_label = 'No weapon skills match the current filter.';
         elseif (mode == 'ability') then
             empty_label = 'No job abilities match the current filter.';
+        elseif (mode == 'pet') then
+            empty_label = 'No pet commands match the current filter.';
         else
             empty_label = 'No mounts match the current filter.';
         end
@@ -4464,7 +4537,7 @@ function MACRO.editor_commands()
         local commands = MACRO.commands_from_text(editor.commands_buffer[1]);
         return mode, commands[1] or '', commands, false;
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability' or mode == 'ranged' or mode == 'target') then
+    if (COMMAND_MODE.is_structured_mode(mode)) then
         local command = MACRO.sanitize_command_line(COMMAND_MODE.editor_command(mode, editor));
         return mode, command, (command ~= '') and { command } or {}, false;
     end
@@ -5050,7 +5123,7 @@ local function command_recast_action(command)
     local kind = nil;
     if (prefix == '/ma' or prefix == '/magic') then
         kind = 'spell';
-    elseif (prefix == '/ja' or prefix == '/jobability') then
+    elseif (prefix == '/ja' or prefix == '/jobability' or prefix == '/pet') then
         kind = 'ability';
     elseif (prefix == '/mount') then
         kind = 'mount';
@@ -5598,7 +5671,7 @@ local function command_family(slot)
         return 'black_magic';
     end
 
-    if (prefix == '/ja' or prefix == '/jobability') then
+    if (prefix == '/ja' or prefix == '/jobability' or prefix == '/pet') then
         return 'ability';
     end
     if (prefix == '/ws' or prefix == '/weaponskill' or prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then
@@ -5644,7 +5717,7 @@ local function infer_icon_token(slot, family)
     if (prefix == '/check') then return 'check'; end
     if (prefix == '/item') then return 'item'; end
     if (prefix == '/mount') then return 'mount'; end
-    if (prefix == '/ja' or prefix == '/jobability') then return 'ability'; end
+    if (prefix == '/ja' or prefix == '/jobability' or prefix == '/pet') then return 'ability'; end
     if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then return 'ranged'; end
     if (prefix == '/ws' or prefix == '/weaponskill') then return 'weapon'; end
     if (prefix == '/echo' or prefix == '/p' or prefix == '/party' or prefix == '/l' or prefix == '/linkshell' or prefix == '/say' or prefix == '/tell') then return 'chat'; end

@@ -356,6 +356,11 @@ Command mode options are:
   generates `/ws`.
 - `Job Ability`: search known job abilities, choose one, and select a target;
   generates `/ja`.
+- `Pet Command`: available only when Ashita reports usable pet commands for
+  the current main/sub job. Search the live pet command list, choose a command,
+  and select a target; generates `/pet`. Control-style commands such as Heel,
+  Stay, Leave, Release, Retreat, Retrieve, and Deactivate default to `<me>`;
+  action-style commands default to `<t>`.
 - `Ranged Attack`: choose the ranged attack action and target; generates `/ra`.
 - `Target / Assist`: choose target, assist, attack, or check plus a target.
 
