@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.22.1';
+addon.version   = '0.23.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -97,6 +97,7 @@ local ALLOWED_PREFIXES = T{
     ['/range'] = true,
     ['/shoot'] = true,
     ['/item'] = true,
+    ['/mount'] = true,
     ['/heal'] = true,
     ['/target'] = true,
     ['/assist'] = true,
@@ -260,6 +261,7 @@ local COMMAND_THEME = {
     ability     = { 1.00, 0.74, 0.30, 1.00 },
     weapon      = { 0.95, 0.38, 0.30, 1.00 },
     item        = { 0.48, 0.84, 0.48, 1.00 },
+    mount       = { 0.95, 0.78, 0.36, 1.00 },
     target      = { 0.58, 0.80, 0.98, 1.00 },
     chat        = { 0.82, 0.82, 0.88, 1.00 },
     command     = { 0.72, 0.66, 0.52, 1.00 },
@@ -328,6 +330,8 @@ local ICON_ALIASES = {
     range = 'ranged',
     shoot = 'ranged',
     item = 'item',
+    mount = 'mount',
+    chocobo = 'mount',
     target = 'target',
     assist = 'assist',
     check = 'check',
@@ -362,6 +366,7 @@ local ICON_DEFS = {
     weapon      = { family = 'weapon',      mark = 'blade',   accent = { 1.00, 0.48, 0.36, 1.00 } },
     ranged      = { family = 'weapon',      mark = 'ranged',  accent = { 0.98, 0.64, 0.34, 1.00 } },
     item        = { family = 'item',        mark = 'bag',     accent = { 0.54, 0.94, 0.54, 1.00 } },
+    mount       = { family = 'mount',       mark = 'text',    text = 'M', accent = { 1.00, 0.84, 0.38, 1.00 } },
     target      = { family = 'target',      mark = 'reticle', accent = { 0.62, 0.86, 1.00, 1.00 } },
     assist      = { family = 'target',      mark = 'arrow',   accent = { 0.62, 0.86, 1.00, 1.00 } },
     check       = { family = 'target',      mark = 'text',    text = '?', accent = { 0.76, 0.90, 1.00, 1.00 } },
@@ -394,6 +399,7 @@ local ICON_SELECTOR_TOKENS = {
     'weapon',
     'ranged',
     'item',
+    'mount',
     'target',
     'assist',
     'check',
@@ -501,6 +507,7 @@ local state = {
         item_search_buffer = T{ '' },
         weaponskill_search_buffer = T{ '' },
         ability_search_buffer = T{ '' },
+        mount_search_buffer = T{ '' },
         preview_icon = nil,
         message = nil,
         message_color = CONFIG_SUCCESS_COLOR,
@@ -567,6 +574,9 @@ function MACRO.normalize_mode(value)
     end
     if (mode == 'item') then
         return 'item';
+    end
+    if (mode == 'mount') then
+        return 'mount';
     end
     if (mode == 'weaponskill' or mode == 'weapon-skill' or mode == 'ws') then
         return 'weaponskill';
@@ -2001,7 +2011,7 @@ local function apply_editor_preview(slot, profile_key, group, index)
 
     local preview_slot = copy_slot(slot);
     local mode = MACRO.normalize_mode(editor.macro_mode);
-    if (mode ~= 'item') then
+    if (mode ~= 'item' and mode ~= 'mount') then
         local preview_icon = editor.preview_icon;
         if (preview_icon == nil) then
             preview_icon = trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
@@ -2062,6 +2072,7 @@ COMMAND_MODE.ORDER = {
     'multi',
     'spell',
     'item',
+    'mount',
     'weaponskill',
     'ability',
     'ranged',
@@ -2073,6 +2084,7 @@ COMMAND_MODE.DEFS = {
     multi       = { label = 'Multi-Line Macro' },
     spell       = { label = 'Spell', action_label = 'Spell', empty_label = 'No usable learned spells found.' },
     item        = { label = 'Item', action_label = 'Item', empty_label = 'No inventory items found.' },
+    mount       = { label = 'Mount', action_label = 'Mount', empty_label = 'No mount names found.' },
     weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
     ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
     ranged      = { label = 'Ranged Attack', action_label = 'Action' },
@@ -2351,6 +2363,9 @@ function COMMAND_MODE.mode_from_command(command)
     if (prefix == '/item') then
         return 'item';
     end
+    if (prefix == '/mount') then
+        return 'mount';
+    end
     if (prefix == '/ws' or prefix == '/weaponskill') then
         return 'weaponskill';
     end
@@ -2392,6 +2407,9 @@ function COMMAND_MODE.command_action_for_mode(mode, command)
     if (mode == 'item') then
         return name or '', '<me>';
     end
+    if (mode == 'mount') then
+        return name or '', '';
+    end
     if (mode == 'spell' or mode == 'weaponskill' or mode == 'ability') then
         return name or '', target ~= '' and target or COMMAND_MODE.default_target(mode);
     end
@@ -2422,6 +2440,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.item_search_buffer, '');
     buffer_set(editor.weaponskill_search_buffer, '');
     buffer_set(editor.ability_search_buffer, '');
+    buffer_set(editor.mount_search_buffer, '');
     if (mode == 'target') then
         editor.target_action = action or '/target';
     end
@@ -2453,6 +2472,9 @@ function COMMAND_MODE.editor_command(mode, editor)
     end
     if (mode == 'item') then
         return (action ~= '') and ('/item "%s" <me>'):fmt(action) or '';
+    end
+    if (mode == 'mount') then
+        return (action ~= '') and ('/mount "%s"'):fmt(action) or '';
     end
     if (mode == 'weaponskill') then
         return (action ~= '') and ('/ws "%s" %s'):fmt(action, target) or '';
@@ -2708,6 +2730,9 @@ function COMMAND_MODE.editor_selection_validation_error(mode, editor)
         if (mode == 'item') then
             return 'Choose an item.';
         end
+        if (mode == 'mount') then
+            return 'Choose a mount.';
+        end
         if (mode == 'weaponskill') then
             return 'Choose a weapon skill.';
         end
@@ -2929,6 +2954,25 @@ function COMMAND_MODE.ability_actions()
     return COMMAND_MODE.sort_actions(list);
 end
 
+function COMMAND_MODE.mount_actions()
+    local list = {};
+    local lookup = {};
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (resources ~= nil) then
+        for id = 0, 255, 1 do
+            local name = COMMAND_MODE.clean_name(safe_read(function ()
+                return resources:GetString('mounts.names', id);
+            end, ''));
+            if (name ~= '' and name:lower() ~= 'none') then
+                COMMAND_MODE.add_action(list, lookup, name, id, nil);
+            end
+        end
+    end
+
+    COMMAND_MODE.configured_action_fallback('mount', list, lookup);
+    return COMMAND_MODE.sort_actions(list);
+end
+
 function COMMAND_MODE.actions(mode)
     mode = MACRO.normalize_mode(mode);
     if (state.command_mode_cache == nil) then
@@ -2950,6 +2994,8 @@ function COMMAND_MODE.actions(mode)
         items = COMMAND_MODE.weapon_skill_actions();
     elseif (mode == 'ability') then
         items = COMMAND_MODE.ability_actions();
+    elseif (mode == 'mount') then
+        items = COMMAND_MODE.mount_actions();
     elseif (mode == 'ranged') then
         items = { { name = 'Ranged Attack' } };
     end
@@ -2986,12 +3032,12 @@ function COMMAND_MODE.ensure_structured_selection(editor, mode)
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
         return;
     end
-    if (mode == 'item') then
+    if (mode == 'item' or mode == 'mount') then
         editor.command_target = '<me>';
     else
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'weaponskill' or mode == 'ability') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability') then
         return;
     end
 
@@ -3032,7 +3078,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     if (COMMAND_MODE.is_structured_mode(mode)) then
         editor.use_action_name_label[1] = true;
     end
-    if (mode == 'item') then
+    if (mode == 'item' or mode == 'mount') then
         buffer_set(editor.icon_buffer, '');
         editor.preview_icon = nil;
     end
@@ -3115,6 +3161,9 @@ function COMMAND_MODE.action_search_buffer(editor, mode)
     end
     if (mode == 'ability') then
         return editor.ability_search_buffer;
+    end
+    if (mode == 'mount') then
+        return editor.mount_search_buffer;
     end
 
     return nil;
@@ -3409,6 +3458,8 @@ function COMMAND_MODE.render_search_filter(editor, mode, actions)
         count_label = 'weapon skills';
     elseif (mode == 'ability') then
         count_label = 'job abilities';
+    elseif (mode == 'mount') then
+        count_label = 'mounts';
     end
     imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('%d / %d %s'):fmt(#filtered, #(actions or {}), count_label));
     return filtered;
@@ -3616,9 +3667,15 @@ function COMMAND_MODE.render_action_selector(editor, mode)
         return;
     end
 
-    if (mode == 'weaponskill' or mode == 'ability') then
+    if (mode == 'weaponskill' or mode == 'ability' or mode == 'mount') then
         actions = COMMAND_MODE.render_search_filter(editor, mode, actions);
-        empty_label = mode == 'weaponskill' and 'No weapon skills match the current filter.' or 'No job abilities match the current filter.';
+        if (mode == 'weaponskill') then
+            empty_label = 'No weapon skills match the current filter.';
+        elseif (mode == 'ability') then
+            empty_label = 'No job abilities match the current filter.';
+        else
+            empty_label = 'No mounts match the current filter.';
+        end
         COMMAND_MODE.render_action_result_list(editor, mode, actions, empty_label);
         return;
     end
@@ -3707,7 +3764,7 @@ end
 function COMMAND_MODE.render_structured_editor(editor, mode)
     COMMAND_MODE.ensure_structured_selection(editor, mode);
     COMMAND_MODE.render_action_selector(editor, mode);
-    if (mode ~= 'item') then
+    if (mode ~= 'item' and mode ~= 'mount') then
         COMMAND_MODE.render_target_selector(editor, mode);
     end
 
@@ -3769,7 +3826,7 @@ function MACRO.editor_commands()
         local commands, too_many = MACRO.commands_from_text(editor.commands_buffer[1], MACRO.COMMANDS_MAX);
         return mode, commands[1] or '', commands, too_many;
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'weaponskill' or mode == 'ability' or mode == 'ranged' or mode == 'target') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability' or mode == 'ranged' or mode == 'target') then
         local command = MACRO.sanitize_command_line(COMMAND_MODE.editor_command(mode, editor));
         return mode, command, (command ~= '') and { command } or {}, false;
     end
@@ -3947,7 +4004,7 @@ function SHARED.editor_slot(require_command)
     end
 
     local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
-    local slot_icon = (mode == 'item') and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
+    local slot_icon = (mode == 'item' or mode == 'mount') and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
     local label = use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], MACRO_LABEL_MAX);
     local slot = {
         label = label,
@@ -4150,7 +4207,7 @@ local function save_macro_editor(clear_slot)
     command = clear_slot and '' or command;
     commands = clear_slot and {} or commands;
     local icon = clear_slot and '' or trim_one_line(editor.icon_buffer[1], MACRO_ICON_MAX);
-    if (mode == 'item') then
+    if (mode == 'item' or mode == 'mount') then
         icon = '';
     end
     local validation_error = too_many and ('Macro can run at most %d commands.'):fmt(MACRO.COMMANDS_MAX)
@@ -4341,6 +4398,8 @@ local function command_recast_action(command)
         kind = 'spell';
     elseif (prefix == '/ja' or prefix == '/jobability') then
         kind = 'ability';
+    elseif (prefix == '/mount') then
+        kind = 'mount';
     else
         return nil, nil;
     end
@@ -4445,6 +4504,16 @@ local function recast_source_for_command(command)
         return nil;
     end
 
+    if (kind == 'mount') then
+        name = COMMAND_MODE.clean_name(name);
+        state.recast_cache[command] = {
+            kind = 'mount',
+            key = 'mount',
+            name = name ~= '' and name or 'Mount',
+        };
+        return state.recast_cache[command];
+    end
+
     local resources = safe_read(function ()
         return AshitaCore:GetResourceManager();
     end, nil);
@@ -4540,6 +4609,13 @@ local function slot_recast(slot)
         timer = spell_recast_timer(source.id);
     elseif (source.kind == 'ability') then
         timer = ability_recast_timer(source.timer_id);
+    elseif (source.kind == 'mount') then
+        local player = safe_read(function ()
+            return AshitaCore:GetMemoryManager():GetPlayer();
+        end, nil);
+        timer = tonumber(player ~= nil and safe_read(function ()
+            return player:GetMountRecast();
+        end, 0) or 0) or 0;
     end
 
     if (timer <= 0) then
@@ -4849,6 +4925,9 @@ local function command_family(slot)
     if (prefix == '/item' or prefix == '/heal') then
         return 'item';
     end
+    if (prefix == '/mount') then
+        return 'mount';
+    end
     if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
         return 'target';
     end
@@ -4882,6 +4961,7 @@ local function infer_icon_token(slot, family)
     if (prefix == '/assist') then return 'assist'; end
     if (prefix == '/check') then return 'check'; end
     if (prefix == '/item') then return 'item'; end
+    if (prefix == '/mount') then return 'mount'; end
     if (prefix == '/ja' or prefix == '/jobability') then return 'ability'; end
     if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then return 'ranged'; end
     if (prefix == '/ws' or prefix == '/weaponskill') then return 'weapon'; end
@@ -5674,7 +5754,7 @@ local function render_tooltip(row, index)
     if (label ~= nil and label ~= '') then
         imgui.Text(label);
     end
-    if (prefix ~= '/item' and icon_token ~= nil) then
+    if (prefix ~= '/item' and prefix ~= '/mount' and icon_token ~= nil) then
         imgui.Text('icon: ' .. icon_token);
     end
     if (slot and slot.command) then
@@ -6002,7 +6082,7 @@ local function render_macro_editor_window()
         if (mode ~= 'single' and mode ~= 'multi') then
             COMMAND_MODE.render_structured_editor(editor, mode);
         end
-        if (mode ~= 'item') then
+        if (mode ~= 'item' and mode ~= 'mount') then
             render_editor_icon_preview(editor);
             imgui.SameLine(0, 10);
             render_icon_selector(editor, 296);

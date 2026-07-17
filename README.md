@@ -314,6 +314,11 @@ Command mode options are:
   previews the selected item's in-game icon and shows the item resource tooltip
   when hovering the preview or item rows. Saved item buttons do not need an
   `icon` token; the action bar renders the item icon from the game resource.
+- `Mount`: search Ashita's `mounts.names` resource list, choose a mount, and
+  generate `/mount`. Mount buttons do not show a target selector or icon token
+  selector; the action bar uses the automatic mount icon. The selector lists
+  mount resource names and does not claim whether the current character has
+  unlocked each mount.
 - `Weapon Skill`: search known weapon skills, choose one, and select a target;
   generates `/ws`.
 - `Job Ability`: search known job abilities, choose one, and select a target;
@@ -351,7 +356,8 @@ displayed label is resolved from the saved command. Set
 to display instead.
 
 `show_recasts = true` draws a dark cooldown wipe and remaining time on slots
-whose commands resolve to `/ma`, `/magic`, `/ja`, or `/jobability` recast data.
+whose commands resolve to `/ma`, `/magic`, `/ja`, `/jobability`, or `/mount`
+recast data.
 For multi-line macros, recast display is based on the first command. This is
 display-only; key and click execution still runs the configured command or
 macro exactly as saved. Set `show_recasts = false` globally, or `recast = false` on
