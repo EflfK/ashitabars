@@ -109,8 +109,6 @@ Visual display mode is controlled in `settings`:
 
 ```lua
 settings = {
-    visible = true,
-    display_mode = 'single', -- Use 'stacked' for the existing three-row view.
     theme = 'ffxi',
     show_hotkeys = true,
     show_labels = true,
@@ -119,20 +117,39 @@ settings = {
     show_availability = true,
     weaponskill_tp_threshold = 1000,
     icon_style = 'auto',
-    slot_size = 64,
-    button_gap = 6,
-    slot_glow_size = 100,
-    slot_glow_opacity = 100,
-    label_vertical_position = 100,
-    show_bar_frame = false,
-    window_x = 820,
-    window_y = 760,
+    main_bar = {
+        visible = true,
+        display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+        slot_size = 64,
+        button_gap = 6,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        label_vertical_position = 100,
+        show_frame = false,
+        window_x = 820,
+        window_y = 760,
+    },
+    extra_bar_1 = {
+        visible = true,
+        slot_size = 64,
+        button_gap = 6,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        label_vertical_position = 100,
+        show_frame = false,
+        window_x = 820,
+        window_y = 680,
+    },
 }
 ```
 
-The setting changes only the visible UI. Key execution remains `1-0`,
-`Ctrl+1-0`, and `Alt+1-0` in both modes. Existing configs without
-`display_mode` keep the original stacked view.
+`main_bar.display_mode` changes only the visible UI for the keyboard-bound bar.
+Key execution remains `1-0`, `Ctrl+1-0`, and `Alt+1-0` in both modes. Existing
+configs without `main_bar.display_mode` keep the original stacked view.
+
+`extra_bar_1` configures the second 10-button single-row bar. It is click-only:
+it never binds keys and never changes which commands the keyboard rows run.
+`extra_bar_1.window_x` / `extra_bar_1.window_y` store its independent position.
 
 You can switch display modes at runtime without editing the config:
 
@@ -144,15 +161,15 @@ You can switch display modes at runtime without editing the config:
 ```
 
 `mode config` clears the runtime override and returns to the saved visual
-setting when present, otherwise `settings.display_mode`. `/ashitabars reload`
+setting when present, otherwise `main_bar.display_mode`. `/ashitabars reload`
 also clears runtime overrides and reapplies saved visual settings.
 
-`/ashitabars config` opens a configuration window with a General tab for the
-same controls exposed by `/ashitabars mode`, `/ashitabars size`, and
-`/ashitabars gap`. Numeric controls use sliders. Changes apply immediately as
-runtime overrides; click `Save` in the window to persist display mode, button
-size, button gap, button glow, label placement, bar frame visibility, and bar
-position to:
+`/ashitabars config` opens a configuration window with `General`, `Main Bar`,
+and `Extra Bar 1` tabs. The bar tabs expose independent visibility, sizing,
+spacing, text placement, glow, frame, and position settings. Numeric controls
+use sliders. Changes apply immediately as runtime overrides; click `Save` in
+the window to persist display mode, button size, button gap, button glow, label
+placement, bar frame visibility, and bar positions to:
 
 ```txt
 Ashita/config/addons/ashitabars/visual_settings.lua
@@ -162,22 +179,22 @@ That file lives outside the addon folder, so running `install.ps1` for a new
 test build does not reset placement, size, spacing, or glow settings.
 
 Button labels are drawn as shadowed text without a background strip.
-`settings.label_vertical_position` controls their vertical placement from `0`
+Each bar's `label_vertical_position` controls their vertical placement from `0`
 top, to `50` center, to `100` bottom.
 
-Button glow is controlled by `settings.slot_glow_size` and
-`settings.slot_glow_opacity`. `slot_glow_size = 100` is the original glow size,
+Button glow is controlled by each bar's `slot_glow_size` and
+`slot_glow_opacity`. `slot_glow_size = 100` is the original glow size,
 `0` disables the glow, and `200` doubles the original glow size.
 `slot_glow_opacity` is a `0` to `100` percent alpha multiplier.
 
-`show_bar_frame = true` keeps the normal ImGui title bar and background visible
-so the bar can be dragged. `show_bar_frame = false` hides the title bar and
-window background, hides the left row labels, and locks the first action button
-at the saved `window_x` / `window_y` position. To move the frameless bar, open
-`/ashitabars config`, enable `Show Bar Frame`, drag the bar, then click `Save`
+`show_frame = true` keeps the normal ImGui title bar and background visible so
+that bar can be dragged. `show_frame = false` hides the title bar and window
+background, hides row labels where applicable, and locks the first action
+button at the saved position for that bar. To move either frameless bar, open
+`/ashitabars config`, enable that bar's frame, drag the bar, then click `Save`
 after setting the frame visibility you want.
 
-Button size is controlled by `settings.slot_size`, clamped from `40` to `96`
+Button size is controlled by each bar's `slot_size`, clamped from `40` to `96`
 pixels. The sample config defaults to `64` so count badges, recast text, and
 labels have room to breathe.
 
@@ -192,10 +209,10 @@ You can tune button size at runtime without editing the config:
 ```
 
 `size config` clears the runtime override and returns to the saved visual
-setting when present, otherwise `settings.slot_size`. `/ashitabars reload` also
+setting when present, otherwise `main_bar.slot_size`. `/ashitabars reload` also
 clears the runtime size override.
 
-Button spacing is controlled by `settings.button_gap`, clamped from `0` to `24`
+Button spacing is controlled by each bar's `button_gap`, clamped from `0` to `24`
 pixels. Existing configs that still use `slot_gap` continue to work as a legacy
 fallback.
 
@@ -210,7 +227,7 @@ You can tune button spacing at runtime without editing the config:
 ```
 
 `gap config` clears the runtime override and returns to the saved visual
-setting when present, otherwise `settings.button_gap`. `/ashitabars reload` also
+setting when present, otherwise `main_bar.button_gap`. `/ashitabars reload` also
 clears the runtime gap override.
 
 Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
@@ -228,6 +245,7 @@ profiles = {
         },
         ctrl = {},
         alt = {},
+        click = {}, -- Optional click-only row.
     },
 
     WAR = {
@@ -236,6 +254,7 @@ profiles = {
         },
         ctrl = {},
         alt = {},
+        click = {},
     },
 }
 ```
@@ -285,14 +304,15 @@ return {
 }
 ```
 
-You can edit visible buttons in game while the bar frame is shown. Open
-`/ashitabars config`, enable `Show Bar Frame`, then click the small top-left
+You can edit visible buttons in game while that bar's frame is shown. Open
+`/ashitabars config`, enable `Show Bar Frame` for the keyboard bar or
+`Show Click Bar Frame` for the click-only bar, then click the small top-left
 corner of a button. The editor can save a label, command mode, command data,
-and an optional icon chosen from a built-in selector. The edited button
-previews the selected icon in the editor preview tile, and previews hovered
-icon presets while the selector is open. Item mode does not show the manual
-icon selector because item buttons use the selected item's in-game icon
-automatically. These runtime edits are stored outside the addon folder in:
+and an optional icon chosen from a built-in selector. The edited button previews
+the selected icon in the editor preview tile, and previews hovered icon presets
+while the selector is open. Item mode does not show the manual icon selector
+because item buttons use the selected item's in-game icon automatically. These
+runtime edits are stored outside the addon folder in:
 
 ```txt
 Ashita/config/addons/ashitabars/button_overrides.lua
@@ -419,8 +439,9 @@ Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
 display-mode source, button size/source, button gap/source, theme, icon style,
-recast/count/availability settings, and weapon-skill TP threshold alongside
-input, profile, and modifier-blocking state.
+click-bar visibility/frame/position, recast/count/availability settings, and
+weapon-skill TP threshold alongside input, profile, and modifier-blocking
+state.
 
 Modifier blocking is scoped to AshitaBars number hotkeys so native shortcuts
 such as `Ctrl+E` and `Ctrl+I` can continue to work. If modifier blocking still
@@ -430,10 +451,12 @@ conflicts with another hotkey, disable it:
 block_native_macro_modifiers = false,
 ```
 
-Allowed command prefixes are intentionally narrow. Ashita control commands such
-as `/addon`, `/bind`, `/unbind`, `/exec`, and `/alias` are not accepted as slot
-commands or macro lines. Slots with unsupported prefixes draw a red warning
-corner and are still rejected when clicked or pressed.
+Allowed command prefixes are intentionally narrow. Player action commands such
+as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, and `/target` are accepted.
+Ashita control commands such as `/addon`, `/bind`, `/unbind`, `/exec`, and
+`/alias` are not accepted as slot commands or macro lines. Slots with
+unsupported prefixes draw a red warning corner and are still rejected when
+clicked or pressed.
 
 ## Notes
 

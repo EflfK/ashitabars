@@ -44,6 +44,8 @@ most one configured action or static macro.
   instead of requiring a manual icon token.
 - Done: shared button definitions that can be assigned by name to slots across
   jobs/rows, with linked updates when an attached shared button is edited.
+- Done: independent click-only 10-button bar with its own saved position and
+  frame visibility, excluded from all keyboard hotkey handling.
 
 ## Later Feature Ideas
 
