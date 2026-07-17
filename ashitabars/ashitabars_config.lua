@@ -80,6 +80,47 @@ local whm_profile = {
     },
 };
 
+local bst_profile = {
+    base = {
+        [1]  = { label = 'Call',    icon = 'summon',  command = '/ja "Call Beast" <me>' },
+        [2]  = { label = 'Attack',  icon = 'target',  command = '/attack <t>' },
+        [3]  = { label = 'Charm',   icon = 'ability', command = '/ja "Charm" <t>' },
+        [4]  = { label = 'Familr',  icon = 'ability', command = '/ja "Familiar" <me>' },
+        [5]  = { label = 'RageAxe', icon = 'weapon',  command = '/ws "Raging Axe" <t>' },
+        [6]  = { label = 'CureMe',  icon = 'cure',    command = '/ma "Cure" <me>' },
+        [7]  = { label = 'Cure',    icon = 'cure',    command = '/ma "Cure" <stpt>' },
+        [8]  = { label = 'Dia',     icon = 'holy',    command = '/ma "Dia" <t>' },
+        [9]  = { label = 'Slow',    icon = 'debuff',  command = '/ma "Slow" <t>' },
+        [10] = { label = 'Heal',    icon = 'rest',    command = '/heal' },
+    },
+
+    ctrl = {
+        [1]  = { label = 'TargBT',  icon = 'target', command = '/target <bt>' },
+        [2]  = { label = 'Assist',  icon = 'assist', command = '/assist <t>' },
+        [3]  = { label = 'Attack',  icon = 'target', command = '/attack <t>' },
+        [4]  = { label = 'Check',   icon = 'check',  command = '/check <t>' },
+        [5]  = { label = 'TargNPC', icon = 'target', command = '/target <stnpc>' },
+        [6]  = { label = 'CureT',   icon = 'cure',   command = '/ma "Cure" <t>' },
+        [7]  = { label = 'CurePC',  icon = 'cure',   command = '/ma "Cure" <stpc>' },
+        [8]  = { label = 'DiaBT',   icon = 'holy',   command = '/ma "Dia" <bt>' },
+        [9]  = { label = 'SlowBT',  icon = 'debuff', command = '/ma "Slow" <bt>' },
+        [10] = { label = 'WSBT',    icon = 'weapon', command = '/ws "Raging Axe" <bt>' },
+    },
+
+    alt = {
+        [1]  = { label = 'Protect', icon = 'buff',   command = '/ma "Protect" <me>' },
+        [2]  = { label = 'Shell',   icon = 'buff',   command = '/ma "Shell" <me>' },
+        [3]  = { label = 'Poisona', icon = 'status', command = '/ma "Poisona" <stpc>' },
+        [4]  = { label = 'Cure',    icon = 'cure',   command = '/ma "Cure" <stpt>' },
+        [5]  = { label = 'CureMe',  icon = 'cure',   command = '/ma "Cure" <me>' },
+        [6]  = { label = 'Banish',  icon = 'holy',   command = '/ma "Banish" <t>' },
+        [7]  = { label = 'Stone',   icon = 'earth',  command = '/ma "Stone" <t>' },
+        [8]  = { label = 'Dia',     icon = 'holy',   command = '/ma "Dia" <t>' },
+        [9]  = { label = 'Slow',    icon = 'debuff', command = '/ma "Slow" <t>' },
+        [10] = { label = 'Heal',    icon = 'rest',   command = '/heal' },
+    },
+};
+
 return {
     settings = {
         visible = true,
@@ -106,6 +147,7 @@ return {
 
     profiles = {
         DEFAULT = default_profile,
+        BST = bst_profile,
         WHM = whm_profile,
 
         -- Add job-specific profiles by main-job abbreviation. For example:

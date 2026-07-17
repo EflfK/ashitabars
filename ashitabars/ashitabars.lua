@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.22.0';
+addon.version   = '0.22.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -35,6 +35,18 @@ local DIK_BLOCKED_MODIFIERS = {
     0x9D, -- Right Ctrl
     0x38, -- Left Alt
     0xB8, -- Right Alt
+};
+local DIK_DIGITS = {
+    0x02, -- 1
+    0x03, -- 2
+    0x04, -- 3
+    0x05, -- 4
+    0x06, -- 5
+    0x07, -- 6
+    0x08, -- 7
+    0x09, -- 8
+    0x0A, -- 9
+    0x0B, -- 0
 };
 
 local KEY_UP_MASK       = bit.lshift(0x8000, 16);
@@ -849,13 +861,18 @@ local function input_is_closed()
     return AshitaCore:GetChatManager():IsInputOpen() == 0x00;
 end
 
-local function should_block_native_modifier(e)
-    local settings = state.config.settings or {};
-    if (settings.block_native_macro_modifiers == false) then
+local function directinput_digit_down(keyptr)
+    if (keyptr == nil) then
         return false;
     end
 
-    return input_is_closed() and (e.wparam == VK.CONTROL or e.wparam == VK.ALT);
+    for _, scancode in ipairs(DIK_DIGITS) do
+        if (bit.band(keyptr[scancode], 0x80) ~= 0) then
+            return true;
+        end
+    end
+
+    return false;
 end
 
 local function clear_directinput_modifier_state(e)
@@ -865,6 +882,10 @@ local function clear_directinput_modifier_state(e)
     end
 
     local keyptr = ffi.cast('uint8_t*', e.data_raw);
+    if (not directinput_digit_down(keyptr)) then
+        return;
+    end
+
     for _, scancode in ipairs(DIK_BLOCKED_MODIFIERS) do
         keyptr[scancode] = 0;
     end
@@ -6173,11 +6194,6 @@ end);
 
 ashita.events.register('key', 'key_cb', function (e)
     if (e.blocked) then
-        return;
-    end
-
-    if (should_block_native_modifier(e)) then
-        e.blocked = true;
         return;
     end
 
