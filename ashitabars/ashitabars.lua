@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.23.2';
+addon.version   = '0.24.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -481,6 +481,7 @@ local state = {
     bar_hidden_offset_y = LIMITS.frameless_window_padding,
     recast_cache = {},
     recast_totals = {},
+    macro_runs = {},
     item_source_cache = {},
     item_count_cache = {},
     item_texture_cache = {},
@@ -502,6 +503,7 @@ local state = {
         label_buffer = T{ '' },
         command_buffer = T{ '' },
         commands_buffer = T{ '' },
+        run_as_script = T{ false },
         icon_buffer = T{ '' },
         command_action = '',
         command_target = '<t>',
@@ -660,6 +662,10 @@ function MACRO.commands_to_text(commands)
     return table.concat(commands, '\n');
 end
 
+function MACRO.script_enabled(slot)
+    return type(slot) == 'table' and MACRO.slot_mode(slot) == 'multi' and slot.script == true;
+end
+
 local DEFERRED = {};
 
 local function normalize_profile_key(value)
@@ -797,6 +803,7 @@ local function load_config()
         state.bar_hidden_offset_y = LIMITS.frameless_window_padding;
         state.recast_cache = {};
         state.recast_totals = {};
+        state.macro_runs = {};
         state.item_source_cache = {};
         state.item_count_cache = {};
         state.command_mode_cache = {};
@@ -843,6 +850,7 @@ local function load_config()
     state.bar_hidden_offset_y = LIMITS.frameless_window_padding;
     state.recast_cache = {};
     state.recast_totals = {};
+    state.macro_runs = {};
     state.item_source_cache = {};
     state.item_count_cache = {};
     state.command_mode_cache = {};
@@ -1268,6 +1276,140 @@ local function write_text_file(path, contents)
     return true;
 end
 
+function MACRO.ensure_script_dir()
+    local install_path = safe_read(function ()
+        return AshitaCore:GetInstallPath();
+    end, nil);
+
+    if (type(install_path) ~= 'string' or install_path == '') then
+        return false, 'Ashita install path is unavailable.';
+    end
+
+    if (not install_path:match('[\\/]$')) then
+        install_path = install_path .. '\\';
+    end
+
+    if (ashita == nil or ashita.fs == nil) then
+        return false, 'Ashita filesystem helpers are unavailable.';
+    end
+
+    local scripts_dir = install_path .. 'scripts\\';
+    if (not ashita.fs.exists(scripts_dir)) then
+        ashita.fs.create_dir(scripts_dir);
+    end
+
+    return true, scripts_dir;
+end
+
+function MACRO.script_file_name(context)
+    context = type(context) == 'table' and context or {};
+    local profile_key = normalize_profile_key(context.profile_key) or 'DEFAULT';
+    local group = valid_row_id(context.group) and context.group or 'base';
+    local index = tonumber(context.index) or 0;
+    local digit = DIGIT_LABELS[index] or tostring(index);
+    local name = ('%s_%s_%s'):fmt(profile_key, group, digit):gsub('[^A-Za-z0-9_-]+', '_');
+    return ('%s_%s.txt'):fmt(addon.name, name);
+end
+
+function MACRO.run_key(context)
+    if (type(context) ~= 'table') then
+        return nil;
+    end
+
+    local profile_key = normalize_profile_key(context.profile_key) or 'DEFAULT';
+    local group = valid_row_id(context.group) and context.group or nil;
+    local index = tonumber(context.index);
+    if (group == nil or index == nil or index < 1 or index > 10) then
+        return nil;
+    end
+
+    return ('%s:%s:%d'):fmt(profile_key, group, math.floor(index));
+end
+
+function MACRO.wait_total_seconds(commands)
+    if (type(commands) ~= 'table' or #commands == 0) then
+        return 0;
+    end
+
+    local total = 0;
+    for _, command in ipairs(commands) do
+        if (type(command) == 'string') then
+            local wait_value = command:lower():match('^%s*/wait%s+([%d%.]+)');
+            if (wait_value ~= nil) then
+                local seconds = tonumber(wait_value) or 0;
+                if (seconds > 0) then
+                    total = total + seconds;
+                end
+            end
+        end
+    end
+
+    return math.max(0, math.ceil(total));
+end
+
+function MACRO.start_run_overlay(commands, context)
+    local key = MACRO.run_key(context);
+    if (key == nil) then
+        return;
+    end
+
+    local total = MACRO.wait_total_seconds(commands);
+    if (total <= 0) then
+        state.macro_runs[key] = nil;
+        return;
+    end
+
+    local now = os.time();
+    state.macro_runs[key] = {
+        started_at = now,
+        total = total,
+        expires_at = now + total,
+    };
+end
+
+function MACRO.write_script(commands, context)
+    local ok, dir_or_err = MACRO.ensure_script_dir();
+    if (not ok) then
+        return false, ('Script failed: %s'):fmt(tostring(dir_or_err));
+    end
+
+    local file_name = MACRO.script_file_name(context);
+    local contents = MACRO.commands_to_text(commands);
+    if (contents ~= '') then
+        contents = contents .. '\n';
+    end
+
+    local write_ok, write_err = write_text_file(dir_or_err .. file_name, contents);
+    if (not write_ok) then
+        return false, ('Script failed: could not write %s (%s).'):fmt(file_name, tostring(write_err));
+    end
+
+    return true, file_name;
+end
+
+function MACRO.queue_commands(commands, context)
+    if (type(commands) ~= 'table' or #commands == 0) then
+        return false, 'Nothing to run.';
+    end
+
+    if (type(context) == 'table' and context.script == true) then
+        local ok, include_path_or_err = MACRO.write_script(commands, context);
+        if (not ok) then
+            return false, include_path_or_err;
+        end
+
+        AshitaCore:GetChatManager():QueueCommand(-1, '/exec ' .. include_path_or_err);
+        MACRO.start_run_overlay(commands, context);
+        return true, include_path_or_err;
+    end
+
+    for _, command in ipairs(commands) do
+        AshitaCore:GetChatManager():QueueCommand(1, command);
+    end
+
+    return true, nil;
+end
+
 local function find_settings_table(contents)
     local start_pos, open_pos = contents:find('settings%s*=%s*{');
     if (start_pos == nil) then
@@ -1380,6 +1522,9 @@ function SHARED.slot_parts(slot)
     end
     if (slot.macro_mode == 'multi') then
         table.insert(parts, "macro_mode = 'multi'");
+        if (slot.script == true) then
+            table.insert(parts, 'script = true');
+        end
     end
     if (type(slot.commands) == 'table' and #slot.commands > 0) then
         local command_literals = {};
@@ -1620,6 +1765,9 @@ local function sanitize_slot_override(slot, allow_shared)
         if (sanitized.macro_mode ~= 'multi') then
             sanitized.macro_mode = nil;
             sanitized.commands = nil;
+            sanitized.script = nil;
+        elseif (slot.script == true) then
+            sanitized.script = true;
         end
     end
     if (slot.icon ~= nil) then
@@ -1888,6 +2036,9 @@ local function apply_slot_override(base_slot, override)
     if (override.commands ~= nil) then
         slot.commands = MACRO.commands_from_table(override.commands);
     end
+    if (override.script ~= nil) then
+        slot.script = override.script == true;
+    end
     if (override.icon ~= nil) then
         slot.icon = override.icon;
     end
@@ -1941,10 +2092,12 @@ function MACRO.normalize_slot_runtime(slot)
         normalized.macro_mode = 'multi';
         normalized.commands = commands;
         normalized.command = commands[1] or command;
+        normalized.script = normalized.script == true;
     else
         normalized.macro_mode = 'single';
         normalized.commands = nil;
         normalized.command = command;
+        normalized.script = nil;
     end
     if (normalized.use_action_name_label == nil and normalized.use_item_name_label ~= nil) then
         normalized.use_action_name_label = normalized.use_item_name_label ~= false;
@@ -2005,6 +2158,11 @@ local function apply_editor_preview(slot, profile_key, group, index)
 
     local preview_slot = copy_slot(slot);
     local mode = MACRO.normalize_mode(editor.macro_mode);
+    if (mode == 'multi') then
+        preview_slot.script = editor.run_as_script[1] == true;
+    else
+        preview_slot.script = nil;
+    end
     if (mode ~= 'item' and mode ~= 'mount') then
         local preview_icon = editor.preview_icon;
         if (preview_icon == nil) then
@@ -2426,6 +2584,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     editor.macro_mode = mode;
     editor.command_action = action or '';
     editor.command_target = target or COMMAND_MODE.default_target(mode);
+    editor.run_as_script[1] = mode == 'multi' and slot ~= nil and slot.script == true;
     editor.use_action_name_label[1] = COMMAND_MODE.is_structured_mode(mode) and (slot == nil or slot.use_action_name_label ~= false) or false;
     editor.spell_type_filter = 'all';
     editor.spell_element_filter = 'all';
@@ -3051,10 +3210,12 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
         return;
     end
 
+    local current_mode = MACRO.normalize_mode(editor.macro_mode);
     local _, current_command, current_commands = MACRO.editor_commands();
     mode = MACRO.normalize_mode(mode);
     if (mode == 'multi') then
         editor.macro_mode = 'multi';
+        editor.run_as_script[1] = current_mode == 'multi' and editor.run_as_script[1] == true;
         if (trim_string(editor.commands_buffer[1]) == '') then
             buffer_set(editor.commands_buffer, MACRO.commands_to_text((#current_commands > 0) and current_commands or { current_command }));
         end
@@ -3062,6 +3223,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     end
     if (mode == 'single') then
         editor.macro_mode = 'single';
+        editor.run_as_script[1] = false;
         if (current_command ~= '') then
             buffer_set(editor.command_buffer, current_command);
         end
@@ -3069,6 +3231,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     end
 
     editor.macro_mode = mode;
+    editor.run_as_script[1] = false;
     if (COMMAND_MODE.is_structured_mode(mode)) then
         editor.use_action_name_label[1] = true;
     end
@@ -3862,11 +4025,20 @@ function MACRO.run_editor_commands()
         return false, validation_error;
     end
 
-    for _, command in ipairs(commands) do
-        AshitaCore:GetChatManager():QueueCommand(1, command);
+    local queue_ok, queue_message = MACRO.queue_commands(commands, {
+        profile_key = editor.profile_key,
+        group = editor.group,
+        index = editor.index,
+        script = mode == 'multi' and editor.run_as_script[1] == true,
+    });
+    if (not queue_ok) then
+        return false, queue_message;
     end
 
     if (mode == 'multi') then
+        if (editor.run_as_script[1] == true) then
+            return true, ('Validated and ran script (%d commands).'):fmt(#commands);
+        end
         return true, ('Validated and ran %d commands.'):fmt(#commands);
     end
 
@@ -3888,9 +4060,18 @@ local function execute_slot(group, index, source)
         return false;
     end
 
-    for _, command in ipairs(commands) do
-        AshitaCore:GetChatManager():QueueCommand(1, command);
+    local profile = state.profile or refresh_profile_context();
+    local queue_ok, queue_message = MACRO.queue_commands(commands, {
+        profile_key = editable_profile_key(profile),
+        group = group,
+        index = index,
+        script = MACRO.script_enabled(slot),
+    });
+    if (not queue_ok) then
+        log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, DIGIT_LABELS[index], source, queue_message));
+        return false;
     end
+
     return true;
 end
 
@@ -3914,7 +4095,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > 10) then
         return false, 'Invalid button selection.';
@@ -3951,9 +4132,13 @@ local function set_slot_override(profile_key, group, index, label, command, icon
                 slot.commands = { slot.command };
             end
             slot.command = slot.commands[1] or '';
+            if (script == true) then
+                slot.script = true;
+            end
         else
             slot.macro_mode = 'single';
             slot.commands = nil;
+            slot.script = nil;
         end
     end
 
@@ -4001,6 +4186,9 @@ function SHARED.editor_slot(require_command)
     if (mode == 'multi') then
         slot.commands = MACRO.commands_from_table(commands);
         slot.command = slot.commands[1] or '';
+        if (editor.run_as_script[1] == true) then
+            slot.script = true;
+        end
     end
 
     return slot, nil, mode, command, commands;
@@ -4199,7 +4387,7 @@ local function save_macro_editor(clear_slot)
         return false;
     end
 
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label);
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = UI_COLORS.error;
@@ -4218,6 +4406,7 @@ local function save_macro_editor(clear_slot)
     buffer_set(editor.command_buffer, command);
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(commands));
     editor.macro_mode = mode;
+    editor.run_as_script[1] = mode == 'multi' and editor.run_as_script[1] == true;
     editor.shared_ref = nil;
     buffer_set(editor.icon_buffer, icon);
     editor.source = 'saved edit';
@@ -4630,6 +4819,34 @@ local function slot_recast(slot)
         fraction = fraction,
         seconds = seconds,
         label = format_recast_seconds(seconds),
+    };
+end
+
+function MACRO.run_overlay_info(context)
+    local key = MACRO.run_key(context);
+    if (key == nil or type(state.macro_runs) ~= 'table') then
+        return nil;
+    end
+
+    local run = state.macro_runs[key];
+    if (type(run) ~= 'table') then
+        return nil;
+    end
+
+    local total = tonumber(run.total) or 0;
+    local expires_at = tonumber(run.expires_at) or 0;
+    local remaining = math.max(0, math.ceil(expires_at - os.time()));
+    if (total <= 0 or remaining <= 0) then
+        state.macro_runs[key] = nil;
+        return nil;
+    end
+
+    return {
+        kind = 'macro',
+        total = total,
+        seconds = remaining,
+        fraction = math.min(1.0, math.max(0.0, remaining / total)),
+        label = format_recast_seconds(remaining),
     };
 end
 
@@ -5621,6 +5838,11 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local icon_color = (icon_def and icon_def.accent) or COMMAND_THEME[icon_family] or COMMAND_THEME.command;
     local recast_info = slot_recast(slot);
     local visual_state = slot_visual_state(slot);
+    local macro_run_info = has_command and command_supported and MACRO.run_overlay_info({
+        profile_key = editable_profile_key(state.profile or refresh_profile_context()),
+        group = row.id,
+        index = index,
+    }) or nil;
     local available = visual_state == nil or visual_state.available ~= false;
     local draw_icon_color = available and icon_color or { icon_color[1] * 0.52, icon_color[2] * 0.52, icon_color[3] * 0.52, icon_color[4] or 1.00 };
     local nudge = pressed and 1 or 0;
@@ -5680,6 +5902,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     if (has_command and command_supported and recast_info ~= nil) then
         draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, recast_info);
+    end
+
+    if (has_command and command_supported and macro_run_info ~= nil) then
+        draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, macro_run_info);
     end
 
     if (setting_enabled('show_hotkeys', true)) then
@@ -5757,6 +5983,14 @@ local function render_tooltip(row, index)
         end
         if (recast_info ~= nil) then
             imgui.Text(('recast: %s'):fmt(recast_info.label));
+        end
+        local macro_run_info = MACRO.run_overlay_info({
+            profile_key = editable_profile_key(state.profile or refresh_profile_context()),
+            group = row.id,
+            index = index,
+        });
+        if (macro_run_info ~= nil) then
+            imgui.Text(('macro running: %s'):fmt(macro_run_info.label));
         end
         local validation_error = MACRO.commands_validation_error(commands);
         if (validation_error ~= nil) then
@@ -6055,6 +6289,7 @@ local function render_macro_editor_window()
         end
         if (mode == 'multi') then
             MACRO.render_multiline_input('Commands##ashitabars_button_commands', editor.commands_buffer, MACRO.COMMANDS_TEXT_MAX, { 360, 122 });
+            imgui.Checkbox('Run As Ashita Script##ashitabars_button_run_as_script', editor.run_as_script);
         elseif (mode == 'single') then
             imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, LIMITS.macro_command_max);
         end
