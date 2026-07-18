@@ -169,6 +169,12 @@ local LIMITS = {
     slot_glow_size_max = 200,
     slot_glow_opacity_min = 0,
     slot_glow_opacity_max = 100,
+    weaponskill_effect_intensity_min = 0,
+    weaponskill_effect_intensity_max = 100,
+    weaponskill_effect_opacity_min = 0,
+    weaponskill_effect_opacity_max = 100,
+    weaponskill_effect_frequency_min = 25,
+    weaponskill_effect_frequency_max = 200,
     label_vertical_position_min = 0,
     label_vertical_position_max = 100,
     macro_label_max = 32,
@@ -505,6 +511,7 @@ local DEFAULT_CONFIG = {
         show_recasts = true,
         show_counts = true,
         show_availability = true,
+        show_weaponskill_pulse = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
         slot_size = 64,
@@ -654,6 +661,11 @@ local state = {
         command_target = '<t>',
         target_action = '/target',
         use_action_name_label = T{ true },
+        weaponskill_effect_enabled = T{ true },
+        weaponskill_effect = 'pulse',
+        weaponskill_effect_intensity = T{ 70 },
+        weaponskill_effect_opacity = T{ 100 },
+        weaponskill_effect_frequency = T{ 100 },
         spell_type_filter = 'all',
         spell_element_filter = 'all',
         spell_search_buffer = T{ '' },
@@ -2528,6 +2540,18 @@ function SHARED.slot_parts(slot)
     if (slot.icon ~= nil and trim_one_line(slot.icon, LIMITS.macro_icon_max) ~= '') then
         table.insert(parts, ('icon = %s'):fmt(lua_string_literal(slot.icon)));
     end
+    if (slot.weaponskill_effect ~= nil) then
+        table.insert(parts, ('weaponskill_effect = %s'):fmt(lua_string_literal(slot.weaponskill_effect)));
+    end
+    if (slot.weaponskill_effect_intensity ~= nil) then
+        table.insert(parts, ('weaponskill_effect_intensity = %d'):fmt(slot.weaponskill_effect_intensity));
+    end
+    if (slot.weaponskill_effect_opacity ~= nil) then
+        table.insert(parts, ('weaponskill_effect_opacity = %d'):fmt(slot.weaponskill_effect_opacity));
+    end
+    if (slot.weaponskill_effect_frequency ~= nil) then
+        table.insert(parts, ('weaponskill_effect_frequency = %d'):fmt(slot.weaponskill_effect_frequency));
+    end
     if (slot.command ~= nil) then
         table.insert(parts, ('command = %s'):fmt(lua_string_literal(slot.command)));
     end
@@ -2658,6 +2682,7 @@ local function current_runtime_visual_settings()
         show_click_bar = extra_bar_1.visible,
         click_bar_window_x = extra_bar_1.window_x,
         click_bar_window_y = extra_bar_1.window_y,
+        show_weaponskill_pulse = MACRO.weaponskill_pulse_enabled(settings),
     };
 end
 
@@ -2722,6 +2747,11 @@ local function apply_visual_settings(settings)
     local click_bar_window_y = tonumber(settings.click_bar_window_y);
 
     if (settings.visible ~= nil) then target.main_bar.visible = settings.visible ~= false; end
+    if (settings.show_weaponskill_pulse ~= nil) then
+        target.show_weaponskill_pulse = settings.show_weaponskill_pulse ~= false;
+    elseif (settings.show_weaponskill_flames ~= nil) then
+        target.show_weaponskill_pulse = settings.show_weaponskill_flames ~= false;
+    end
     if (mode ~= nil) then target.main_bar.display_mode = mode; end
     if (profile_scope ~= nil) then
         if (settings.main_bar == nil or BAR.normalize_profile_scope(settings.main_bar.profile_scope) == nil) then
@@ -2822,6 +2852,7 @@ local function serialize_visual_settings(settings)
         '        },',
         ('        display_mode = %s,'):fmt(lua_string_literal(settings.display_mode)),
         ('        profile_scope = %s,'):fmt(lua_string_literal(settings.profile_scope or main.profile_scope or 'job')),
+        ('        show_weaponskill_pulse = %s,'):fmt(tostring(settings.show_weaponskill_pulse ~= false)),
         ('        slot_size = %d,'):fmt(settings.slot_size),
         ('        button_gap = %d,'):fmt(settings.button_gap),
         ('        slot_glow_size = %d,'):fmt(settings.slot_glow_size),
@@ -2963,8 +2994,27 @@ local function sanitize_slot_override(slot, allow_shared)
             sanitized.icon = icon;
         end
     end
+    local weaponskill_effect = MACRO.normalize_weaponskill_effect_style(slot.weaponskill_effect);
+    if (slot.weaponskill_effect_enabled == false) then
+        weaponskill_effect = 'off';
+    end
+    if (weaponskill_effect ~= nil) then
+        sanitized.weaponskill_effect = weaponskill_effect;
+    end
+    local weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(slot.weaponskill_effect_intensity);
+    if (weaponskill_effect_intensity ~= nil) then
+        sanitized.weaponskill_effect_intensity = weaponskill_effect_intensity;
+    end
+    local weaponskill_effect_opacity = MACRO.normalize_weaponskill_effect_opacity(slot.weaponskill_effect_opacity);
+    if (weaponskill_effect_opacity ~= nil) then
+        sanitized.weaponskill_effect_opacity = weaponskill_effect_opacity;
+    end
+    local weaponskill_effect_frequency = MACRO.normalize_weaponskill_effect_frequency(slot.weaponskill_effect_frequency);
+    if (weaponskill_effect_frequency ~= nil) then
+        sanitized.weaponskill_effect_frequency = weaponskill_effect_frequency;
+    end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil) then
         return nil;
     end
 
@@ -3229,6 +3279,18 @@ local function apply_slot_override(base_slot, override)
     if (override.icon ~= nil) then
         slot.icon = override.icon;
     end
+    if (override.weaponskill_effect ~= nil) then
+        slot.weaponskill_effect = override.weaponskill_effect;
+    end
+    if (override.weaponskill_effect_intensity ~= nil) then
+        slot.weaponskill_effect_intensity = override.weaponskill_effect_intensity;
+    end
+    if (override.weaponskill_effect_opacity ~= nil) then
+        slot.weaponskill_effect_opacity = override.weaponskill_effect_opacity;
+    end
+    if (override.weaponskill_effect_frequency ~= nil) then
+        slot.weaponskill_effect_frequency = override.weaponskill_effect_frequency;
+    end
 
     if (next(slot) == nil) then
         return nil;
@@ -3292,6 +3354,10 @@ function MACRO.normalize_slot_runtime(slot)
     elseif (normalized.use_action_name_label ~= nil) then
         normalized.use_action_name_label = normalized.use_action_name_label ~= false;
     end
+    normalized.weaponskill_effect = MACRO.weaponskill_effect_style(normalized);
+    normalized.weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(normalized.weaponskill_effect_intensity) or 70;
+    normalized.weaponskill_effect_opacity = MACRO.normalize_weaponskill_effect_opacity(normalized.weaponskill_effect_opacity) or 100;
+    normalized.weaponskill_effect_frequency = MACRO.normalize_weaponskill_effect_frequency(normalized.weaponskill_effect_frequency) or 100;
 
     return normalized;
 end
@@ -3353,6 +3419,10 @@ local function apply_editor_preview(slot, profile_key, group, index)
     if (mode ~= 'item') then
         preview_slot.icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
     end
+    preview_slot.weaponskill_effect = editor.weaponskill_effect_enabled[1] == false and 'off' or (MACRO.normalize_weaponskill_effect_style(editor.weaponskill_effect) or 'pulse');
+    preview_slot.weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(editor.weaponskill_effect_intensity[1]) or 70;
+    preview_slot.weaponskill_effect_opacity = MACRO.normalize_weaponskill_effect_opacity(editor.weaponskill_effect_opacity[1]) or 100;
+    preview_slot.weaponskill_effect_frequency = MACRO.normalize_weaponskill_effect_frequency(editor.weaponskill_effect_frequency[1]) or 100;
     return preview_slot;
 end
 
@@ -5571,7 +5641,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > 10) then
         return false, 'Invalid button selection.';
@@ -5597,6 +5667,22 @@ local function set_slot_override(profile_key, group, index, label, command, icon
         local slot_icon = trim_one_line(icon, LIMITS.macro_icon_max);
         if (slot_icon ~= '') then
             slot.icon = slot_icon;
+        end
+        local effect_style = MACRO.normalize_weaponskill_effect_style(weaponskill_effect);
+        if (effect_style ~= nil) then
+            slot.weaponskill_effect = effect_style;
+        end
+        local effect_intensity = MACRO.normalize_weaponskill_effect_intensity(weaponskill_effect_intensity);
+        if (effect_intensity ~= nil) then
+            slot.weaponskill_effect_intensity = effect_intensity;
+        end
+        local effect_opacity = MACRO.normalize_weaponskill_effect_opacity(weaponskill_effect_opacity);
+        if (effect_opacity ~= nil) then
+            slot.weaponskill_effect_opacity = effect_opacity;
+        end
+        local effect_frequency = MACRO.normalize_weaponskill_effect_frequency(weaponskill_effect_frequency);
+        if (effect_frequency ~= nil) then
+            slot.weaponskill_effect_frequency = effect_frequency;
         end
         slot.macro_mode = MACRO.normalize_mode(macro_mode);
         if (COMMAND_MODE.is_structured_mode(slot.macro_mode)) then
@@ -5666,6 +5752,7 @@ function SHARED.editor_slot(require_command)
             slot.script = true;
         end
     end
+    MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
 
     return slot, nil, mode, command, commands;
 end
@@ -5686,6 +5773,7 @@ function SHARED.load_into_editor(name)
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
     COMMAND_MODE.load_editor_slot(editor, slot);
+    MACRO.load_editor_weaponskill_effect(editor, slot);
     return true;
 end
 
@@ -5778,6 +5866,76 @@ function MACRO.set_empty_slot_override(profile_key, group, index)
     return set_slot_override(profile_key, group, index, '', '', '', 'single', {}, nil, false, false);
 end
 
+function MACRO.command_is_weaponskill(command)
+    local prefix = command_prefix_and_name(command);
+    return prefix == '/ws' or prefix == '/weaponskill';
+end
+
+function MACRO.editor_is_weaponskill(editor)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table') then
+        return false;
+    end
+
+    local mode = MACRO.normalize_mode(editor.macro_mode);
+    if (mode == 'weaponskill') then
+        return true;
+    end
+
+    local _, command = MACRO.editor_commands();
+    return MACRO.command_is_weaponskill(command);
+end
+
+function MACRO.editor_weaponskill_effect_values(editor)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table' or not MACRO.editor_is_weaponskill(editor)) then
+        return nil, nil, nil;
+    end
+
+    local style = editor.weaponskill_effect_enabled[1] == false and 'off' or (MACRO.normalize_weaponskill_effect_style(editor.weaponskill_effect) or 'pulse');
+    local intensity = MACRO.normalize_weaponskill_effect_intensity(editor.weaponskill_effect_intensity[1]) or 70;
+    local opacity = MACRO.normalize_weaponskill_effect_opacity(editor.weaponskill_effect_opacity[1]) or 100;
+    local frequency = MACRO.normalize_weaponskill_effect_frequency(editor.weaponskill_effect_frequency[1]) or 100;
+    return style, intensity, opacity, frequency;
+end
+
+function MACRO.apply_weaponskill_effect_to_slot(slot, style, intensity, opacity, frequency)
+    if (type(slot) ~= 'table') then
+        return;
+    end
+
+    style = MACRO.normalize_weaponskill_effect_style(style);
+    if (style ~= nil) then
+        slot.weaponskill_effect = style;
+    end
+    intensity = MACRO.normalize_weaponskill_effect_intensity(intensity);
+    if (intensity ~= nil) then
+        slot.weaponskill_effect_intensity = intensity;
+    end
+    opacity = MACRO.normalize_weaponskill_effect_opacity(opacity);
+    if (opacity ~= nil) then
+        slot.weaponskill_effect_opacity = opacity;
+    end
+    frequency = MACRO.normalize_weaponskill_effect_frequency(frequency);
+    if (frequency ~= nil) then
+        slot.weaponskill_effect_frequency = frequency;
+    end
+end
+
+function MACRO.load_editor_weaponskill_effect(editor, slot)
+    if (type(editor) ~= 'table') then
+        return;
+    end
+
+    slot = type(slot) == 'table' and slot or {};
+    local style = MACRO.weaponskill_effect_style(slot);
+    editor.weaponskill_effect_enabled[1] = style ~= 'off';
+    editor.weaponskill_effect = (style == 'off') and 'pulse' or style;
+    editor.weaponskill_effect_intensity[1] = MACRO.normalize_weaponskill_effect_intensity(slot.weaponskill_effect_intensity) or 70;
+    editor.weaponskill_effect_opacity[1] = MACRO.normalize_weaponskill_effect_opacity(slot.weaponskill_effect_opacity) or 100;
+    editor.weaponskill_effect_frequency[1] = MACRO.normalize_weaponskill_effect_frequency(slot.weaponskill_effect_frequency) or 100;
+end
+
 function MACRO.apply_editor_modifier_toggles()
     local editor = state.macro_editor;
     if (type(editor) ~= 'table' or editor.parent_group ~= 'base' or editor.group ~= 'base') then
@@ -5863,6 +6021,7 @@ local function open_macro_editor(row, index, preserve_modifier_state)
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
     COMMAND_MODE.load_editor_slot(editor, slot);
+    MACRO.load_editor_weaponskill_effect(editor, slot);
     editor.message = nil;
 end
 
@@ -5931,7 +6090,8 @@ local function save_macro_editor(clear_slot)
         return false;
     end
 
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true);
+    local weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency = MACRO.editor_weaponskill_effect_values(editor);
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = UI_COLORS.error;
@@ -5992,6 +6152,7 @@ local function reset_macro_editor()
     buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
     buffer_set(editor.icon_buffer, slot.icon or '');
     COMMAND_MODE.load_editor_slot(editor, slot);
+    MACRO.load_editor_weaponskill_effect(editor, slot);
     editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or profile.source;
     editor.message = 'Reset to config.';
     editor.message_color = UI_COLORS.success;
@@ -6072,6 +6233,54 @@ local function setting_number(name, fallback)
     end
 
     return value;
+end
+
+function MACRO.normalize_weaponskill_effect_style(value)
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    local style = value:lower():gsub('%s+', ''):gsub('%-', '_');
+    if (style == 'pulse' or style == 'native' or style == 'nativepulse') then
+        return 'pulse';
+    end
+    if (style == 'off' or style == 'none' or style == 'disabled') then
+        return 'off';
+    end
+
+    return nil;
+end
+
+function MACRO.weaponskill_pulse_enabled(settings)
+    settings = settings or state.config.settings or {};
+    if (settings.show_weaponskill_pulse ~= nil) then
+        return settings.show_weaponskill_pulse ~= false;
+    end
+    if (settings.show_weaponskill_flames ~= nil) then
+        return settings.show_weaponskill_flames ~= false;
+    end
+
+    return DEFAULT_CONFIG.settings.show_weaponskill_pulse ~= false;
+end
+
+function MACRO.weaponskill_effect_style(slot)
+    local style = MACRO.normalize_weaponskill_effect_style(slot ~= nil and slot.weaponskill_effect or nil);
+    if (slot ~= nil and (slot.weaponskill_effect_enabled == false or style == 'off')) then
+        return 'off';
+    end
+    return style or 'pulse';
+end
+
+function MACRO.normalize_weaponskill_effect_intensity(value)
+    return normalize_percent(value, LIMITS.weaponskill_effect_intensity_min, LIMITS.weaponskill_effect_intensity_max);
+end
+
+function MACRO.normalize_weaponskill_effect_opacity(value)
+    return normalize_percent(value, LIMITS.weaponskill_effect_opacity_min, LIMITS.weaponskill_effect_opacity_max);
+end
+
+function MACRO.normalize_weaponskill_effect_frequency(value)
+    return normalize_percent(value, LIMITS.weaponskill_effect_frequency_min, LIMITS.weaponskill_effect_frequency_max);
 end
 
 local function command_prefix_and_name(command)
@@ -6519,6 +6728,49 @@ local function current_tp()
     return tonumber(safe_read(function ()
         return AshitaCore:GetMemoryManager():GetParty():GetMemberTP(0);
     end, nil));
+end
+
+local function slot_weaponskill_pulse_info(slot)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '' or not MACRO.weaponskill_pulse_enabled()) then
+        return nil;
+    end
+
+    local prefix = command_prefix_and_name(slot.command);
+    if (prefix ~= '/ws' and prefix ~= '/weaponskill') then
+        return nil;
+    end
+    local style = MACRO.weaponskill_effect_style(slot);
+    if (style == 'off') then
+        return nil;
+    end
+
+    local tp = current_tp();
+    local threshold = tonumber(slot.tp_threshold) or setting_number('weaponskill_tp_threshold', 1000);
+    if (tp == nil or threshold == nil or threshold <= 0) then
+        return nil;
+    end
+
+    local max_tp = math.max(3000, threshold);
+    local ready = tp >= threshold;
+    local pre_ready = math.min(1.0, math.max(0.0, tp / threshold));
+    local post_ready = 0.0;
+    if (max_tp > threshold) then
+        post_ready = math.min(1.0, math.max(0.0, (tp - threshold) / (max_tp - threshold)));
+    end
+
+    local intensity = ready and (0.62 + (0.38 * post_ready)) or (0.12 + (0.43 * pre_ready));
+    local effect_intensity = (MACRO.normalize_weaponskill_effect_intensity(slot.weaponskill_effect_intensity) or 70) / 100.0;
+    local effect_opacity = (MACRO.normalize_weaponskill_effect_opacity(slot.weaponskill_effect_opacity) or 100) / 100.0;
+    local effect_frequency = MACRO.normalize_weaponskill_effect_frequency(slot.weaponskill_effect_frequency) or 100;
+    return {
+        style = style,
+        tp = tp,
+        threshold = threshold,
+        ready = ready,
+        intensity = math.min(1.0, math.max(0.0, intensity * effect_intensity)),
+        opacity = math.min(1.0, math.max(0.0, effect_opacity)),
+        frequency = effect_frequency,
+    };
 end
 
 local function format_count(value)
@@ -7494,6 +7746,52 @@ local function draw_availability_overlay(draw_list, x1, y1, x2, y2, visual_state
     end
 end
 
+local function draw_weaponskill_pulse_overlay(draw_list, x, y, slot_size, pulse_info)
+    if (pulse_info == nil or pulse_info.intensity == nil) then
+        return;
+    end
+
+    local power = math.min(1.0, math.max(0.0, tonumber(pulse_info.intensity) or 0.0));
+    if (power <= 0) then
+        return;
+    end
+    local opacity = math.min(1.0, math.max(0.0, tonumber(pulse_info.opacity) or 1.0));
+    if (opacity <= 0) then
+        return;
+    end
+
+    local now = os.clock();
+    local speed = math.max(0.25, math.min(2.0, (tonumber(pulse_info.frequency) or 100) / 100.0));
+    local pulse = 0.5 + (0.5 * math.sin((now * 2.1 * speed) + (x * 0.017) + (y * 0.011)));
+    local ready = pulse_info.ready == true;
+    local rr = 4.0;
+    local x1 = x + 1;
+    local y1 = y + 1;
+    local x2 = x + slot_size - 1;
+    local y2 = y + slot_size - 1;
+
+    local warm_alpha = ready and (0.05 + (power * 0.13) + (pulse * power * 0.07)) or (0.02 + (power * 0.08) + (pulse * power * 0.04));
+    local border_alpha = ready and (0.22 + (power * 0.34) + (pulse * 0.22)) or (0.08 + (power * 0.28) + (pulse * power * 0.12));
+    local inner_alpha = ready and (0.10 + (power * 0.22) + (pulse * 0.16)) or (0.03 + (power * 0.12) + (pulse * power * 0.06));
+    local expand = math.floor(1 + (pulse * power * 4.0));
+    local inset = math.max(3, math.floor(slot_size * 0.08));
+    local core_inset = math.max(8, math.floor(slot_size * 0.18));
+
+    draw_list:AddRectFilled({ x1, y1 }, { x2, y2 }, color_u32({ 1.00, 0.36, 0.06, math.min(0.22, warm_alpha) * opacity }), rr);
+    draw_list:AddRect({ x1 + expand, y1 + expand }, { x2 - expand, y2 - expand }, color_u32({ 1.00, 0.56, 0.10, math.min(0.78, border_alpha) * opacity }), rr, ImDrawCornerFlags_All, 1.2 + (power * 2.0));
+    draw_list:AddRect({ x1 + inset, y1 + inset }, { x2 - inset, y2 - inset }, color_u32({ 1.00, 0.78, 0.28, math.min(0.48, inner_alpha) * opacity }), rr - 1, ImDrawCornerFlags_All, 1.0 + (power * 1.2));
+    draw_list:AddRectFilled({ x + core_inset, y + core_inset }, { x + slot_size - core_inset, y + slot_size - core_inset }, color_u32({ 1.00, 0.40, 0.08, math.min(0.16, inner_alpha * 0.56) * opacity }), 2.0);
+
+    if (ready) then
+        local call_alpha = math.min(0.76, 0.18 + (power * 0.28) + (pulse * 0.24));
+        draw_list:AddRect({ x1, y1 }, { x2, y2 }, color_u32({ 1.00, 0.24, 0.02, call_alpha * opacity }), rr + 1.0, ImDrawCornerFlags_All, 2.0 + (power * 1.5));
+        draw_list:AddLine({ x1 + 4, y1 + 3 }, { x2 - 4, y1 + 3 }, color_u32({ 1.00, 0.82, 0.30, call_alpha * 0.72 * opacity }), 1.0 + (power * 1.0));
+        draw_list:AddLine({ x1 + 4, y2 - 3 }, { x2 - 4, y2 - 3 }, color_u32({ 1.00, 0.40, 0.04, call_alpha * 0.80 * opacity }), 1.2 + (power * 1.3));
+        draw_list:AddLine({ x1 + 3, y1 + 5 }, { x1 + 3, y2 - 5 }, color_u32({ 1.00, 0.50, 0.08, call_alpha * 0.54 * opacity }), 1.0 + (power * 0.8));
+        draw_list:AddLine({ x2 - 3, y1 + 5 }, { x2 - 3, y2 - 5 }, color_u32({ 1.00, 0.50, 0.08, call_alpha * 0.54 * opacity }), 1.0 + (power * 0.8));
+    end
+end
+
 local function draw_count_badge(draw_list, x, y, slot_size, label)
     if (label == nil or label == '') then
         return;
@@ -7827,6 +8125,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         group = row.id,
         index = index,
     }) or nil;
+    local weaponskill_pulse_info = has_command and command_supported and slot_weaponskill_pulse_info(slot) or nil;
     local available = visual_state == nil or visual_state.available ~= false;
     local draw_icon_color = available and icon_color or { icon_color[1] * 0.52, icon_color[2] * 0.52, icon_color[3] * 0.52, icon_color[4] or 1.00 };
     local nudge = pressed and 1 or 0;
@@ -7887,6 +8186,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     else
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32(theme.empty_bg or { 0.03, 0.03, 0.04, 0.82 }), 2.5);
         draw_empty_slot_overlay(draw_list, rx, ry, slot_size);
+    end
+
+    if (has_command and command_supported and weaponskill_pulse_info ~= nil) then
+        draw_weaponskill_pulse_overlay(draw_list, rx, ry, slot_size, weaponskill_pulse_info);
     end
 
     if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
@@ -8297,6 +8600,14 @@ local function render_config_window()
                 imgui.TextColored(UI_COLORS.config_header, 'Global');
                 imgui.Text(('Theme: %s'):fmt(select(2, current_theme())));
                 imgui.Text(('Icon Style: %s'):fmt(icon_style()));
+                imgui.Separator();
+                imgui.TextColored(UI_COLORS.config_header, 'Weapon Skills');
+                local ws_pulse = MACRO.weaponskill_pulse_enabled();
+                if (imgui.Checkbox('Weapon Skill Pulse##ashitabars_config_ws_pulse', { ws_pulse })) then
+                    state.config.settings.show_weaponskill_pulse = not ws_pulse;
+                    state.config.settings.show_weaponskill_flames = nil;
+                    state.config_save_message = nil;
+                end
                 imgui.EndTabItem();
             end
             if (imgui.BeginTabItem('Main Bar##ashitabars_config_main_bar', nil)) then
@@ -8326,6 +8637,40 @@ local function render_config_window()
         end
     end
     imgui.End();
+end
+
+function MACRO.weaponskill_effect_label(style)
+    if (style == 'off') then return 'Off'; end
+    return 'Native Pulse';
+end
+
+function MACRO.render_weaponskill_effect_editor(editor)
+    if (not MACRO.editor_is_weaponskill(editor)) then
+        return;
+    end
+
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Weapon Skill Effect');
+    imgui.Checkbox('Enable Effect##ashitabars_button_ws_effect_enabled', editor.weaponskill_effect_enabled);
+
+    if (editor.weaponskill_effect_enabled[1] == false) then
+        return;
+    end
+
+    editor.weaponskill_effect = 'pulse';
+    imgui.PushItemWidth(250);
+    local intensity = MACRO.normalize_weaponskill_effect_intensity(editor.weaponskill_effect_intensity[1]) or 70;
+    editor.weaponskill_effect_intensity[1] = intensity;
+    imgui.SliderInt('Intensity##ashitabars_button_ws_effect_intensity', editor.weaponskill_effect_intensity, LIMITS.weaponskill_effect_intensity_min, LIMITS.weaponskill_effect_intensity_max, '%d%%', ImGuiSliderFlags_AlwaysClamp);
+
+    local opacity = MACRO.normalize_weaponskill_effect_opacity(editor.weaponskill_effect_opacity[1]) or 100;
+    editor.weaponskill_effect_opacity[1] = opacity;
+    imgui.SliderInt('Opacity##ashitabars_button_ws_effect_opacity', editor.weaponskill_effect_opacity, LIMITS.weaponskill_effect_opacity_min, LIMITS.weaponskill_effect_opacity_max, '%d%%', ImGuiSliderFlags_AlwaysClamp);
+
+    local frequency = MACRO.normalize_weaponskill_effect_frequency(editor.weaponskill_effect_frequency[1]) or 100;
+    editor.weaponskill_effect_frequency[1] = frequency;
+    imgui.SliderInt('Frequency##ashitabars_button_ws_effect_frequency', editor.weaponskill_effect_frequency, LIMITS.weaponskill_effect_frequency_min, LIMITS.weaponskill_effect_frequency_max, '%d%%', ImGuiSliderFlags_AlwaysClamp);
+    imgui.PopItemWidth();
 end
 
 function MACRO.render_editor_active_form(editor)
@@ -8395,6 +8740,7 @@ function MACRO.render_editor_active_form(editor)
     if (mode ~= 'item') then
         render_icon_selector(editor, 360);
     end
+    MACRO.render_weaponskill_effect_editor(editor);
 
     local validation_error = MACRO.editor_validation_error();
     if (validation_error ~= nil) then
@@ -8652,6 +8998,7 @@ ashita.events.register('command', 'command_cb', function (e)
             tostring(extra_profile.base_key),
             tostring(extra_profile.source),
             tostring(settings.block_native_macro_modifiers ~= false)));
+        log_info(('visualEffects weaponskillPulse=%s'):fmt(tostring(MACRO.weaponskill_pulse_enabled())));
         local keybind_conflicts = KEYBIND.conflict_messages();
         log_info(('keybinds main=%s extra1=%s conflicts=%d'):fmt(
             KEYBIND.summary('main'),
