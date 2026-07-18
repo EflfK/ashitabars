@@ -437,16 +437,85 @@ local ICON_DEFS = {
     asset_target_mark     = { family = 'target',      asset = 'target_mark.png',     accent = { 0.58, 0.84, 1.00, 1.00 } },
 };
 
-local ICON_SELECTOR_CATEGORIES = {
-    { label = 'Magic', tokens = { 'cure', 'holy', 'buff', 'status', 'raise', 'stealth', 'white_magic', 'black_magic', 'debuff' } },
-    { label = 'Elements', tokens = { 'fire', 'ice', 'wind', 'earth', 'lightning', 'water', 'light', 'dark' } },
-    { label = 'Combat', tokens = { 'ability', 'weapon', 'ranged' } },
-    { label = 'Pet', tokens = { 'pet', 'fight', 'charm', 'reward', 'summon' } },
-    { label = 'Utility', tokens = { 'item', 'mount', 'target', 'assist', 'check', 'chat', 'rest', 'song', 'test', 'command' } },
-    { label = 'Image Magic', tokens = { 'asset_crystal_compass', 'asset_aether_orb', 'asset_holy_ascent', 'asset_void_burst', 'asset_fire_flame', 'asset_ice_crystal', 'asset_wind_gale', 'asset_earth_rocks', 'asset_lightning_bolt', 'asset_water_drop', 'asset_holy_star', 'asset_dark_vortex', 'asset_pink_crystal' } },
-    { label = 'Image Combat', tokens = { 'asset_aegis_shield', 'asset_shadow_hood', 'asset_weapon_crest', 'asset_summon_avatar', 'asset_pet_paw', 'asset_weapon_swords', 'asset_ranged_bow' } },
-    { label = 'Image Utility', tokens = { 'asset_song_harp', 'asset_item_bag', 'asset_mount_chocobo', 'asset_target_mark' } },
+local ICON_ASSET_CATEGORIES = {
+    { label = 'White Mage', family = 'white_magic', tokens = { 'whm_aquaveil', 'whm_banish', 'whm_banish_2', 'whm_banishga', 'whm_baraera', 'whm_barblindra', 'whm_barblizzara', 'whm_barfira', 'whm_barparalyzra', 'whm_barpoisonra', 'whm_barsilencera', 'whm_barsleepra', 'whm_barstonra', 'whm_barthundra', 'whm_barwatera', 'whm_blindna', 'whm_blink', 'whm_curaga', 'whm_cure', 'whm_cure_2', 'whm_cure_3', 'whm_cursna', 'whm_deodorize', 'whm_dia', 'whm_diaga', 'whm_invisible', 'whm_paralyna', 'whm_paralyze', 'whm_poisona', 'whm_protect', 'whm_protect_2', 'whm_protectra', 'whm_protectra_2', 'whm_raise', 'whm_regen', 'whm_reraise', 'whm_shell', 'whm_shellra', 'whm_silena', 'whm_silence', 'whm_slow', 'whm_sneak', 'whm_stoneskin' } },
+    { label = 'Beastmaster', family = 'ability', tokens = { 'bst_bestial_loyalty', 'bst_call_beast', 'bst_charm', 'bst_familiar', 'bst_feral_howl', 'bst_fight', 'bst_gauge', 'bst_heel', 'bst_killer_instinct', 'bst_leave', 'bst_ready', 'bst_reward', 'bst_run_wild', 'bst_sic', 'bst_snarl', 'bst_spur', 'bst_stay', 'bst_tame', 'bst_unleash' } },
+    { label = 'Cure', family = 'white_magic', tokens = { 'cure_1', 'cure_2', 'cure_3', 'cure_4' } },
+    { label = 'Support', family = 'white_magic', tokens = { 'protect_1', 'protect_2', 'protect_3', 'protect_4', 'raise_1', 'raise_2', 'raise_3', 'raise_4', 'shell_1', 'shell_2', 'shell_3', 'shell_4', 'status_1', 'status_2', 'status_3', 'status_4', 'stealth_1', 'stealth_2', 'stealth_3', 'stealth_4' } },
+    { label = 'Enfeebling', family = 'black_magic', tokens = { 'debuff_1', 'debuff_2', 'debuff_3', 'debuff_4' } },
+    { label = 'Elements', family = 'black_magic', tokens = { 'dark_1', 'dark_2', 'dark_3', 'dark_4', 'earth_1', 'earth_2', 'earth_3', 'earth_4', 'fire_1', 'fire_2', 'fire_3', 'fire_4', 'ice_1', 'ice_2', 'ice_3', 'ice_4', 'light_1', 'light_2', 'light_3', 'light_4', 'lightning_1', 'lightning_2', 'lightning_3', 'lightning_4', 'water_1', 'water_2', 'water_3', 'water_4', 'wind_1', 'wind_2', 'wind_3', 'wind_4' } },
+    { label = 'Magic Art', family = 'black_magic', tokens = { 'aether_orb', 'crystal_compass', 'dark_vortex', 'earth_rocks', 'fire_flame', 'holy_ascent', 'holy_star', 'ice_crystal', 'lightning_bolt', 'pink_crystal', 'void_burst', 'water_drop', 'wind_gale' } },
+    { label = 'Combat Art', family = 'weapon', tokens = { 'aegis_shield', 'pet_paw', 'ranged_bow', 'shadow_hood', 'summon_avatar', 'weapon_crest', 'weapon_swords' } },
+    { label = 'Utility Art', family = 'item', tokens = { 'item_bag', 'mount_chocobo', 'song_harp', 'target_mark', 'warp_ring' } },
 };
+
+local function register_icon_asset(token, family)
+    if (type(token) ~= 'string' or token == '') then
+        return;
+    end
+
+    local def = {
+        family = family or 'command',
+        asset = token .. '.png',
+        accent = COMMAND_THEME[family or 'command'] or COMMAND_THEME.command,
+    };
+
+    ICON_DEFS[token] = def;
+    ICON_DEFS['asset_' .. token] = ICON_DEFS['asset_' .. token] or def;
+end
+
+for _, category in ipairs(ICON_ASSET_CATEGORIES) do
+    for _, token in ipairs(category.tokens) do
+        register_icon_asset(token, category.family);
+    end
+end
+
+local ICON_TOKEN_ASSET_OVERRIDES = {
+    cure = 'whm_cure',
+    curaga = 'whm_curaga',
+    rest = 'item_bag',
+    holy = 'holy_star',
+    buff = 'protect_1',
+    status = 'status_1',
+    raise = 'whm_raise',
+    stealth = 'whm_sneak',
+    white_magic = 'whm_cure',
+    black_magic = 'void_burst',
+    fire = 'fire_1',
+    ice = 'ice_1',
+    wind = 'wind_1',
+    earth = 'earth_1',
+    lightning = 'lightning_1',
+    water = 'water_1',
+    light = 'light_1',
+    dark = 'dark_1',
+    debuff = 'debuff_1',
+    ability = 'aegis_shield',
+    song = 'song_harp',
+    summon = 'summon_avatar',
+    pet = 'pet_paw',
+    fight = 'bst_fight',
+    charm = 'bst_charm',
+    reward = 'bst_reward',
+    weapon = 'weapon_swords',
+    ranged = 'ranged_bow',
+    item = 'item_bag',
+    mount = 'mount_chocobo',
+    target = 'target_mark',
+    assist = 'target_mark',
+    check = 'target_mark',
+    chat = 'crystal_compass',
+    test = 'crystal_compass',
+    command = 'crystal_compass',
+};
+
+for token, asset_token in pairs(ICON_TOKEN_ASSET_OVERRIDES) do
+    if (ICON_DEFS[asset_token] ~= nil) then
+        ICON_DEFS[token] = ICON_DEFS[asset_token];
+    end
+end
+
+local ICON_SELECTOR_CATEGORIES = ICON_ASSET_CATEGORIES;
 
 local KEYBIND = {
     BAR_KEYS = { 'main', 'extra1' },
@@ -5866,6 +5935,20 @@ function MACRO.set_empty_slot_override(profile_key, group, index)
     return set_slot_override(profile_key, group, index, '', '', '', 'single', {}, nil, false, false);
 end
 
+local function command_prefix_and_name(command)
+    if (type(command) ~= 'string') then
+        return nil, nil;
+    end
+
+    local prefix, rest = command:match('^%s*(/%S+)%s*(.*)$');
+    if (prefix == nil) then
+        return nil, nil;
+    end
+
+    local name = rest:match('^"([^"]+)"') or rest:match("^'([^']+)'") or rest:match('^(%S+)');
+    return prefix:lower(), name;
+end
+
 function MACRO.command_is_weaponskill(command)
     local prefix = command_prefix_and_name(command);
     return prefix == '/ws' or prefix == '/weaponskill';
@@ -6281,20 +6364,6 @@ end
 
 function MACRO.normalize_weaponskill_effect_frequency(value)
     return normalize_percent(value, LIMITS.weaponskill_effect_frequency_min, LIMITS.weaponskill_effect_frequency_max);
-end
-
-local function command_prefix_and_name(command)
-    if (type(command) ~= 'string') then
-        return nil, nil;
-    end
-
-    local prefix, rest = command:match('^%s*(/%S+)%s*(.*)$');
-    if (prefix == nil) then
-        return nil, nil;
-    end
-
-    local name = rest:match('^"([^"]+)"') or rest:match("^'([^']+)'") or rest:match('^(%S+)');
-    return prefix:lower(), name;
 end
 
 function COMMAND_MODE.commands_for_execution(commands, options)
