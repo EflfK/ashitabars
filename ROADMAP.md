@@ -25,6 +25,8 @@ most one configured action or static macro.
   `/ashitabars gap`, with legacy `slot_gap` fallback.
 - Done: runtime configuration window for display mode, button size, and button
   gap, with slider controls and a Save button for persistence.
+- Done: per-bar button count and buttons-per-row controls, preserving saved
+  profiles for higher-numbered hidden slots.
 - Done: optional draggable bar frame, allowing the ImGui title/background to be
   shown for positioning and hidden for locked frameless action bars.
 - Done: configurable button glow size and opacity, with runtime sliders and
@@ -46,8 +48,10 @@ most one configured action or static macro.
   instead of requiring a manual icon token.
 - Done: shared button definitions that can be assigned by name to slots across
   jobs/rows, with linked updates when an attached shared button is edited.
-- Done: independent click-only 10-button bar with its own saved position and
-  frame visibility, excluded from all keyboard hotkey handling.
+- Done: per-page button editor copy/paste, so one modifier page can be copied
+  into another button or modifier without copying the source modifier itself.
+- Done: independent click-only extra bars with their own saved positions and
+  layout settings, excluded from all keyboard hotkey handling.
 
 ## Later Feature Ideas
 

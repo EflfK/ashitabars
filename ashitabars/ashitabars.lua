@@ -69,6 +69,9 @@ local BUTTON_ROWS       = {
     ROWS[3],
     ROWS[4],
     CLICK_ROW,
+    { id = 'click2', label = 'Click 2', keyPrefix = '', showHotkeys = false },
+    { id = 'click3', label = 'Click 3', keyPrefix = '', showHotkeys = false },
+    { id = 'click4', label = 'Click 4', keyPrefix = '', showHotkeys = false },
 };
 local ROW_BY_ID         = {};
 for _, row in ipairs(BUTTON_ROWS) do
@@ -163,6 +166,10 @@ local LIMITS = {
     item_count_cache_seconds = 0.40,
     slot_size_min = 40,
     slot_size_max = 96,
+    button_count_min = 1,
+    button_count_max = 20,
+    buttons_per_row_min = 1,
+    buttons_per_row_max = 20,
     button_gap_min = 0,
     button_gap_max = 24,
     slot_glow_size_min = 0,
@@ -185,6 +192,9 @@ local LIMITS = {
     frameless_window_padding = 4,
 };
 local BAR = {};
+function BAR.slot_index_label(index)
+    return DIGIT_LABELS[index] or tostring(index);
+end
 local MACRO = {
     COMMANDS_TEXT_MAX = LIMITS.macro_commands_text_max,
 };
@@ -517,8 +527,21 @@ end
 
 local ICON_SELECTOR_CATEGORIES = ICON_ASSET_CATEGORIES;
 
+MACRO.ICON_PICKER_FAMILY_FILTERS = {
+    { key = 'all', label = 'All Types' },
+    { key = 'white_magic', label = 'White Magic' },
+    { key = 'black_magic', label = 'Black Magic' },
+    { key = 'ability', label = 'Ability' },
+    { key = 'weapon', label = 'Weapon' },
+    { key = 'item', label = 'Item' },
+    { key = 'mount', label = 'Mount' },
+    { key = 'target', label = 'Target' },
+    { key = 'chat', label = 'Chat' },
+    { key = 'command', label = 'Command' },
+};
+
 local KEYBIND = {
-    BAR_KEYS = { 'main', 'extra1' },
+    BAR_KEYS = { 'main', 'extra1', 'extra2', 'extra3', 'extra4' },
     EXTRA_ROWS = { CLICK_ROW },
     EVENT_LABELS = {
         [0x09] = 'Tab',
@@ -583,6 +606,7 @@ local DEFAULT_CONFIG = {
         show_weaponskill_pulse = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
+        bars_unlocked = false,
         slot_size = 64,
         button_gap = 6,
         slot_glow_size = 100,
@@ -599,6 +623,8 @@ local DEFAULT_CONFIG = {
             visible = true,
             display_mode = 'single',
             profile_scope = 'job',
+            button_count = 10,
+            buttons_per_row = 10,
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
                 ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
@@ -616,6 +642,8 @@ local DEFAULT_CONFIG = {
         extra_bar_1 = {
             visible = true,
             profile_scope = 'job',
+            button_count = 10,
+            buttons_per_row = 10,
             keybinds = {
                 click = {},
             },
@@ -627,6 +655,54 @@ local DEFAULT_CONFIG = {
             window_x = 820,
             window_y = 680,
         },
+        extra_bar_2 = {
+            visible = false,
+            profile_scope = 'job',
+            button_count = 10,
+            buttons_per_row = 10,
+            keybinds = {
+                click2 = {},
+            },
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 600,
+        },
+        extra_bar_3 = {
+            visible = false,
+            profile_scope = 'job',
+            button_count = 10,
+            buttons_per_row = 10,
+            keybinds = {
+                click3 = {},
+            },
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 520,
+        },
+        extra_bar_4 = {
+            visible = false,
+            profile_scope = 'job',
+            button_count = 10,
+            buttons_per_row = 10,
+            keybinds = {
+                click4 = {},
+            },
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 440,
+        },
     },
     profiles = {
         DEFAULT = {
@@ -635,6 +711,9 @@ local DEFAULT_CONFIG = {
             alt = {},
             shift = {},
             click = {},
+            click2 = {},
+            click3 = {},
+            click4 = {},
         },
     },
     bars = {
@@ -643,6 +722,9 @@ local DEFAULT_CONFIG = {
         alt = {},
         shift = {},
         click = {},
+        click2 = {},
+        click3 = {},
+        click4 = {},
     },
 };
 
@@ -651,7 +733,7 @@ local state = {
     macro_overrides = { profiles = {}, shared = {} },
     visible = T{ true },
     config_visible = T{ false },
-    config_frames_visible = false,
+    bar_frames_visible = false,
     config_save_message = nil,
     config_save_message_color = UI_COLORS.success,
     config_error = nil,
@@ -668,6 +750,8 @@ local state = {
     keybind_message_color = UI_COLORS.success,
     main_bar_profile_scope_override = nil,
     main_bar_visible_override = nil,
+    main_bar_button_count_override = nil,
+    main_bar_buttons_per_row_override = nil,
     bar_window_x = nil,
     bar_window_y = nil,
     bar_anchor_x = nil,
@@ -681,6 +765,8 @@ local state = {
     click_bar_open = T{ true },
     click_bar_profile_scope_override = nil,
     click_bar_visible_override = nil,
+    click_bar_button_count_override = nil,
+    click_bar_buttons_per_row_override = nil,
     click_bar_slot_size_override = nil,
     click_bar_button_gap_override = nil,
     click_bar_slot_glow_size_override = nil,
@@ -696,6 +782,8 @@ local state = {
     click_bar_frame_offset_y = nil,
     click_bar_hidden_offset_x = LIMITS.frameless_window_padding,
     click_bar_hidden_offset_y = LIMITS.frameless_window_padding,
+    extra_bar_runtime = {},
+    extra_bar_overrides = {},
     recast_cache = {},
     recast_totals = {},
     mount_recast_overlay = nil,
@@ -726,6 +814,12 @@ local state = {
         commands_buffer = T{ '' },
         run_as_script = T{ false },
         icon_buffer = T{ '' },
+        icon_picker_visible = T{ false },
+        icon_picker_search_buffer = T{ '' },
+        icon_picker_category_filter = 'all',
+        icon_picker_family_filter = 'all',
+        icon_picker_anchor_x = nil,
+        icon_picker_anchor_y = nil,
         command_action = '',
         command_target = '<t>',
         target_action = '/target',
@@ -747,6 +841,7 @@ local state = {
         message = nil,
         message_color = UI_COLORS.success,
     },
+    macro_clipboard = nil,
 };
 
 local ICON_ART_STYLE = {};
@@ -1062,11 +1157,70 @@ function BAR.profile_candidates(scope, main_key, sub_key)
 end
 
 function BAR.key_for_group(group)
-    if (group == 'click') then
-        return 'extra1';
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        if (BAR.extra_row_id(bar_key) == group) then
+            return bar_key;
+        end
     end
 
     return 'main';
+end
+
+function BAR.extra_runtime(bar_key)
+    if (type(state.extra_bar_runtime) ~= 'table') then
+        state.extra_bar_runtime = {};
+    end
+    if (type(state.extra_bar_runtime[bar_key]) ~= 'table') then
+        state.extra_bar_runtime[bar_key] = {
+            open = T{ true },
+            window_x = nil,
+            window_y = nil,
+            anchor_x = nil,
+            anchor_y = nil,
+            anchor_lock_x = nil,
+            anchor_lock_y = nil,
+            frame_offset_x = nil,
+            frame_offset_y = nil,
+            hidden_offset_x = LIMITS.frameless_window_padding,
+            hidden_offset_y = LIMITS.frameless_window_padding,
+            measured_anchor_x = nil,
+            measured_anchor_y = nil,
+        };
+    end
+
+    return state.extra_bar_runtime[bar_key];
+end
+
+function BAR.reset_extra_runtime(bar_key)
+    if (not BAR.is_extra_bar(bar_key)) then
+        return;
+    end
+
+    local runtime = BAR.extra_runtime(bar_key);
+    local settings = state.config.settings or {};
+    local values = type(settings[BAR.SETTINGS_KEY[bar_key]]) == 'table' and settings[BAR.SETTINGS_KEY[bar_key]] or {};
+    local default_values = DEFAULT_CONFIG.settings[BAR.SETTINGS_KEY[bar_key]] or {};
+    local legacy_x = (bar_key == 'extra1') and tonumber(settings.click_bar_window_x) or nil;
+    local legacy_y = (bar_key == 'extra1') and tonumber(settings.click_bar_window_y) or nil;
+    runtime.open[1] = true;
+    runtime.window_x = tonumber(values.window_x) or legacy_x or tonumber(default_values.window_x) or DEFAULT_CONFIG.settings.click_bar_window_x;
+    runtime.window_y = tonumber(values.window_y) or legacy_y or tonumber(default_values.window_y) or DEFAULT_CONFIG.settings.click_bar_window_y;
+    runtime.anchor_x = runtime.window_x;
+    runtime.anchor_y = runtime.window_y;
+    runtime.anchor_lock_x = nil;
+    runtime.anchor_lock_y = nil;
+    runtime.frame_offset_x = nil;
+    runtime.frame_offset_y = nil;
+    runtime.hidden_offset_x = LIMITS.frameless_window_padding;
+    runtime.hidden_offset_y = LIMITS.frameless_window_padding;
+    runtime.measured_anchor_x = nil;
+    runtime.measured_anchor_y = nil;
+end
+
+function BAR.reset_all_extra_runtime()
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        BAR.reset_extra_runtime(bar_key);
+    end
 end
 
 local function refresh_profile_context(bar_key)
@@ -1146,6 +1300,8 @@ local function load_config()
         state.keybind_message = nil;
         state.main_bar_profile_scope_override = nil;
         state.main_bar_visible_override = nil;
+        state.main_bar_button_count_override = nil;
+        state.main_bar_buttons_per_row_override = nil;
         local main_bar_settings = type(state.config.settings.main_bar) == 'table' and state.config.settings.main_bar or {};
         local extra_bar_settings = type(state.config.settings.extra_bar_1) == 'table' and state.config.settings.extra_bar_1 or {};
         state.visible[1] = main_bar_settings.visible ~= false;
@@ -1162,6 +1318,8 @@ local function load_config()
         state.click_bar_open[1] = true;
         state.click_bar_profile_scope_override = nil;
         state.click_bar_visible_override = nil;
+        state.click_bar_button_count_override = nil;
+        state.click_bar_buttons_per_row_override = nil;
         state.click_bar_slot_size_override = nil;
         state.click_bar_button_gap_override = nil;
         state.click_bar_slot_glow_size_override = nil;
@@ -1177,6 +1335,8 @@ local function load_config()
         state.click_bar_frame_offset_y = nil;
         state.click_bar_hidden_offset_x = LIMITS.frameless_window_padding;
         state.click_bar_hidden_offset_y = LIMITS.frameless_window_padding;
+        state.extra_bar_overrides = {};
+        BAR.reset_all_extra_runtime();
         state.recast_cache = {};
         state.recast_totals = {};
         state.macro_runs = {};
@@ -1224,6 +1384,8 @@ local function load_config()
     state.keybind_message = nil;
     state.main_bar_profile_scope_override = nil;
     state.main_bar_visible_override = nil;
+    state.main_bar_button_count_override = nil;
+    state.main_bar_buttons_per_row_override = nil;
     state.bar_window_x = tonumber(main_bar_settings.window_x) or tonumber(state.config.settings.window_x) or DEFAULT_CONFIG.settings.window_x;
     state.bar_window_y = tonumber(main_bar_settings.window_y) or tonumber(state.config.settings.window_y) or DEFAULT_CONFIG.settings.window_y;
     state.bar_anchor_x = state.bar_window_x;
@@ -1237,6 +1399,8 @@ local function load_config()
     state.click_bar_open[1] = true;
     state.click_bar_profile_scope_override = nil;
     state.click_bar_visible_override = nil;
+    state.click_bar_button_count_override = nil;
+    state.click_bar_buttons_per_row_override = nil;
     state.click_bar_slot_size_override = nil;
     state.click_bar_button_gap_override = nil;
     state.click_bar_slot_glow_size_override = nil;
@@ -1252,6 +1416,8 @@ local function load_config()
     state.click_bar_frame_offset_y = nil;
     state.click_bar_hidden_offset_x = LIMITS.frameless_window_padding;
     state.click_bar_hidden_offset_y = LIMITS.frameless_window_padding;
+    state.extra_bar_overrides = {};
+    BAR.reset_all_extra_runtime();
     state.recast_cache = {};
     state.recast_totals = {};
     state.macro_runs = {};
@@ -1342,15 +1508,35 @@ local function normalize_display_mode(value)
     return nil;
 end
 
+BAR.EXTRA_KEYS = { 'extra1', 'extra2', 'extra3', 'extra4' };
+BAR.CONFIG_KEYS = { 'main', 'extra1', 'extra2', 'extra3', 'extra4' };
+BAR.EXTRA_ROW_ID = {
+    extra1 = 'click',
+    extra2 = 'click2',
+    extra3 = 'click3',
+    extra4 = 'click4',
+};
+BAR.EXTRA_LABEL = {
+    extra1 = 'Extra Bar 1',
+    extra2 = 'Extra Bar 2',
+    extra3 = 'Extra Bar 3',
+    extra4 = 'Extra Bar 4',
+};
+
 BAR.SETTINGS_KEY = {
     main = 'main_bar',
     extra1 = 'extra_bar_1',
+    extra2 = 'extra_bar_2',
+    extra3 = 'extra_bar_3',
+    extra4 = 'extra_bar_4',
 };
 
 BAR.LEGACY_SETTING_KEY = {
     main = {
         visible = 'visible',
         display_mode = 'display_mode',
+        button_count = 'button_count',
+        buttons_per_row = 'buttons_per_row',
         slot_size = 'slot_size',
         button_gap = 'button_gap',
         slot_glow_size = 'slot_glow_size',
@@ -1361,6 +1547,8 @@ BAR.LEGACY_SETTING_KEY = {
     },
     extra1 = {
         visible = 'show_click_bar',
+        button_count = 'button_count',
+        buttons_per_row = 'buttons_per_row',
         slot_size = 'slot_size',
         button_gap = 'button_gap',
         slot_glow_size = 'slot_glow_size',
@@ -1411,11 +1599,29 @@ function BAR.current_key()
     return state.render_bar_key or 'main';
 end
 
+function BAR.is_extra_bar(bar_key)
+    return BAR.EXTRA_ROW_ID[bar_key] ~= nil;
+end
+
+function BAR.is_known_bar(bar_key)
+    return bar_key == 'main' or BAR.is_extra_bar(bar_key);
+end
+
+function BAR.extra_row_id(bar_key)
+    return BAR.EXTRA_ROW_ID[bar_key] or 'click';
+end
+
+function BAR.extra_label(bar_key)
+    return BAR.EXTRA_LABEL[bar_key] or tostring(bar_key);
+end
+
 BAR.OVERRIDE_STATE_KEY = {
     main = {
         profile_scope = 'main_bar_profile_scope_override',
         visible = 'main_bar_visible_override',
         display_mode = 'display_mode_override',
+        button_count = 'main_bar_button_count_override',
+        buttons_per_row = 'main_bar_buttons_per_row_override',
         slot_size = 'slot_size_override',
         button_gap = 'button_gap_override',
         slot_glow_size = 'slot_glow_size_override',
@@ -1425,6 +1631,8 @@ BAR.OVERRIDE_STATE_KEY = {
     extra1 = {
         profile_scope = 'click_bar_profile_scope_override',
         visible = 'click_bar_visible_override',
+        button_count = 'click_bar_button_count_override',
+        buttons_per_row = 'click_bar_buttons_per_row_override',
         slot_size = 'click_bar_slot_size_override',
         button_gap = 'click_bar_button_gap_override',
         slot_glow_size = 'click_bar_slot_glow_size_override',
@@ -1435,17 +1643,30 @@ BAR.OVERRIDE_STATE_KEY = {
 
 function BAR.override(bar_key, field)
     local state_key = BAR.OVERRIDE_STATE_KEY[bar_key] and BAR.OVERRIDE_STATE_KEY[bar_key][field] or nil;
-    if (state_key == nil) then
-        return nil;
+    if (state_key ~= nil) then
+        return state[state_key];
     end
 
-    return state[state_key];
+    if (BAR.is_extra_bar(bar_key)) then
+        local overrides = type(state.extra_bar_overrides) == 'table' and state.extra_bar_overrides[bar_key] or nil;
+        return type(overrides) == 'table' and overrides[field] or nil;
+    end
+
+    return nil;
 end
 
 function BAR.set_override(bar_key, field, value)
     local state_key = BAR.OVERRIDE_STATE_KEY[bar_key] and BAR.OVERRIDE_STATE_KEY[bar_key][field] or nil;
     if (state_key ~= nil) then
         state[state_key] = value;
+    elseif (BAR.is_extra_bar(bar_key)) then
+        if (type(state.extra_bar_overrides) ~= 'table') then
+            state.extra_bar_overrides = {};
+        end
+        if (type(state.extra_bar_overrides[bar_key]) ~= 'table') then
+            state.extra_bar_overrides[bar_key] = {};
+        end
+        state.extra_bar_overrides[bar_key][field] = value;
     end
     if (field == 'profile_scope') then
         state.profile = nil;
@@ -1473,6 +1694,96 @@ end
 local function display_mode_source()
     local _, source = configured_display_mode();
     return source;
+end
+
+function BAR.normalize_button_count(value)
+    local count = tonumber(value);
+    if (count == nil) then
+        return nil;
+    end
+
+    count = math.floor(count + 0.5);
+    if (count < LIMITS.button_count_min) then
+        return LIMITS.button_count_min;
+    end
+    if (count > LIMITS.button_count_max) then
+        return LIMITS.button_count_max;
+    end
+
+    return count;
+end
+
+function BAR.button_count(bar_key)
+    bar_key = bar_key or BAR.current_key();
+    local override = BAR.override(bar_key, 'button_count');
+    if (override ~= nil) then
+        local defaults = DEFAULT_CONFIG.settings[BAR.SETTINGS_KEY[bar_key] or ''];
+        return BAR.normalize_button_count(override) or (type(defaults) == 'table' and defaults.button_count) or 10;
+    end
+
+    local raw = BAR.raw_setting(bar_key, 'button_count');
+    return BAR.normalize_button_count(raw) or BAR.default_setting(bar_key, 'button_count') or 10;
+end
+
+function BAR.button_count_source(bar_key)
+    bar_key = bar_key or BAR.current_key();
+    local source = BAR.override_source(bar_key, 'button_count');
+    if (source ~= nil) then
+        return source;
+    end
+
+    local raw, raw_source = BAR.raw_setting(bar_key, 'button_count');
+    if (BAR.normalize_button_count(raw) ~= nil) then
+        return raw_source;
+    end
+
+    return 'default';
+end
+
+function BAR.normalize_buttons_per_row(value, count)
+    local per_row = tonumber(value);
+    if (per_row == nil) then
+        return nil;
+    end
+
+    local max_value = BAR.normalize_button_count(count) or LIMITS.buttons_per_row_max;
+    max_value = math.min(max_value, LIMITS.buttons_per_row_max);
+    per_row = math.floor(per_row + 0.5);
+    if (per_row < LIMITS.buttons_per_row_min) then
+        return LIMITS.buttons_per_row_min;
+    end
+    if (per_row > max_value) then
+        return max_value;
+    end
+
+    return per_row;
+end
+
+function BAR.buttons_per_row(bar_key)
+    bar_key = bar_key or BAR.current_key();
+    local count = BAR.button_count(bar_key);
+    local override = BAR.override(bar_key, 'buttons_per_row');
+    if (override ~= nil) then
+        return BAR.normalize_buttons_per_row(override, count) or count;
+    end
+
+    local raw = BAR.raw_setting(bar_key, 'buttons_per_row');
+    return BAR.normalize_buttons_per_row(raw, count) or BAR.normalize_buttons_per_row(BAR.default_setting(bar_key, 'buttons_per_row'), count) or count;
+end
+
+function BAR.buttons_per_row_source(bar_key)
+    bar_key = bar_key or BAR.current_key();
+    local source = BAR.override_source(bar_key, 'buttons_per_row');
+    if (source ~= nil) then
+        return source;
+    end
+
+    local raw, raw_source = BAR.raw_setting(bar_key, 'buttons_per_row');
+    if (BAR.normalize_buttons_per_row(raw, BAR.button_count(bar_key)) ~= nil) then
+        return raw_source;
+    end
+
+    return 'default';
 end
 
 local function normalize_slot_size(value)
@@ -1690,15 +2001,17 @@ local function label_vertical_position_source(bar_key)
 end
 
 local function bar_frame_visible()
-    return state.config_visible[1] == true;
+    local settings = state.config.settings or {};
+    return settings.bars_unlocked == true;
 end
 
 local function bar_frame_source()
-    if (state.config_visible[1]) then
-        return 'config window';
+    local settings = state.config.settings or {};
+    if (settings.bars_unlocked ~= nil) then
+        return 'config';
     end
 
-    return 'closed';
+    return 'default';
 end
 
 local function configured_main_bar_visible()
@@ -1725,41 +2038,45 @@ local function main_bar_visible_source()
     return configured_source;
 end
 
-local function configured_click_bar_visible()
-    local raw, source = BAR.raw_setting('extra1', 'visible');
+function BAR.configured_extra_bar_visible(bar_key)
+    local raw, source = BAR.raw_setting(bar_key, 'visible');
     return raw ~= false, source;
 end
 
-local function click_bar_visible()
-    local override = BAR.override('extra1', 'visible');
+function BAR.extra_bar_visible(bar_key)
+    local override = BAR.override(bar_key, 'visible');
     if (override ~= nil) then
         return override == true;
     end
 
-    local visible = configured_click_bar_visible();
+    local visible = BAR.configured_extra_bar_visible(bar_key);
     return visible;
 end
 
-local function click_bar_visible_source()
-    local source = BAR.override_source('extra1', 'visible');
+function BAR.extra_bar_visible_source(bar_key)
+    local source = BAR.override_source(bar_key, 'visible');
     if (source ~= nil) then
         return source;
     end
 
-    local _, source = configured_click_bar_visible();
+    local _, source = BAR.configured_extra_bar_visible(bar_key);
     return source;
 end
 
+local function click_bar_visible()
+    return BAR.extra_bar_visible('extra1');
+end
+
+local function click_bar_visible_source()
+    return BAR.extra_bar_visible_source('extra1');
+end
+
 local function click_bar_frame_visible()
-    return state.config_visible[1] == true;
+    return bar_frame_visible();
 end
 
 local function click_bar_frame_source()
-    if (state.config_visible[1]) then
-        return 'config window';
-    end
-
-    return 'closed';
+    return bar_frame_source();
 end
 
 local function bar_window_position(settings)
@@ -1770,12 +2087,21 @@ local function bar_window_position(settings)
     return math.floor(x + 0.5), math.floor(y + 0.5);
 end
 
-local function click_bar_window_position(settings)
-    local raw_x = BAR.raw_setting('extra1', 'window_x');
-    local raw_y = BAR.raw_setting('extra1', 'window_y');
-    local x = tonumber(state.click_bar_anchor_x) or tonumber(raw_x) or tonumber(settings.click_bar_window_x) or DEFAULT_CONFIG.settings.click_bar_window_x;
-    local y = tonumber(state.click_bar_anchor_y) or tonumber(raw_y) or tonumber(settings.click_bar_window_y) or DEFAULT_CONFIG.settings.click_bar_window_y;
+function BAR.extra_bar_window_position(bar_key, settings)
+    settings = settings or state.config.settings or {};
+    local runtime = BAR.extra_runtime(bar_key);
+    local raw_x = BAR.raw_setting(bar_key, 'window_x');
+    local raw_y = BAR.raw_setting(bar_key, 'window_y');
+    local defaults = DEFAULT_CONFIG.settings[BAR.SETTINGS_KEY[bar_key]] or {};
+    local legacy_x = (bar_key == 'extra1') and tonumber(settings.click_bar_window_x) or nil;
+    local legacy_y = (bar_key == 'extra1') and tonumber(settings.click_bar_window_y) or nil;
+    local x = tonumber(runtime.anchor_x) or tonumber(raw_x) or legacy_x or tonumber(defaults.window_x) or DEFAULT_CONFIG.settings.click_bar_window_x;
+    local y = tonumber(runtime.anchor_y) or tonumber(raw_y) or legacy_y or tonumber(defaults.window_y) or DEFAULT_CONFIG.settings.click_bar_window_y;
     return math.floor(x + 0.5), math.floor(y + 0.5);
+end
+
+local function click_bar_window_position(settings)
+    return BAR.extra_bar_window_position('extra1', settings);
 end
 
 local function estimated_frame_offset(label_width)
@@ -1817,14 +2143,19 @@ local function bar_window_offset(show_frame)
     return pad, pad;
 end
 
-local function click_bar_window_offset(show_frame)
+function BAR.extra_bar_window_offset(bar_key, show_frame)
+    local runtime = BAR.extra_runtime(bar_key);
     if (show_frame) then
         local fallback_x, fallback_y = estimated_frame_offset(0);
-        return tonumber(state.click_bar_frame_offset_x) or fallback_x, tonumber(state.click_bar_frame_offset_y) or fallback_y;
+        return tonumber(runtime.frame_offset_x) or fallback_x, tonumber(runtime.frame_offset_y) or fallback_y;
     end
 
     local pad = frameless_window_padding();
     return pad, pad;
+end
+
+local function click_bar_window_offset(show_frame)
+    return BAR.extra_bar_window_offset('extra1', show_frame);
 end
 
 local function lock_bar_anchor()
@@ -1834,22 +2165,33 @@ local function lock_bar_anchor()
     state.bar_anchor_lock_y = anchor_y;
 end
 
-local function lock_click_bar_anchor()
+function BAR.lock_extra_bar_anchor(bar_key)
     local settings = state.config.settings or {};
-    local anchor_x, anchor_y = click_bar_window_position(settings);
-    state.click_bar_anchor_lock_x = anchor_x;
-    state.click_bar_anchor_lock_y = anchor_y;
+    local runtime = BAR.extra_runtime(bar_key);
+    local anchor_x, anchor_y = BAR.extra_bar_window_position(bar_key, settings);
+    runtime.anchor_lock_x = anchor_x;
+    runtime.anchor_lock_y = anchor_y;
 end
 
-local function sync_config_frame_visibility()
-    local visible = state.config_visible[1] == true;
-    if (state.config_frames_visible == visible) then
+local function lock_click_bar_anchor()
+    BAR.lock_extra_bar_anchor('extra1');
+end
+
+function BAR.lock_all_extra_bar_anchors()
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        BAR.lock_extra_bar_anchor(bar_key);
+    end
+end
+
+local function sync_bar_frame_visibility()
+    local visible = bar_frame_visible();
+    if (state.bar_frames_visible == visible) then
         return;
     end
 
     lock_bar_anchor();
-    lock_click_bar_anchor();
-    state.config_frames_visible = visible;
+    BAR.lock_all_extra_bar_anchors();
+    state.bar_frames_visible = visible;
 end
 
 local function imgui_wants_keyboard()
@@ -1935,7 +2277,7 @@ function MACRO.script_file_name(context)
     local profile_key = normalize_profile_key(context.profile_key) or 'DEFAULT';
     local group = valid_row_id(context.group) and context.group or 'base';
     local index = tonumber(context.index) or 0;
-    local digit = DIGIT_LABELS[index] or tostring(index);
+    local digit = BAR.slot_index_label(index);
     local name = ('%s_%s_%s'):fmt(profile_key, group, digit):gsub('[^A-Za-z0-9_-]+', '_');
     return ('%s_%s.txt'):fmt(addon.name, name);
 end
@@ -1948,7 +2290,7 @@ function MACRO.run_key(context)
     local profile_key = normalize_profile_key(context.profile_key) or 'DEFAULT';
     local group = valid_row_id(context.group) and context.group or nil;
     local index = tonumber(context.index);
-    if (group == nil or index == nil or index < 1 or index > 10) then
+    if (group == nil or index == nil or index < 1 or index > LIMITS.button_count_max) then
         return nil;
     end
 
@@ -2084,16 +2426,16 @@ local function sorted_keys(tbl)
 end
 
 function KEYBIND.rows_for_bar(bar_key)
-    if (bar_key == 'extra1') then
-        return KEYBIND.EXTRA_ROWS;
+    if (BAR.is_extra_bar(bar_key)) then
+        return { ROW_BY_ID[BAR.extra_row_id(bar_key)] or CLICK_ROW };
     end
 
     return ROWS;
 end
 
 function KEYBIND.bar_label(bar_key)
-    if (bar_key == 'extra1') then
-        return 'Extra Bar 1';
+    if (BAR.is_extra_bar(bar_key)) then
+        return BAR.extra_label(bar_key);
     end
 
     return 'Main Bar';
@@ -2105,7 +2447,7 @@ function KEYBIND.row_label(row_id)
 end
 
 function KEYBIND.slot_name(bar_key, row_id, index)
-    return ('%s %s %s'):fmt(KEYBIND.bar_label(bar_key), KEYBIND.row_label(row_id), DIGIT_LABELS[index] or tostring(index));
+    return ('%s %s %s'):fmt(KEYBIND.bar_label(bar_key), KEYBIND.row_label(row_id), BAR.slot_index_label(index));
 end
 
 function KEYBIND.normalize_key_token(token)
@@ -2272,7 +2614,7 @@ function KEYBIND.overlay_bar_keybinds(target, source, bar_key)
             if (type(target[row.id]) ~= 'table') then
                 target[row.id] = {};
             end
-            for index = 1, 10 do
+            for index = 1, LIMITS.button_count_max do
                 if (row_source[index] ~= nil) then
                     target[row.id][index] = KEYBIND.normalize(row_source[index]) or '';
                 end
@@ -2324,11 +2666,11 @@ function KEYBIND.slot_display_label(bar_key, row_id, index)
 end
 
 function KEYBIND.set_slot_override(bar_key, row_id, index, combo)
-    if (bar_key ~= 'main' and bar_key ~= 'extra1') then
+    if (not BAR.is_known_bar(bar_key)) then
         return false;
     end
     local numeric_index = tonumber(index);
-    if (not valid_row_id(row_id) or numeric_index == nil or numeric_index < 1 or numeric_index > 10) then
+    if (not valid_row_id(row_id) or numeric_index == nil or numeric_index < 1 or numeric_index > LIMITS.button_count_max) then
         return false;
     end
     index = math.floor(numeric_index);
@@ -2369,7 +2711,7 @@ function KEYBIND.serialize_lines(keybinds, indent, bar_key)
     for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
         local row_values = type(keybinds) == 'table' and keybinds[row.id] or nil;
         local parts = {};
-        for index = 1, 10 do
+        for index = 1, LIMITS.button_count_max do
             local combo = nil;
             if (type(row_values) == 'table') then
                 combo = KEYBIND.normalize(row_values[index]);
@@ -2392,9 +2734,9 @@ function KEYBIND.binding_map()
         for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
             local row_values = keybinds[row.id];
             if (type(row_values) == 'table') then
-                for index = 1, 10 do
+                for index = 1, LIMITS.button_count_max do
                     local combo = KEYBIND.normalize(row_values[index]);
-                    local enabled = KEYBIND.slot_enabled_for_binding == nil or KEYBIND.slot_enabled_for_binding(row.id, index);
+                    local enabled = KEYBIND.slot_enabled_for_binding == nil or KEYBIND.slot_enabled_for_binding(bar_key, row.id, index);
                     if (combo ~= nil and enabled) then
                         local entry = {
                             combo = combo,
@@ -2457,7 +2799,7 @@ function KEYBIND.summary(bar_key)
     for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
         local values = {};
         local row_values = keybinds[row.id];
-        for index = 1, 10 do
+        for index = 1, BAR.button_count(bar_key) do
             values[index] = KEYBIND.display_label(type(row_values) == 'table' and row_values[index] or nil) or '-';
         end
         table.insert(rows, ('%s=%s'):fmt(row.id, table.concat(values, ',')));
@@ -2515,8 +2857,10 @@ function KEYBIND.render_config_section(bar_key)
 
     for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
         imgui.TextColored(UI_COLORS.config_header, KEYBIND.row_label(row.id));
-        for index = 1, 10 do
-            if (index > 1) then
+        local visible_count = BAR.button_count(bar_key);
+        local columns = BAR.buttons_per_row(bar_key);
+        for index = 1, visible_count do
+            if (index > 1 and ((index - 1) % columns) ~= 0) then
                 imgui.SameLine(0, 4);
             end
 
@@ -2708,13 +3052,13 @@ end
 local function current_runtime_visual_settings()
     local settings = state.config.settings or {};
     local window_x, window_y = bar_window_position(settings);
-    local click_bar_window_x, click_bar_window_y = click_bar_window_position(settings);
     local main_profile_scope = BAR.profile_scope('main');
-    local extra_profile_scope = BAR.profile_scope('extra1');
     local main_bar = {
         visible = main_bar_visible(),
         display_mode = display_mode(),
         profile_scope = main_profile_scope,
+        button_count = BAR.button_count('main'),
+        buttons_per_row = BAR.buttons_per_row('main'),
         keybinds = KEYBIND.effective_bar_keybinds('main'),
         slot_size = slot_size('main'),
         button_gap = button_gap('main'),
@@ -2724,21 +3068,8 @@ local function current_runtime_visual_settings()
         window_x = window_x,
         window_y = window_y,
     };
-    local extra_bar_1 = {
-        visible = click_bar_visible(),
-        profile_scope = extra_profile_scope,
-        keybinds = KEYBIND.effective_bar_keybinds('extra1'),
-        slot_size = slot_size('extra1'),
-        button_gap = button_gap('extra1'),
-        slot_glow_size = slot_glow_size('extra1'),
-        slot_glow_opacity = slot_glow_opacity('extra1'),
-        label_vertical_position = label_vertical_position('extra1'),
-        window_x = click_bar_window_x,
-        window_y = click_bar_window_y,
-    };
-    return {
+    local result = {
         main_bar = main_bar,
-        extra_bar_1 = extra_bar_1,
         visible = main_bar.visible,
         display_mode = main_bar.display_mode,
         slot_size = main_bar.slot_size,
@@ -2748,11 +3079,36 @@ local function current_runtime_visual_settings()
         label_vertical_position = main_bar.label_vertical_position,
         window_x = main_bar.window_x,
         window_y = main_bar.window_y,
-        show_click_bar = extra_bar_1.visible,
-        click_bar_window_x = extra_bar_1.window_x,
-        click_bar_window_y = extra_bar_1.window_y,
         show_weaponskill_pulse = MACRO.weaponskill_pulse_enabled(settings),
+        bars_unlocked = bar_frame_visible(),
     };
+
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        local extra_window_x, extra_window_y = BAR.extra_bar_window_position(bar_key, settings);
+        local profile_scope = BAR.profile_scope(bar_key);
+        local values = {
+            visible = BAR.extra_bar_visible(bar_key),
+            profile_scope = profile_scope,
+            button_count = BAR.button_count(bar_key),
+            buttons_per_row = BAR.buttons_per_row(bar_key),
+            keybinds = KEYBIND.effective_bar_keybinds(bar_key),
+            slot_size = slot_size(bar_key),
+            button_gap = button_gap(bar_key),
+            slot_glow_size = slot_glow_size(bar_key),
+            slot_glow_opacity = slot_glow_opacity(bar_key),
+            label_vertical_position = label_vertical_position(bar_key),
+            window_x = extra_window_x,
+            window_y = extra_window_y,
+        };
+        result[BAR.SETTINGS_KEY[bar_key]] = values;
+        if (bar_key == 'extra1') then
+            result.show_click_bar = values.visible;
+            result.click_bar_window_x = values.window_x;
+            result.click_bar_window_y = values.window_y;
+        end
+    end
+
+    return result;
 end
 
 function BAR.apply_visual_settings(target, settings, bar_key)
@@ -2763,6 +3119,8 @@ function BAR.apply_visual_settings(target, settings, bar_key)
     local mode = normalize_display_mode(settings.display_mode);
     local size = normalize_slot_size(settings.slot_size);
     local gap = normalize_button_gap(settings.button_gap);
+    local count = BAR.normalize_button_count(settings.button_count);
+    local per_row = BAR.normalize_buttons_per_row(settings.buttons_per_row, count or target.button_count or BAR.default_setting(bar_key, 'button_count'));
     local glow_size = normalize_slot_glow_size(settings.slot_glow_size);
     local glow_opacity = normalize_slot_glow_opacity(settings.slot_glow_opacity);
     local label_position = normalize_label_vertical_position(settings.label_vertical_position);
@@ -2773,6 +3131,8 @@ function BAR.apply_visual_settings(target, settings, bar_key)
     if (settings.visible ~= nil) then target.visible = settings.visible ~= false; end
     if (bar_key == 'main' and mode ~= nil) then target.display_mode = mode; end
     if (profile_scope ~= nil) then target.profile_scope = profile_scope; end
+    if (count ~= nil) then target.button_count = count; end
+    if (per_row ~= nil) then target.buttons_per_row = per_row; end
     KEYBIND.apply_to_target(target, settings, bar_key);
     if (size ~= nil) then target.slot_size = size; end
     if (gap ~= nil) then target.button_gap = gap; end
@@ -2796,12 +3156,18 @@ local function apply_visual_settings(settings)
     if (type(target.main_bar) ~= 'table') then
         target.main_bar = {};
     end
-    if (type(target.extra_bar_1) ~= 'table') then
-        target.extra_bar_1 = {};
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        local settings_key = BAR.SETTINGS_KEY[bar_key];
+        if (type(target[settings_key]) ~= 'table') then
+            target[settings_key] = {};
+        end
     end
 
     BAR.apply_visual_settings(target.main_bar, settings.main_bar, 'main');
-    BAR.apply_visual_settings(target.extra_bar_1, settings.extra_bar_1, 'extra1');
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        local settings_key = BAR.SETTINGS_KEY[bar_key];
+        BAR.apply_visual_settings(target[settings_key], settings[settings_key], bar_key);
+    end
 
     local mode = normalize_display_mode(settings.display_mode);
     local size = normalize_slot_size(settings.slot_size);
@@ -2820,6 +3186,9 @@ local function apply_visual_settings(settings)
         target.show_weaponskill_pulse = settings.show_weaponskill_pulse ~= false;
     elseif (settings.show_weaponskill_flames ~= nil) then
         target.show_weaponskill_pulse = settings.show_weaponskill_flames ~= false;
+    end
+    if (settings.bars_unlocked ~= nil) then
+        target.bars_unlocked = settings.bars_unlocked == true;
     end
     if (mode ~= nil) then target.main_bar.display_mode = mode; end
     if (profile_scope ~= nil) then
@@ -2874,54 +3243,47 @@ end
 
 local function serialize_visual_settings(settings)
     local main = settings.main_bar or {};
-    local extra = settings.extra_bar_1 or {};
     local lines = {
         '-- Generated by AshitaBars. Runtime visual settings are stored here.',
         '-- This file lives outside the addon folder so installs do not reset placement, sizing, or keybinds.',
         'return {',
         '    settings = {',
-        '        main_bar = {',
-        ('            visible = %s,'):fmt(tostring(main.visible ~= false)),
-        ('            display_mode = %s,'):fmt(lua_string_literal(main.display_mode or settings.display_mode)),
-        ('            profile_scope = %s,'):fmt(lua_string_literal(main.profile_scope or settings.profile_scope or 'job')),
     };
 
-    for _, line in ipairs(KEYBIND.serialize_lines(main.keybinds, '            ', 'main')) do
-        table.insert(lines, line);
+    local function append_bar(settings_key, bar_key, values, include_display_mode)
+        values = type(values) == 'table' and values or {};
+        table.insert(lines, ('        %s = {'):fmt(settings_key));
+        table.insert(lines, ('            visible = %s,'):fmt(tostring(values.visible ~= false)));
+        if (include_display_mode) then
+            table.insert(lines, ('            display_mode = %s,'):fmt(lua_string_literal(values.display_mode or settings.display_mode)));
+        end
+        table.insert(lines, ('            profile_scope = %s,'):fmt(lua_string_literal(values.profile_scope or settings.profile_scope or 'job')));
+        table.insert(lines, ('            button_count = %d,'):fmt(values.button_count or 10));
+        table.insert(lines, ('            buttons_per_row = %d,'):fmt(values.buttons_per_row or values.button_count or 10));
+        for _, line in ipairs(KEYBIND.serialize_lines(values.keybinds, '            ', bar_key)) do
+            table.insert(lines, line);
+        end
+        table.insert(lines, ('            slot_size = %d,'):fmt(values.slot_size or settings.slot_size));
+        table.insert(lines, ('            button_gap = %d,'):fmt(values.button_gap or settings.button_gap));
+        table.insert(lines, ('            slot_glow_size = %d,'):fmt(values.slot_glow_size or settings.slot_glow_size));
+        table.insert(lines, ('            slot_glow_opacity = %d,'):fmt(values.slot_glow_opacity or settings.slot_glow_opacity));
+        table.insert(lines, ('            label_vertical_position = %d,'):fmt(values.label_vertical_position or settings.label_vertical_position));
+        table.insert(lines, ('            window_x = %d,'):fmt(values.window_x or settings.window_x or settings.click_bar_window_x));
+        table.insert(lines, ('            window_y = %d,'):fmt(values.window_y or settings.window_y or settings.click_bar_window_y));
+        table.insert(lines, '        },');
     end
 
+    append_bar('main_bar', 'main', main, true);
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        append_bar(BAR.SETTINGS_KEY[bar_key], bar_key, settings[BAR.SETTINGS_KEY[bar_key]], false);
+    end
+
+    local extra = settings.extra_bar_1 or {};
     for _, line in ipairs({
-        ('            slot_size = %d,'):fmt(main.slot_size or settings.slot_size),
-        ('            button_gap = %d,'):fmt(main.button_gap or settings.button_gap),
-        ('            slot_glow_size = %d,'):fmt(main.slot_glow_size or settings.slot_glow_size),
-        ('            slot_glow_opacity = %d,'):fmt(main.slot_glow_opacity or settings.slot_glow_opacity),
-        ('            label_vertical_position = %d,'):fmt(main.label_vertical_position or settings.label_vertical_position),
-        ('            window_x = %d,'):fmt(main.window_x or settings.window_x),
-        ('            window_y = %d,'):fmt(main.window_y or settings.window_y),
-        '        },',
-        '        extra_bar_1 = {',
-        ('            visible = %s,'):fmt(tostring(extra.visible ~= false)),
-        ('            profile_scope = %s,'):fmt(lua_string_literal(extra.profile_scope or 'job')),
-    }) do
-        table.insert(lines, line);
-    end
-
-    for _, line in ipairs(KEYBIND.serialize_lines(extra.keybinds, '            ', 'extra1')) do
-        table.insert(lines, line);
-    end
-
-    for _, line in ipairs({
-        ('            slot_size = %d,'):fmt(extra.slot_size or settings.slot_size),
-        ('            button_gap = %d,'):fmt(extra.button_gap or settings.button_gap),
-        ('            slot_glow_size = %d,'):fmt(extra.slot_glow_size or settings.slot_glow_size),
-        ('            slot_glow_opacity = %d,'):fmt(extra.slot_glow_opacity or settings.slot_glow_opacity),
-        ('            label_vertical_position = %d,'):fmt(extra.label_vertical_position or settings.label_vertical_position),
-        ('            window_x = %d,'):fmt(extra.window_x or settings.click_bar_window_x),
-        ('            window_y = %d,'):fmt(extra.window_y or settings.click_bar_window_y),
-        '        },',
         ('        display_mode = %s,'):fmt(lua_string_literal(settings.display_mode)),
         ('        profile_scope = %s,'):fmt(lua_string_literal(settings.profile_scope or main.profile_scope or 'job')),
         ('        show_weaponskill_pulse = %s,'):fmt(tostring(settings.show_weaponskill_pulse ~= false)),
+        ('        bars_unlocked = %s,'):fmt(tostring(settings.bars_unlocked == true)),
         ('        slot_size = %d,'):fmt(settings.slot_size),
         ('        button_gap = %d,'):fmt(settings.button_gap),
         ('        slot_glow_size = %d,'):fmt(settings.slot_glow_size),
@@ -2929,9 +3291,9 @@ local function serialize_visual_settings(settings)
         ('        label_vertical_position = %d,'):fmt(settings.label_vertical_position),
         ('        window_x = %d,'):fmt(settings.window_x),
         ('        window_y = %d,'):fmt(settings.window_y),
-        ('        show_click_bar = %s,'):fmt(tostring(settings.show_click_bar)),
-        ('        click_bar_window_x = %d,'):fmt(settings.click_bar_window_x),
-        ('        click_bar_window_y = %d,'):fmt(settings.click_bar_window_y),
+        ('        show_click_bar = %s,'):fmt(tostring(extra.visible ~= false)),
+        ('        click_bar_window_x = %d,'):fmt(extra.window_x or settings.click_bar_window_x),
+        ('        click_bar_window_y = %d,'):fmt(extra.window_y or settings.click_bar_window_y),
         '    },',
         '}',
         '',
@@ -2988,13 +3350,18 @@ local function save_visual_settings()
     state.keybind_capture = nil;
     state.main_bar_profile_scope_override = nil;
     state.main_bar_visible_override = nil;
+    state.main_bar_button_count_override = nil;
+    state.main_bar_buttons_per_row_override = nil;
     state.click_bar_profile_scope_override = nil;
     state.click_bar_visible_override = nil;
+    state.click_bar_button_count_override = nil;
+    state.click_bar_buttons_per_row_override = nil;
     state.click_bar_slot_size_override = nil;
     state.click_bar_button_gap_override = nil;
     state.click_bar_slot_glow_size_override = nil;
     state.click_bar_slot_glow_opacity_override = nil;
     state.click_bar_label_vertical_position_override = nil;
+    state.extra_bar_overrides = {};
     state.bar_window_x = settings.window_x;
     state.bar_window_y = settings.window_y;
     state.bar_anchor_x = settings.window_x;
@@ -3003,6 +3370,16 @@ local function save_visual_settings()
     state.click_bar_window_y = settings.click_bar_window_y;
     state.click_bar_anchor_x = settings.click_bar_window_x;
     state.click_bar_anchor_y = settings.click_bar_window_y;
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        local values = settings[BAR.SETTINGS_KEY[bar_key]];
+        if (type(values) == 'table') then
+            local runtime = BAR.extra_runtime(bar_key);
+            runtime.window_x = values.window_x;
+            runtime.window_y = values.window_y;
+            runtime.anchor_x = values.window_x;
+            runtime.anchor_y = values.window_y;
+        end
+    end
     state.profile = nil;
 
     return true, 'Saved visual settings to config/addons/ashitabars/visual_settings.lua.';
@@ -3116,7 +3493,7 @@ local function sanitize_button_overrides(overrides)
                     local row_overrides = profile[row.id];
                     if (type(row_overrides) == 'table') then
                         local sanitized_row = {};
-                        for index = 1, 10 do
+                        for index = 1, LIMITS.button_count_max do
                             local slot = sanitize_slot_override(row_overrides[index], true);
                             if (slot ~= nil) then
                                 sanitized_row[index] = slot;
@@ -3190,7 +3567,7 @@ local function serialize_button_overrides()
                 local row_overrides = profile[row.id];
                 if (type(row_overrides) == 'table' and next(row_overrides) ~= nil) then
                     table.insert(lines, ('            %s = {'):fmt(row.id));
-                    for index = 1, 10 do
+                    for index = 1, LIMITS.button_count_max do
                         local slot = row_overrides[index];
                         if (type(slot) == 'table') then
                             local parts = SHARED.slot_parts(slot);
@@ -3251,7 +3628,7 @@ local function copy_slot(slot)
     local copied = {};
     if (type(slot) == 'table') then
         for key, value in pairs(slot) do
-            copied[key] = value;
+            copied[key] = (type(value) == 'table') and copy_slot(value) or value;
         end
     end
 
@@ -3549,7 +3926,10 @@ function BAR.visual_row_for_index(index)
     return ROW_BY_ID.base;
 end
 
-function KEYBIND.slot_enabled_for_binding(row_id, index)
+function KEYBIND.slot_enabled_for_binding(bar_key, row_id, index)
+    if (tonumber(index) == nil or tonumber(index) > BAR.button_count(bar_key)) then
+        return false;
+    end
     if (row_id == 'ctrl' or row_id == 'alt' or row_id == 'shift') then
         return BAR.modifier_slot_enabled(row_id, index);
     end
@@ -3974,7 +4354,17 @@ function COMMAND_MODE.mode_for_slot(slot)
         return 'multi';
     end
 
-    return COMMAND_MODE.mode_from_command(MACRO.primary_command(slot));
+    local command_mode = COMMAND_MODE.mode_from_command(MACRO.primary_command(slot));
+    if (command_mode ~= 'single') then
+        return command_mode;
+    end
+
+    local configured_mode = MACRO.normalize_mode(type(slot) == 'table' and slot.macro_mode or nil);
+    if (COMMAND_MODE.is_structured_mode(configured_mode)) then
+        return configured_mode;
+    end
+
+    return 'single';
 end
 
 function COMMAND_MODE.command_action_for_mode(mode, command)
@@ -4085,7 +4475,7 @@ end
 
 function COMMAND_MODE.configured_action_fallback(mode, list, lookup)
     for _, row in ipairs(BUTTON_ROWS) do
-        for index = 1, 10 do
+        for index = 1, LIMITS.button_count_max do
             local slot = get_slot(row.id, index);
             local commands = MACRO.slot_commands(slot);
             for _, command in ipairs(commands) do
@@ -5668,7 +6058,7 @@ local function execute_slot(group, index, source)
 
     local validation_error = MACRO.commands_validation_error(commands);
     if (validation_error ~= nil) then
-        log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, DIGIT_LABELS[index], source, validation_error));
+        log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, BAR.slot_index_label(index), source, validation_error));
         return false;
     end
 
@@ -5682,7 +6072,7 @@ local function execute_slot(group, index, source)
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
-        log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, DIGIT_LABELS[index], source, queue_message));
+        log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, BAR.slot_index_label(index), source, queue_message));
         return false;
     end
     COMMAND_MODE.track_command_execution(commands_to_queue);
@@ -5712,7 +6102,7 @@ end
 
 local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
-    if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > 10) then
+    if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > LIMITS.button_count_max) then
         return false, 'Invalid button selection.';
     end
 
@@ -6019,6 +6409,110 @@ function MACRO.load_editor_weaponskill_effect(editor, slot)
     editor.weaponskill_effect_frequency[1] = MACRO.normalize_weaponskill_effect_frequency(slot.weaponskill_effect_frequency) or 100;
 end
 
+function MACRO.editor_page_label(editor)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table') then
+        return 'Button';
+    end
+
+    local row = ROW_BY_ID[editor.group or 'base'];
+    local row_label = row ~= nil and row.label or tostring(editor.group or 'Button');
+    return ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, BAR.slot_index_label(editor.index or 1));
+end
+
+function MACRO.editor_snapshot_slot(editor)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table' or editor.profile_key == nil or editor.group == nil or editor.index == nil) then
+        return nil, 'No button selected.';
+    end
+
+    local mode, command, commands = MACRO.editor_commands();
+    local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
+    local label = use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max);
+    local icon = (mode == 'item') and '' or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    local slot = {
+        label = label,
+        command = command,
+        macro_mode = mode,
+    };
+
+    if (COMMAND_MODE.is_structured_mode(mode)) then
+        slot.use_action_name_label = use_action_name_label;
+    end
+    if (icon ~= '') then
+        slot.icon = icon;
+    end
+    if (mode == 'multi') then
+        slot.commands = MACRO.commands_from_table(commands);
+        slot.command = slot.commands[1] or '';
+        if (editor.run_as_script[1] == true) then
+            slot.script = true;
+        end
+    end
+    MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
+
+    return slot, nil;
+end
+
+function MACRO.load_slot_into_editor(editor, slot, source)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table') then
+        return false, 'No button selected.';
+    end
+
+    slot = type(slot) == 'table' and copy_slot(slot) or {};
+    local shared_ref = SHARED.normalize_name(slot.shared);
+    local display_slot = (shared_ref ~= nil and SHARED.resolve_slot({ shared = shared_ref })) or slot;
+    display_slot = type(display_slot) == 'table' and display_slot or {};
+
+    editor.shared_ref = shared_ref;
+    editor.source = source or ((shared_ref ~= nil) and ('shared: ' .. shared_ref) or 'local edit');
+    buffer_set(editor.shared_name_buffer, shared_ref or '');
+    buffer_set(editor.label_buffer, display_slot.label or '');
+    buffer_set(editor.command_buffer, MACRO.primary_command(display_slot));
+    buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(display_slot)));
+    buffer_set(editor.icon_buffer, display_slot.icon or '');
+    COMMAND_MODE.load_editor_slot(editor, display_slot);
+    MACRO.load_editor_weaponskill_effect(editor, display_slot);
+    if (editor.icon_picker_visible ~= nil) then
+        editor.icon_picker_visible[1] = false;
+    end
+
+    return true;
+end
+
+function MACRO.copy_editor_page()
+    local editor = state.macro_editor;
+    local slot, err = MACRO.editor_snapshot_slot(editor);
+    if (slot == nil) then
+        return false, err;
+    end
+
+    state.macro_clipboard = {
+        slot = copy_slot(slot),
+        label = MACRO.editor_page_label(editor),
+    };
+    return true, ('Copied %s.'):fmt(state.macro_clipboard.label);
+end
+
+function MACRO.paste_editor_page()
+    local editor = state.macro_editor;
+    if (type(editor) ~= 'table' or editor.profile_key == nil or editor.group == nil or editor.index == nil) then
+        return false, 'No button selected.';
+    end
+    if (type(state.macro_clipboard) ~= 'table' or type(state.macro_clipboard.slot) ~= 'table') then
+        return false, 'Nothing copied yet.';
+    end
+
+    local source_label = state.macro_clipboard.label or 'copied page';
+    local ok, err = MACRO.load_slot_into_editor(editor, state.macro_clipboard.slot, 'pasted from ' .. source_label);
+    if (not ok) then
+        return false, err;
+    end
+
+    return true, ('Pasted into %s. Save to keep it.'):fmt(MACRO.editor_page_label(editor));
+end
+
 function MACRO.apply_editor_modifier_toggles()
     local editor = state.macro_editor;
     if (type(editor) ~= 'table' or editor.parent_group ~= 'base' or editor.group ~= 'base') then
@@ -6087,24 +6581,21 @@ local function open_macro_editor(row, index, preserve_modifier_state)
     local profile_key = editable_profile_key(profile);
     local slot = get_slot(group, index) or {};
     local override = get_slot_override(profile_key, group, index);
+    local shared_ref = SHARED.normalize_name(slot.shared);
+    local source = (shared_ref ~= nil) and ('shared: ' .. shared_ref) or ((override ~= nil) and 'saved edit' or profile.source);
     local editor = state.macro_editor;
 
     editor.visible[1] = true;
+    if (editor.icon_picker_visible ~= nil) then
+        editor.icon_picker_visible[1] = false;
+    end
     editor.bar_key = bar_key;
     editor.parent_group = parent_group;
     editor.profile_key = profile_key;
     editor.group = group;
     editor.index = index;
-    editor.shared_ref = SHARED.normalize_name(slot.shared);
-    editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or ((override ~= nil) and 'saved edit' or profile.source);
     MACRO.initialize_editor_modifier_state(editor, profile, profile_key, index, preserve_modifier_state == true);
-    buffer_set(editor.shared_name_buffer, editor.shared_ref or '');
-    buffer_set(editor.label_buffer, slot.label or '');
-    buffer_set(editor.command_buffer, MACRO.primary_command(slot));
-    buffer_set(editor.commands_buffer, MACRO.commands_to_text(MACRO.slot_commands(slot)));
-    buffer_set(editor.icon_buffer, slot.icon or '');
-    COMMAND_MODE.load_editor_slot(editor, slot);
-    MACRO.load_editor_weaponskill_effect(editor, slot);
+    MACRO.load_slot_into_editor(editor, slot, source);
     editor.message = nil;
 end
 
@@ -7990,23 +8481,130 @@ local function render_icon_picker_tile(editor, token, selected, tile_size)
     return clicked;
 end
 
-local function render_icon_selector(editor, width)
+function MACRO.icon_picker_category_label(value)
+    if (value == 'all' or value == nil or value == '') then
+        return 'All Categories';
+    end
+
+    for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
+        if (category.label == value) then
+            return category.label;
+        end
+    end
+
+    return 'All Categories';
+end
+
+function MACRO.icon_picker_family_label(value)
+    if (value == 'all' or value == nil or value == '') then
+        return 'All Types';
+    end
+
+    for _, option in ipairs(MACRO.ICON_PICKER_FAMILY_FILTERS) do
+        if (option.key == value) then
+            return option.label;
+        end
+    end
+
+    return 'All Types';
+end
+
+function MACRO.icon_picker_token_family(token, category)
+    local known = ICON_DEFS[token];
+    return (known ~= nil and known.family) or (category ~= nil and category.family) or 'command';
+end
+
+function MACRO.icon_picker_token_selected(normalized_current, token)
+    if (normalized_current == token) then
+        return true;
+    end
+
+    local current_def = normalized_current ~= nil and ICON_DEFS[normalized_current] or nil;
+    local token_def = ICON_DEFS[token];
+    return current_def ~= nil and token_def ~= nil and current_def.asset ~= nil and current_def.asset == token_def.asset;
+end
+
+function MACRO.icon_picker_token_matches(editor, token, category)
+    if (type(editor) ~= 'table' or type(token) ~= 'string' or token == '') then
+        return false;
+    end
+
+    local category_filter = editor.icon_picker_category_filter or 'all';
+    if (category_filter ~= 'all' and (category == nil or category.label ~= category_filter)) then
+        return false;
+    end
+
+    local family = MACRO.icon_picker_token_family(token, category);
+    local family_filter = editor.icon_picker_family_filter or 'all';
+    if (family_filter ~= 'all' and family ~= family_filter) then
+        return false;
+    end
+
+    local search = trim_one_line(editor.icon_picker_search_buffer ~= nil and editor.icon_picker_search_buffer[1] or '', 64):lower();
+    if (search == '') then
+        return true;
+    end
+
+    local search_as_token = search:gsub('%s+', '_');
+    local label = icon_selector_label(token):lower();
+    local token_text = token:lower();
+    local readable_token = token_text:gsub('_', ' ');
+    local category_label = category ~= nil and category.label:lower() or '';
+    local family_label = MACRO.icon_picker_family_label(family):lower();
+
+    return token_text:find(search, 1, true) ~= nil
+        or token_text:find(search_as_token, 1, true) ~= nil
+        or readable_token:find(search, 1, true) ~= nil
+        or label:find(search, 1, true) ~= nil
+        or label:gsub('_', ' '):find(search, 1, true) ~= nil
+        or category_label:find(search, 1, true) ~= nil
+        or family_label:find(search, 1, true) ~= nil;
+end
+
+function MACRO.render_icon_picker_category_filter(editor)
+    local current = editor.icon_picker_category_filter or 'all';
+    imgui.PushItemWidth(210);
+    if (imgui.BeginCombo('Category##ashitabars_icon_picker_category_filter', MACRO.icon_picker_category_label(current), ImGuiComboFlags_None)) then
+        if (imgui.Selectable('All Categories', current == 'all')) then
+            editor.icon_picker_category_filter = 'all';
+        end
+        for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
+            if (imgui.Selectable(category.label, current == category.label)) then
+                editor.icon_picker_category_filter = category.label;
+            end
+        end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+end
+
+function MACRO.render_icon_picker_family_filter(editor)
+    local current = editor.icon_picker_family_filter or 'all';
+    imgui.PushItemWidth(190);
+    if (imgui.BeginCombo('Type##ashitabars_icon_picker_family_filter', MACRO.icon_picker_family_label(current), ImGuiComboFlags_None)) then
+        for _, option in ipairs(MACRO.ICON_PICKER_FAMILY_FILTERS) do
+            if (imgui.Selectable(option.label, current == option.key)) then
+                editor.icon_picker_family_filter = option.key;
+            end
+        end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+end
+
+function MACRO.render_icon_selector(editor, width)
     local current_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
     local normalized_current = DEFERRED.normalize_icon_token(current_icon);
     local changed = false;
-    local picker_width = width or 360;
+    local picker_width = width or 430;
     local tile_size = 80;
     local gap = 5;
     local columns = math.max(1, math.floor((picker_width + gap) / (tile_size + gap)));
-    local rows = 1;
-    for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
-        rows = rows + 1 + math.ceil((#category.tokens * 2) / columns);
-    end
-    local visible_rows = math.min(rows, 4);
-    local picker_height = math.max(tile_size + 8, (visible_rows * tile_size) + ((visible_rows - 1) * gap) + 8);
+    local picker_height = 420;
     local child_open = false;
     local child_visible = true;
     local index = 0;
+    local rendered_count = 0;
 
     if (type(imgui.BeginChild) == 'function' and type(imgui.EndChild) == 'function') then
         local ok, result = pcall(imgui.BeginChild, '##ashitabars_icon_picker_grid', { picker_width, picker_height }, true);
@@ -8022,28 +8620,33 @@ local function render_icon_selector(editor, width)
 
         if (render_icon_picker_tile(editor, token, selected, tile_size)) then
             buffer_set(editor.icon_buffer, token);
+            editor.message = nil;
             changed = true;
         end
-    end
-
-    local function render_token_variants(token)
-        if (ICON_DEFS[token] ~= nil and ICON_DEFS[token].asset ~= nil) then
-            render_option(token, normalized_current == token);
-            return;
-        end
-
-        render_option(token, normalized_current == token);
-        render_option(('sigil_%s'):fmt(token), normalized_current == ('sigil_%s'):fmt(token));
     end
 
     if (child_visible) then
         render_option('', current_icon == '');
         for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
-            imgui.TextColored(UI_COLORS.config_header, category.label);
-            index = 0;
+            local tokens = {};
             for _, token in ipairs(category.tokens) do
-                render_token_variants(token);
+                if (MACRO.icon_picker_token_matches(editor, token, category)) then
+                    table.insert(tokens, token);
+                end
             end
+
+            if (#tokens > 0) then
+                imgui.TextColored(UI_COLORS.config_header, category.label);
+                index = 0;
+                for _, token in ipairs(tokens) do
+                    render_option(token, MACRO.icon_picker_token_selected(normalized_current, token));
+                    rendered_count = rendered_count + 1;
+                end
+            end
+        end
+
+        if (rendered_count == 0) then
+            imgui.TextColored(UI_COLORS.error, 'No icons match the current filters.');
         end
     end
 
@@ -8052,6 +8655,72 @@ local function render_icon_selector(editor, width)
     end
 
     return changed;
+end
+
+function MACRO.render_icon_picker_preview_button(editor, size)
+    size = size or 72;
+    local current_icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    local x, y = imgui.GetCursorScreenPos();
+    local clicked = imgui.InvisibleButton('##ashitabars_icon_picker_preview_button', { size, size });
+    local hovered = imgui.IsItemHovered();
+    local draw_list = imgui.GetWindowDrawList();
+    local theme = current_theme();
+
+    draw_icon_preview_tile(draw_list, x, y, size, editor_icon_preview_slot(editor, current_icon));
+    if (editor.icon_picker_visible ~= nil and editor.icon_picker_visible[1] == true) then
+        draw_list:AddRect({ x - 2, y - 2 }, { x + size + 2, y + size + 2 }, color_u32(theme.active_border or { 1.00, 0.84, 0.34, 0.95 }), 5.0, ImDrawCornerFlags_All, 2.0);
+    end
+
+    if (clicked) then
+        editor.icon_picker_visible[1] = not editor.icon_picker_visible[1];
+    end
+
+    if (hovered) then
+        imgui.BeginTooltip();
+        imgui.Text('Click to choose icon');
+        imgui.Text(icon_selector_label(current_icon));
+        imgui.EndTooltip();
+    end
+end
+
+function MACRO.render_icon_picker_window(editor)
+    if (type(editor) ~= 'table' or editor.visible[1] ~= true or editor.icon_picker_visible == nil or editor.icon_picker_visible[1] ~= true) then
+        return;
+    end
+    if (MACRO.normalize_mode(editor.macro_mode) == 'item') then
+        editor.icon_picker_visible[1] = false;
+        return;
+    end
+
+    local window_x = tonumber(editor.icon_picker_anchor_x) or 900;
+    local window_y = tonumber(editor.icon_picker_anchor_y) or 280;
+    local picker_width = 430;
+    imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_Always);
+    imgui.SetNextWindowSize({ picker_width + 28, 0 }, ImGuiCond_FirstUseEver);
+
+    if (imgui.Begin('AshitaBars Icon Picker###AshitaBarsIconPicker', editor.icon_picker_visible, ImGuiWindowFlags_AlwaysAutoResize)) then
+        imgui.PushItemWidth(picker_width);
+        imgui.InputText('Search##ashitabars_icon_picker_search', editor.icon_picker_search_buffer, 64);
+        imgui.PopItemWidth();
+
+        MACRO.render_icon_picker_category_filter(editor);
+        imgui.SameLine(0, 8);
+        MACRO.render_icon_picker_family_filter(editor);
+
+        local filters_active = trim_one_line(editor.icon_picker_search_buffer[1], 64) ~= ''
+            or (editor.icon_picker_category_filter ~= nil and editor.icon_picker_category_filter ~= 'all')
+            or (editor.icon_picker_family_filter ~= nil and editor.icon_picker_family_filter ~= 'all');
+        if (filters_active) then
+            if (imgui.Button('Clear Filters##ashitabars_icon_picker_clear_filters')) then
+                buffer_set(editor.icon_picker_search_buffer, '');
+                editor.icon_picker_category_filter = 'all';
+                editor.icon_picker_family_filter = 'all';
+            end
+        end
+
+        MACRO.render_icon_selector(editor, picker_width);
+    end
+    imgui.End();
 end
 
 function COMMAND_MODE.item_icon_handle_for_slot(slot)
@@ -8158,16 +8827,18 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local edit_clicked = clicked and edit_hovered;
     if (capture_anchor) then
         local window_x, window_y = imgui.GetWindowPos();
-        if (capture_anchor == 'click') then
+        local extra_anchor_key = capture_anchor == 'click' and 'extra1' or capture_anchor;
+        if (BAR.is_extra_bar(extra_anchor_key)) then
+            local runtime = BAR.extra_runtime(extra_anchor_key);
             if (show_frame) then
-                state.click_bar_frame_offset_x = x - window_x;
-                state.click_bar_frame_offset_y = y - window_y;
+                runtime.frame_offset_x = x - window_x;
+                runtime.frame_offset_y = y - window_y;
             else
-                state.click_bar_hidden_offset_x = x - window_x;
-                state.click_bar_hidden_offset_y = y - window_y;
+                runtime.hidden_offset_x = x - window_x;
+                runtime.hidden_offset_y = y - window_y;
             end
-            state.click_bar_measured_anchor_x = x;
-            state.click_bar_measured_anchor_y = y;
+            runtime.measured_anchor_x = x;
+            runtime.measured_anchor_y = y;
         else
             if (show_frame) then
                 state.bar_frame_offset_x = x - window_x;
@@ -8323,7 +8994,7 @@ local function render_tooltip(row, index)
     local _, icon_token = slot_icon(slot, family);
     local prefix = slot ~= nil and command_prefix_and_name(slot.command) or nil;
     imgui.BeginTooltip();
-    imgui.Text(row.label .. ' ' .. DIGIT_LABELS[index]);
+    imgui.Text(row.label .. ' ' .. BAR.slot_index_label(index));
     local label = COMMAND_MODE.slot_label(slot);
     if (label ~= nil and label ~= '') then
         imgui.Text(label);
@@ -8370,17 +9041,19 @@ local function render_tooltip(row, index)
     imgui.EndTooltip();
 end
 
-local function render_row(row, active, transition_alpha, show_row_label, capture_anchor, show_frame)
+local function render_row(row, active, transition_alpha, show_row_label, capture_anchor, show_frame, start_index, end_index, label_text)
     local current_slot_size = slot_size();
     local gap = button_gap();
+    start_index = tonumber(start_index) or 1;
+    end_index = tonumber(end_index) or BAR.button_count();
 
     if (show_row_label) then
-        imgui.Text(row.label);
+        imgui.Text(label_text or row.label);
         imgui.SameLine(52, gap);
     end
 
-    for index = 1, 10 do
-        if (index > 1) then
+    for index = start_index, end_index do
+        if (index > start_index) then
             imgui.SameLine(0, gap);
         end
 
@@ -8401,6 +9074,25 @@ local function render_row(row, active, transition_alpha, show_row_label, capture
     end
 end
 
+function BAR.render_button_layout(row, active, transition_alpha, show_row_label, capture_anchor, show_frame, bar_key)
+    local visible_count = BAR.button_count(bar_key);
+    local columns = BAR.buttons_per_row(bar_key);
+    local settings = state.config.settings or {};
+    local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
+    local row_count = math.max(1, math.ceil(visible_count / columns));
+
+    for layout_row = 1, row_count do
+        if (layout_row > 1 and row_gap > 0) then
+            imgui.Dummy({ 1, row_gap });
+        end
+
+        local start_index = ((layout_row - 1) * columns) + 1;
+        local end_index = math.min(visible_count, start_index + columns - 1);
+        local label_text = layout_row == 1 and row.label or '';
+        render_row(row, active, transition_alpha, show_row_label, capture_anchor, show_frame, start_index, end_index, label_text);
+    end
+end
+
 local function render_bars()
     if (not main_bar_visible()) then
         return;
@@ -8415,9 +9107,11 @@ local function render_bars()
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local theme = current_theme();
     local show_frame = bar_frame_visible();
-    local row_count = 1;
+    local visible_count = BAR.button_count('main');
+    local columns = BAR.buttons_per_row('main');
+    local row_count = math.max(1, math.ceil(visible_count / columns));
     local label_width = show_frame and 58 or 0;
-    local content_width = label_width + (current_slot_size * 10) + (gap * 9);
+    local content_width = label_width + (current_slot_size * columns) + (gap * math.max(0, columns - 1));
     local content_height = (current_slot_size * row_count) + (row_gap * (row_count - 1));
     local hidden_pad = show_frame and 0 or frameless_window_padding();
     local width = content_width + (show_frame and 20 or (hidden_pad * 2));
@@ -8456,7 +9150,7 @@ local function render_bars()
             imgui.Text('Config load failed. Using defaults.');
         end
 
-        render_row(ROW_BY_ID.base, active == 'base', 0, show_frame, true, show_frame);
+        BAR.render_button_layout(ROW_BY_ID.base, active == 'base', 0, show_frame, true, show_frame, 'main');
 
         if (state.bar_measured_anchor_x ~= nil and state.bar_measured_anchor_y ~= nil) then
             if (state.bar_anchor_lock_x ~= nil and state.bar_anchor_lock_y ~= nil) then
@@ -8486,35 +9180,40 @@ local function render_bars()
     state.render_bar_key = previous_bar_key;
 end
 
-local function render_click_bar()
-    if (not click_bar_visible()) then
+function BAR.render_extra_bar(bar_key)
+    if (not BAR.extra_bar_visible(bar_key)) then
         return;
     end
 
     local previous_bar_key = state.render_bar_key;
-    state.render_bar_key = 'extra1';
-    local profile = refresh_profile_context('extra1');
+    state.render_bar_key = bar_key;
+    local profile = refresh_profile_context(bar_key);
     local settings = state.config.settings or {};
     local current_slot_size = slot_size();
     local gap = button_gap();
+    local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local theme = current_theme();
-    local show_frame = click_bar_frame_visible();
-    local content_width = (current_slot_size * 10) + (gap * 9);
-    local content_height = current_slot_size;
+    local show_frame = bar_frame_visible();
+    local visible_count = BAR.button_count(bar_key);
+    local columns = BAR.buttons_per_row(bar_key);
+    local row_count = math.max(1, math.ceil(visible_count / columns));
+    local content_width = (current_slot_size * columns) + (gap * math.max(0, columns - 1));
+    local content_height = (current_slot_size * row_count) + (row_gap * (row_count - 1));
     local hidden_pad = show_frame and 0 or frameless_window_padding();
     local width = content_width + (show_frame and 20 or (hidden_pad * 2));
     local height = content_height + (show_frame and 48 or (hidden_pad * 2));
-    local anchor_x, anchor_y = click_bar_window_position(settings);
-    local offset_x, offset_y = click_bar_window_offset(show_frame);
+    local anchor_x, anchor_y = BAR.extra_bar_window_position(bar_key, settings);
+    local offset_x, offset_y = BAR.extra_bar_window_offset(bar_key, show_frame);
     local window_x = anchor_x - offset_x;
     local window_y = anchor_y - offset_y;
     local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
     local style_var_count = 0;
-    local anchor_locked = state.click_bar_anchor_lock_x ~= nil and state.click_bar_anchor_lock_y ~= nil;
+    local runtime = BAR.extra_runtime(bar_key);
+    local anchor_locked = runtime.anchor_lock_x ~= nil and runtime.anchor_lock_y ~= nil;
 
-    state.click_bar_measured_anchor_x = nil;
-    state.click_bar_measured_anchor_y = nil;
-    state.click_bar_open[1] = true;
+    runtime.measured_anchor_x = nil;
+    runtime.measured_anchor_y = nil;
+    runtime.open[1] = true;
 
     if (show_frame) then
         imgui.SetNextWindowPos({ window_x, window_y }, anchor_locked and ImGuiCond_Always or ImGuiCond_FirstUseEver);
@@ -8530,41 +9229,47 @@ local function render_click_bar()
     imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
     imgui.PushStyleColor(ImGuiCol_Border,   theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
 
-    local window_title = ('AshitaBars Click Bar [%s]###AshitaBarsClickBar'):fmt(profile.key or 'DEFAULT');
-    if (imgui.Begin(window_title, state.click_bar_open, window_flags)) then
-        state.click_bar_window_x, state.click_bar_window_y = imgui.GetWindowPos();
-        render_row(CLICK_ROW, false, 0, false, 'click', show_frame);
+    local window_title = ('AshitaBars %s [%s]###AshitaBars%s'):fmt(BAR.extra_label(bar_key), profile.key or 'DEFAULT', bar_key);
+    if (imgui.Begin(window_title, runtime.open, window_flags)) then
+        runtime.window_x, runtime.window_y = imgui.GetWindowPos();
+        BAR.render_button_layout(ROW_BY_ID[BAR.extra_row_id(bar_key)] or CLICK_ROW, false, 0, false, bar_key, show_frame, bar_key);
 
-        if (state.click_bar_measured_anchor_x ~= nil and state.click_bar_measured_anchor_y ~= nil) then
-            if (state.click_bar_anchor_lock_x ~= nil and state.click_bar_anchor_lock_y ~= nil) then
-                local dx = state.click_bar_anchor_lock_x - state.click_bar_measured_anchor_x;
-                local dy = state.click_bar_anchor_lock_y - state.click_bar_measured_anchor_y;
+        if (runtime.measured_anchor_x ~= nil and runtime.measured_anchor_y ~= nil) then
+            if (runtime.anchor_lock_x ~= nil and runtime.anchor_lock_y ~= nil) then
+                local dx = runtime.anchor_lock_x - runtime.measured_anchor_x;
+                local dy = runtime.anchor_lock_y - runtime.measured_anchor_y;
                 if (math.abs(dx) > 0.01 or math.abs(dy) > 0.01) then
                     local current_x, current_y = imgui.GetWindowPos();
                     imgui.SetWindowPos({ current_x + dx, current_y + dy });
-                    state.click_bar_window_x = current_x + dx;
-                    state.click_bar_window_y = current_y + dy;
+                    runtime.window_x = current_x + dx;
+                    runtime.window_y = current_y + dy;
                 end
-                state.click_bar_anchor_x = state.click_bar_anchor_lock_x;
-                state.click_bar_anchor_y = state.click_bar_anchor_lock_y;
-                state.click_bar_anchor_lock_x = nil;
-                state.click_bar_anchor_lock_y = nil;
+                runtime.anchor_x = runtime.anchor_lock_x;
+                runtime.anchor_y = runtime.anchor_lock_y;
+                runtime.anchor_lock_x = nil;
+                runtime.anchor_lock_y = nil;
             else
-                state.click_bar_anchor_x = state.click_bar_measured_anchor_x;
-                state.click_bar_anchor_y = state.click_bar_measured_anchor_y;
+                runtime.anchor_x = runtime.measured_anchor_x;
+                runtime.anchor_y = runtime.measured_anchor_y;
             end
         end
     end
     imgui.End();
-    if (state.click_bar_open[1] == false) then
-        state.click_bar_visible_override = false;
-        state.click_bar_open[1] = true;
+    if (runtime.open[1] == false) then
+        BAR.set_override(bar_key, 'visible', false);
+        runtime.open[1] = true;
     end
     imgui.PopStyleColor(2);
     if (style_var_count > 0) then
         imgui.PopStyleVar(style_var_count);
     end
     state.render_bar_key = previous_bar_key;
+end
+
+local function render_click_bar()
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        BAR.render_extra_bar(bar_key);
+    end
 end
 
 local function render_runtime_int_control(label, id, value, source, min_value, max_value, apply_value, unit)
@@ -8609,27 +9314,51 @@ function BAR.render_profile_scope_config(bar_key)
     imgui.Text(('Base: %s (%s)'):fmt(profile.base_key or 'DEFAULT', profile.source or 'default'));
 end
 
-function BAR.render_config_tab(bar_key)
-    local is_main = bar_key == 'main';
+function BAR.render_visibility_config()
+    imgui.TextColored(UI_COLORS.config_header, 'Visible Bars');
 
-    imgui.TextColored(UI_COLORS.config_header, 'Visibility');
-    local visible = is_main and main_bar_visible() or click_bar_visible();
-    if (imgui.Checkbox(('Show##ashitabars_config_%s_show'):fmt(bar_key), { visible })) then
-        local next_visible = not visible;
-        BAR.set_override(bar_key, 'visible', next_visible);
-        if (is_main) then
-            state.visible[1] = next_visible;
-        else
-            state.click_bar_open[1] = true;
-        end
+    local bars = {
+        { key = 'main', label = 'Main Bar' },
+    };
+    for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+        bars[#bars + 1] = { key = bar_key, label = BAR.extra_label(bar_key) };
     end
-    imgui.SameLine(0, 8);
-    imgui.Text(('(%s)'):fmt(is_main and main_bar_visible_source() or click_bar_visible_source()));
 
+    for _, bar in ipairs(bars) do
+        local is_main = bar.key == 'main';
+        local visible = is_main and main_bar_visible() or BAR.extra_bar_visible(bar.key);
+        if (imgui.Checkbox(('%s##ashitabars_config_visible_%s'):fmt(bar.label, bar.key), { visible })) then
+            local next_visible = not visible;
+            BAR.set_override(bar.key, 'visible', next_visible);
+            if (is_main) then
+                state.visible[1] = next_visible;
+            else
+                BAR.extra_runtime(bar.key).open[1] = true;
+            end
+            state.config_save_message = nil;
+        end
+        imgui.SameLine(0, 8);
+        imgui.Text(('(%s)'):fmt(is_main and main_bar_visible_source() or BAR.extra_bar_visible_source(bar.key)));
+    end
+end
+
+function BAR.render_config_tab(bar_key)
     BAR.render_profile_scope_config(bar_key);
 
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
+    render_runtime_int_control('Button Count', ('%s_button_count'):fmt(bar_key), BAR.button_count(bar_key), BAR.button_count_source(bar_key), LIMITS.button_count_min, LIMITS.button_count_max, function (value)
+        local count = BAR.normalize_button_count(value);
+        BAR.set_override(bar_key, 'button_count', count);
+        if (count ~= nil and BAR.buttons_per_row(bar_key) > count) then
+            BAR.set_override(bar_key, 'buttons_per_row', count);
+        end
+    end, 'buttons');
+
+    render_runtime_int_control('Buttons Per Row', ('%s_buttons_per_row'):fmt(bar_key), BAR.buttons_per_row(bar_key), BAR.buttons_per_row_source(bar_key), LIMITS.buttons_per_row_min, BAR.button_count(bar_key), function (value)
+        BAR.set_override(bar_key, 'buttons_per_row', BAR.normalize_buttons_per_row(value, BAR.button_count(bar_key)));
+    end, 'buttons');
+
     render_runtime_int_control('Button Size', ('%s_slot_size'):fmt(bar_key), slot_size(bar_key), slot_size_source(bar_key), LIMITS.slot_size_min, LIMITS.slot_size_max, function (value)
         BAR.set_override(bar_key, 'slot_size', normalize_slot_size(value));
     end);
@@ -8670,6 +9399,17 @@ local function render_config_window()
                 imgui.Text(('Theme: %s'):fmt(select(2, current_theme())));
                 imgui.Text(('Icon Style: %s'):fmt(icon_style()));
                 imgui.Separator();
+                imgui.TextColored(UI_COLORS.config_header, 'Bars');
+                BAR.render_visibility_config();
+                imgui.Separator();
+                local bars_unlocked = bar_frame_visible();
+                if (imgui.Checkbox('Unlock Bars##ashitabars_config_unlock_bars', { bars_unlocked })) then
+                    lock_bar_anchor();
+                    BAR.lock_all_extra_bar_anchors();
+                    state.config.settings.bars_unlocked = not bars_unlocked;
+                    state.config_save_message = nil;
+                end
+                imgui.Separator();
                 imgui.TextColored(UI_COLORS.config_header, 'Weapon Skills');
                 local ws_pulse = MACRO.weaponskill_pulse_enabled();
                 if (imgui.Checkbox('Weapon Skill Pulse##ashitabars_config_ws_pulse', { ws_pulse })) then
@@ -8679,13 +9419,15 @@ local function render_config_window()
                 end
                 imgui.EndTabItem();
             end
-            if (imgui.BeginTabItem('Main Bar##ashitabars_config_main_bar', nil)) then
+            if (main_bar_visible() and imgui.BeginTabItem('Main Bar##ashitabars_config_main_bar', nil)) then
                 BAR.render_config_tab('main');
                 imgui.EndTabItem();
             end
-            if (imgui.BeginTabItem('Extra Bar 1##ashitabars_config_extra_bar_1', nil)) then
-                BAR.render_config_tab('extra1');
-                imgui.EndTabItem();
+            for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+                if (BAR.extra_bar_visible(bar_key) and imgui.BeginTabItem(('%s##ashitabars_config_%s'):fmt(BAR.extra_label(bar_key), bar_key), nil)) then
+                    BAR.render_config_tab(bar_key);
+                    imgui.EndTabItem();
+                end
             end
             imgui.EndTabBar();
         end
@@ -8742,7 +9484,35 @@ function MACRO.render_weaponskill_effect_editor(editor)
     imgui.PopItemWidth();
 end
 
+function MACRO.render_editor_clipboard_controls(editor)
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Page Clipboard');
+    if (imgui.Button('Copy##ashitabars_button_copy_page')) then
+        local ok, message = MACRO.copy_editor_page();
+        editor.message = message;
+        editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
+        if (not ok) then
+            log_warn(message);
+        end
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Paste##ashitabars_button_paste_page')) then
+        local ok, message = MACRO.paste_editor_page();
+        editor.message = message;
+        editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
+        if (not ok) then
+            log_warn(message);
+        end
+    end
+    if (type(state.macro_clipboard) == 'table' and state.macro_clipboard.label ~= nil) then
+        imgui.SameLine(0, 8);
+        imgui.Text(('Copied: %s'):fmt(state.macro_clipboard.label));
+    end
+end
+
 function MACRO.render_editor_active_form(editor)
+    MACRO.render_editor_clipboard_controls(editor);
+
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Shared Button');
     SHARED.render_selector(editor);
@@ -8807,7 +9577,10 @@ function MACRO.render_editor_active_form(editor)
         COMMAND_MODE.render_structured_editor(editor, mode);
     end
     if (mode ~= 'item') then
-        render_icon_selector(editor, 360);
+        imgui.TextColored(UI_COLORS.config_header, 'Icon');
+        MACRO.render_icon_picker_preview_button(editor, 72);
+    elseif (editor.icon_picker_visible ~= nil) then
+        editor.icon_picker_visible[1] = false;
     end
     MACRO.render_weaponskill_effect_editor(editor);
 
@@ -8819,7 +9592,12 @@ function MACRO.render_editor_active_form(editor)
     imgui.Separator();
     if (validation_error == nil) then
         if (imgui.Button('Save##ashitabars_button_save')) then
-            save_macro_editor(false);
+            if (save_macro_editor(false)) then
+                editor.visible[1] = false;
+                if (editor.icon_picker_visible ~= nil) then
+                    editor.icon_picker_visible[1] = false;
+                end
+            end
         end
         imgui.SameLine(0, 8);
         if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
@@ -8896,14 +9674,28 @@ end
 local function render_macro_editor_window()
     local editor = state.macro_editor;
     if (editor == nil or not editor.visible[1]) then
+        if (editor ~= nil and editor.icon_picker_visible ~= nil) then
+            editor.icon_picker_visible[1] = false;
+        end
         return;
     end
 
     local row_label = MACRO.editor_is_main_parent(editor) and 'Button' or editor_row_label(editor.group);
-    local digit = DIGIT_LABELS[editor.index or 1] or '?';
+    local digit = BAR.slot_index_label(editor.index or 1);
     local title = ('AshitaBars Button Editor###AshitaBarsButtonEditor');
     imgui.SetNextWindowSize({ 560, 0 }, ImGuiCond_FirstUseEver);
     if (imgui.Begin(title, editor.visible, ImGuiWindowFlags_AlwaysAutoResize)) then
+        local editor_x, editor_y = imgui.GetWindowPos();
+        local editor_w = 560;
+        if (type(imgui.GetWindowSize) == 'function') then
+            local current_w = imgui.GetWindowSize();
+            editor_w = tonumber(current_w) or editor_w;
+        elseif (type(imgui.GetWindowWidth) == 'function') then
+            editor_w = tonumber(imgui.GetWindowWidth()) or editor_w;
+        end
+        editor.icon_picker_anchor_x = editor_x + editor_w + 8;
+        editor.icon_picker_anchor_y = editor_y;
+
         imgui.TextColored(UI_COLORS.config_header, ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, digit));
         if (MACRO.editor_is_main_parent(editor) and editor.group ~= 'base') then
             imgui.SameLine(0, 8);
@@ -8917,6 +9709,7 @@ local function render_macro_editor_window()
         end
     end
     imgui.End();
+    MACRO.render_icon_picker_window(editor);
 end
 
 local function print_help()
@@ -9011,13 +9804,17 @@ ashita.events.register('command', 'command_cb', function (e)
         local _, theme_key = current_theme();
         local window_x, window_y = bar_window_position(settings);
         local click_window_x, click_window_y = click_bar_window_position(settings);
-        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X activeModifier=%s displayMode=%s displayModeSource=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s'):fmt(
+        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X activeModifier=%s displayMode=%s displayModeSource=%s mainButtons=%d mainButtonsSource=%s mainButtonsPerRow=%d mainButtonsPerRowSource=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Buttons=%d extra1ButtonsSource=%s extra1ButtonsPerRow=%d extra1ButtonsPerRowSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s'):fmt(
             tostring(main_bar_visible()),
             main_bar_visible_source(),
             input_state,
             active or 'none',
             display_mode(),
             display_mode_source(),
+            BAR.button_count('main'),
+            BAR.button_count_source('main'),
+            BAR.buttons_per_row('main'),
+            BAR.buttons_per_row_source('main'),
             slot_size('main'),
             slot_size_source('main'),
             button_gap('main'),
@@ -9034,6 +9831,10 @@ ashita.events.register('command', 'command_cb', function (e)
             window_y,
             tostring(click_bar_visible()),
             click_bar_visible_source(),
+            BAR.button_count('extra1'),
+            BAR.button_count_source('extra1'),
+            BAR.buttons_per_row('extra1'),
+            BAR.buttons_per_row_source('extra1'),
             slot_size('extra1'),
             slot_size_source('extra1'),
             button_gap('extra1'),
@@ -9068,11 +9869,45 @@ ashita.events.register('command', 'command_cb', function (e)
             tostring(extra_profile.source),
             tostring(settings.block_native_macro_modifiers ~= false)));
         log_info(('visualEffects weaponskillPulse=%s'):fmt(tostring(MACRO.weaponskill_pulse_enabled())));
+        for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+            local extra_status_profile = refresh_profile_context(bar_key);
+            local extra_window_x, extra_window_y = BAR.extra_bar_window_position(bar_key, settings);
+            log_info(('%s visible=%s visibleSource=%s buttons=%d buttonsSource=%s buttonsPerRow=%d buttonsPerRowSource=%s size=%d sizeSource=%s gap=%d gapSource=%s labelY=%d labelYSource=%s glowSize=%d glowSizeSource=%s glowOpacity=%d glowOpacitySource=%s frame=%s frameSource=%s anchor=%d,%d scope=%s scopeSource=%s profile=%s baseProfile=%s profileSource=%s'):fmt(
+                bar_key,
+                tostring(BAR.extra_bar_visible(bar_key)),
+                BAR.extra_bar_visible_source(bar_key),
+                BAR.button_count(bar_key),
+                BAR.button_count_source(bar_key),
+                BAR.buttons_per_row(bar_key),
+                BAR.buttons_per_row_source(bar_key),
+                slot_size(bar_key),
+                slot_size_source(bar_key),
+                button_gap(bar_key),
+                button_gap_source(bar_key),
+                label_vertical_position(bar_key),
+                label_vertical_position_source(bar_key),
+                slot_glow_size(bar_key),
+                slot_glow_size_source(bar_key),
+                slot_glow_opacity(bar_key),
+                slot_glow_opacity_source(bar_key),
+                tostring(bar_frame_visible()),
+                bar_frame_source(),
+                extra_window_x,
+                extra_window_y,
+                BAR.profile_scope_label(extra_status_profile.scope),
+                tostring(extra_status_profile.scope_source),
+                tostring(extra_status_profile.key),
+                tostring(extra_status_profile.base_key),
+                tostring(extra_status_profile.source)));
+        end
         local keybind_conflicts = KEYBIND.conflict_messages();
-        log_info(('keybinds main=%s extra1=%s conflicts=%d'):fmt(
-            KEYBIND.summary('main'),
-            KEYBIND.summary('extra1'),
-            #keybind_conflicts));
+        local keybind_parts = {
+            ('main=%s'):fmt(KEYBIND.summary('main')),
+        };
+        for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
+            keybind_parts[#keybind_parts + 1] = ('%s=%s'):fmt(bar_key, KEYBIND.summary(bar_key));
+        end
+        log_info(('keybinds %s conflicts=%d'):fmt(table.concat(keybind_parts, ' '), #keybind_conflicts));
         for _, message in ipairs(keybind_conflicts) do
             log_warn(('Keybind conflict: %s'):fmt(message));
         end
@@ -9128,7 +9963,7 @@ ashita.events.register('key', 'key_cb', function (e)
 end);
 
 ashita.events.register('d3d_present', 'present_cb', function ()
-    sync_config_frame_visibility();
+    sync_bar_frame_visibility();
     render_bars();
     render_click_bar();
     render_config_window();

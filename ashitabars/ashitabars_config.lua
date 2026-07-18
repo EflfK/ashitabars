@@ -41,6 +41,9 @@ local default_profile = {
     shift = {},
 
     click = {},
+    click2 = {},
+    click3 = {},
+    click4 = {},
 };
 
 local whm_profile = {
@@ -86,6 +89,9 @@ local whm_profile = {
     shift = {},
 
     click = {},
+    click2 = {},
+    click3 = {},
+    click4 = {},
 };
 
 local bst_profile = {
@@ -131,6 +137,9 @@ local bst_profile = {
     shift = {},
 
     click = {},
+    click2 = {},
+    click3 = {},
+    click4 = {},
 };
 
 return {
@@ -144,11 +153,14 @@ return {
         show_weaponskill_pulse = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
+        bars_unlocked = false,
         row_gap = 6,
         block_native_macro_modifiers = true,
         main_bar = {
-            visible = true,
+            visible = true, -- General tab toggle. Hiding a bar does not remove saved profiles.
             profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+            button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+            buttons_per_row = 10, -- 1-button_count.
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
                 ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
@@ -164,8 +176,10 @@ return {
             window_y = 760,
         },
         extra_bar_1 = {
-            visible = true,
+            visible = true, -- General tab toggle. Hiding a bar does not remove saved profiles.
             profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+            button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+            buttons_per_row = 10, -- 1-button_count.
             keybinds = {
                 click = {}, -- Optional. Empty means click-only.
             },
@@ -176,6 +190,54 @@ return {
             label_vertical_position = 100,
             window_x = 820,
             window_y = 680,
+        },
+        extra_bar_2 = {
+            visible = false, -- General tab toggle. Hiding a bar does not remove saved profiles.
+            profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+            button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+            buttons_per_row = 10, -- 1-button_count.
+            keybinds = {
+                click2 = {}, -- Optional. Empty means click-only.
+            },
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 600,
+        },
+        extra_bar_3 = {
+            visible = false, -- General tab toggle. Hiding a bar does not remove saved profiles.
+            profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+            button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+            buttons_per_row = 10, -- 1-button_count.
+            keybinds = {
+                click3 = {}, -- Optional. Empty means click-only.
+            },
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 520,
+        },
+        extra_bar_4 = {
+            visible = false, -- General tab toggle. Hiding a bar does not remove saved profiles.
+            profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+            button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+            buttons_per_row = 10, -- 1-button_count.
+            keybinds = {
+                click4 = {}, -- Optional. Empty means click-only.
+            },
+            slot_size = 64,
+            button_gap = 6,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 440,
         },
     },
 
@@ -208,6 +270,9 @@ return {
         --     alt = {},
         --     shift = {},
         --     click = {}, -- Optional click-only row. Never bound to keys.
+        --     click2 = {},
+        --     click3 = {},
+        --     click4 = {},
         -- },
     },
 }
