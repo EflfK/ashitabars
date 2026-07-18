@@ -142,6 +142,7 @@ return {
         main_bar = {
             visible = true,
             display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+            profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
                 ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
@@ -157,6 +158,7 @@ return {
         },
         extra_bar_1 = {
             visible = true,
+            profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
             keybinds = {
                 click = {}, -- Optional. Empty means click-only.
             },
