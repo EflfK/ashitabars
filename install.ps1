@@ -66,6 +66,8 @@ function Save-VisualSettingsMigration {
         'slot_glow_size',
         'slot_glow_opacity',
         'label_vertical_position',
+        'show_weaponskill_pulse',
+        'show_weaponskill_flames',
         'show_bar_frame',
         'window_x',
         'window_y'

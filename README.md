@@ -30,6 +30,7 @@ or another text input is open.
   when Ashita exposes a matching recast timer.
 - Draws display-only item count badges and low-resource dimming for supported
   spell, item, and weapon-skill slots.
+- Draws optional TP-driven weapon-skill button effects, configurable per button.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - When `/ashitabars config` is open, each button shows a small edit corner that
@@ -114,6 +115,7 @@ settings = {
     show_recasts = true,
     show_counts = true,
     show_availability = true,
+    show_weaponskill_pulse = true,
     weaponskill_tp_threshold = 1000,
     icon_style = 'auto',
     main_bar = {
@@ -174,13 +176,14 @@ Each bar has its own `profile_scope`:
 `extra_bar_1.window_x` / `extra_bar_1.window_y` store its independent position.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
-and `Extra Bar 1` tabs. The bar tabs expose independent visibility, profile
-scope, sizing, spacing, text placement, glow, keybinds, and position settings. Numeric
+and `Extra Bar 1` tabs. The General tab exposes global visual effects such as
+weapon-skill pulse. The bar tabs expose independent visibility, profile scope,
+sizing, spacing, text placement, glow, keybinds, and position settings. Numeric
 controls use sliders. Click a keybind button, then press the new key; Backspace
 or Delete clears the bind and Escape cancels. Changes apply immediately as
 runtime overrides; click `Save` in the window to persist button scope, button
-size, button gap, button glow, label placement, keybinds, and bar
-positions to:
+size, button gap, button glow, label placement, keybinds, bar positions, and
+global visual effects to:
 
 ```txt
 Ashita/config/addons/ashitabars/visual_settings.lua
@@ -450,6 +453,16 @@ globally, or `availability = false` on an individual slot, to hide the dimming.
 Set `count = false` on an individual slot to hide only its count badge.
 Pet command buttons are also struck out when Ashita no longer reports that
 specific pet command as currently usable.
+
+`show_weaponskill_pulse = true` is the global master toggle for weapon-skill
+button pulse effects. Individual `/ws` and `/weaponskill` buttons can enable or
+disable the native pulse in the button editor.
+
+The pulse is drawn directly with ImGui border and inner-glow primitives. It
+grows with current TP and becomes stronger once TP reaches
+`weaponskill_tp_threshold`. Each button can tune pulse intensity, opacity, and
+frequency. This is display-only and does not block, delay, retarget, or change
+the configured command.
 
 Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
 `raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,

@@ -141,6 +141,7 @@ return {
         show_recasts = true,
         show_counts = true,
         show_availability = true,
+        show_weaponskill_pulse = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
         row_gap = 6,
