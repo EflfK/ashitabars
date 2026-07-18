@@ -10,7 +10,7 @@ or another text input is open.
 ## Current Scope
 
 - Shows configurable action-bar visuals:
-  - The main bar is one visible row of ten parent buttons.
+  - The main bar defaults to ten parent buttons and can show 1-20 buttons.
   - Ctrl, Alt, and Shift are optional per-button variants edited from the parent
     button, not separate visible rows.
 - Defaults to `1-0`, `Ctrl+1-0`, `Alt+1-0`, and `Shift+1-0`, with per-button
@@ -118,9 +118,12 @@ settings = {
     show_weaponskill_pulse = true,
     weaponskill_tp_threshold = 1000,
     icon_style = 'auto',
+    bars_unlocked = false,
     main_bar = {
-        visible = true,
+        visible = true, -- General tab toggle. Hiding a bar does not remove saved profiles.
         profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+        button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+        buttons_per_row = 10, -- 1-button_count.
         keybinds = {
             base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
             ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
@@ -136,8 +139,10 @@ settings = {
         window_y = 760,
     },
     extra_bar_1 = {
-        visible = true,
+        visible = true, -- General tab toggle. Hiding a bar does not remove saved profiles.
         profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+        button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+        buttons_per_row = 10, -- 1-button_count.
         keybinds = {
             click = {},
         },
@@ -149,18 +154,67 @@ settings = {
         window_x = 820,
         window_y = 680,
     },
+    extra_bar_2 = {
+        visible = false,
+        profile_scope = 'job',
+        button_count = 10,
+        buttons_per_row = 10,
+        keybinds = {
+            click2 = {},
+        },
+        slot_size = 64,
+        button_gap = 6,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        label_vertical_position = 100,
+        window_x = 820,
+        window_y = 600,
+    },
+    extra_bar_3 = {
+        visible = false,
+        profile_scope = 'job',
+        button_count = 10,
+        buttons_per_row = 10,
+        keybinds = {
+            click3 = {},
+        },
+        slot_size = 64,
+        button_gap = 6,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        label_vertical_position = 100,
+        window_x = 820,
+        window_y = 520,
+    },
+    extra_bar_4 = {
+        visible = false,
+        profile_scope = 'job',
+        button_count = 10,
+        buttons_per_row = 10,
+        keybinds = {
+            click4 = {},
+        },
+        slot_size = 64,
+        button_gap = 6,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        label_vertical_position = 100,
+        window_x = 820,
+        window_y = 440,
+    },
 }
 ```
 
 Stacked mode has been removed. Existing configs that still set
 `main_bar.display_mode` or top-level `display_mode` are tolerated, but the main
-bar now always renders as one row.
+bar now renders one configurable parent-button set with optional wrapping.
 
 `main_bar.keybinds` controls the default parent and modifier key combinations.
 Ctrl/Alt/Shift keybinds only run when that specific button's modifier variant
 is enabled in the button editor. Modifier combinations such as `Ctrl+Shift+1`
-are not separate button layers. `extra_bar_1.keybinds` is optional; leave
-`click = {}` empty to keep the extra bar click-only. Configured duplicate
+are not separate button layers. `extra_bar_1` through `extra_bar_4` are
+click-focused extra bars. Their `keybinds` tables are optional; leave the
+matching `click* = {}` row empty to keep an extra bar click-only. Configured duplicate
 keybinds are allowed but warned about in the config window and `/ashitabars
 status`; the first matching enabled button runs.
 
@@ -172,25 +226,30 @@ Each bar has its own `profile_scope`:
 - `job_sub`: use the current main+subjob key, such as `BST_WHM`, falling back
   to the main job and then `DEFAULT` for configured slots.
 
-`extra_bar_1` configures the second 10-button single-row bar.
-`extra_bar_1.window_x` / `extra_bar_1.window_y` store its independent position.
+`extra_bar_1` through `extra_bar_4` configure four click-focused bars. Each
+uses the same `button_count` and `buttons_per_row` layout controls as the main
+bar and stores an independent position with its own `window_x` / `window_y`.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
-and `Extra Bar 1` tabs. The General tab exposes global visual effects such as
-weapon-skill pulse. The bar tabs expose independent visibility, profile scope,
-sizing, spacing, text placement, glow, keybinds, and position settings. Numeric
-controls use sliders. Click a keybind button, then press the new key; Backspace
-or Delete clears the bind and Escape cancels. Changes apply immediately as
-runtime overrides; click `Save` in the window to persist button scope, button
-size, button gap, button glow, label placement, keybinds, bar positions, and
-global visual effects to:
+and one tab for each visible extra bar. The General tab exposes global visual
+effects such as weapon-skill pulse, the visible bar list, and the global
+`Unlock Bars` control. Only visible bars get their own config tab. Hiding a bar is visual only and does
+not delete its saved button profiles. The bar tabs expose profile scope, button
+count, buttons per row, sizing, spacing, text placement, glow, keybinds, and
+position settings. Numeric controls use sliders. Click a keybind button, then
+press the new key; Backspace or Delete clears the bind and Escape cancels.
+Changes apply immediately as runtime overrides; click `Save` in the window to
+persist visible bars, button scope, button count, buttons per row, button size,
+button gap, button glow, label placement, keybinds, bar positions, bar lock
+state, and global visual effects to:
 
 ```txt
 Ashita/config/addons/ashitabars/visual_settings.lua
 ```
 
 That file lives outside the addon folder, so running `install.ps1` for a new
-test build does not reset placement, size, spacing, glow, or keybind settings.
+test build does not reset visibility, button count, row layout, placement, size,
+spacing, glow, or keybind settings.
 
 Button labels are drawn as shadowed text without a background strip.
 Each bar's `label_vertical_position` controls their vertical placement from `0`
@@ -201,13 +260,21 @@ Button glow is controlled by each bar's `slot_glow_size` and
 `0` disables the glow, and `200` doubles the original glow size.
 `slot_glow_opacity` is a `0` to `100` percent alpha multiplier.
 
-Bar frames are hidden while the configuration window is closed. Opening
-`/ashitabars config` temporarily shows all visible bar frames so bars can be
-dragged and buttons can be edited; click `Save` to persist any new positions.
+`bars_unlocked = true` shows the visible bars' title bars/frames so they can be
+dragged and their button edit handles can be clicked. `bars_unlocked = false`
+hides the title bars/frames and locks the bars in place. The General tab's
+`Unlock Bars` checkbox toggles this at runtime; click `Save` to persist the
+lock state and any new positions.
 
 Button size is controlled by each bar's `slot_size`, clamped from `40` to `96`
 pixels. The sample config defaults to `64` so count badges, recast text, and
 labels have room to breathe.
+
+Button count is controlled by each bar's `button_count`, clamped from `1` to
+`20`. `buttons_per_row` controls wrapping and is clamped from `1` to the current
+button count. Lowering `button_count` hides higher-numbered buttons and disables
+their keybind capture while hidden, but it does not delete saved button profiles
+or shared-button assignments for those slots.
 
 You can tune button size at runtime without editing the config:
 
@@ -329,17 +396,21 @@ return {
 }
 ```
 
-You can edit visible buttons in game while `/ashitabars config` is open. Bar
-frames are shown automatically while the configuration window is open; click the
-small top-left corner of a button to edit it. The editor can save a label,
-command mode, command data, and an optional icon chosen from a built-in visual
-picker grouped by category. Each picker option stores its own button art token,
-so individual buttons can mix the default crystal art and alternate sigil art.
+You can edit visible buttons in game while `/ashitabars config` is open and
+`Unlock Bars` is checked. Click the small top-left corner of a button to edit it.
+The editor can save a label, command mode, command data, and an optional icon
+chosen from a built-in visual picker grouped by category. Each picker option
+stores its own button art token, so individual buttons can mix different button
+art.
 Main-bar buttons open on a `Main` tab. That tab has Ctrl, Alt, and Shift
 checkboxes; checking one exposes a matching modifier tab for that button. Each
 modifier tab has its own command mode, command data, label, shared-button
 reference, and icon, but does not define further modifiers. Unchecked modifier
 variants do not run or block their keybinds.
+Each editor page has `Copy` and `Paste` buttons. Copy captures the current page
+contents as a local button snapshot. Paste applies that snapshot to whichever
+page is currently active, so copying from Ctrl and pasting on Alt copies the
+button data into Alt without changing which modifier the target page represents.
 Item mode does not show the manual icon selector because item buttons use the
 selected item's in-game icon automatically. These runtime edits are stored
 outside the addon folder in:
@@ -498,10 +569,11 @@ Alt support.
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the fixed display mode, active keyboard modifier,
-button size/source, button gap/source, theme, icon style, click-bar
-visibility/position, recast/count/availability settings, keybind
-summary/conflict count, and weapon-skill TP threshold alongside input, job,
-subjob, per-bar profile scope/resolution, and modifier-blocking state.
+main/click-bar visibility, button count/source, buttons-per-row/source, button
+size/source, button gap/source, bar frame lock state/source, theme, icon style,
+click-bar position, recast/count/availability settings, keybind summary/conflict
+count, and weapon-skill TP threshold alongside input, job, subjob, per-bar
+profile scope/resolution, and modifier-blocking state.
 
 Modifier blocking is scoped to AshitaBars configured Ctrl/Alt digit hotkeys so
 native shortcuts such as `Ctrl+E` and `Ctrl+I` can continue to work unless you
