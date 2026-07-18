@@ -520,6 +520,7 @@ local DEFAULT_CONFIG = {
         main_bar = {
             visible = true,
             display_mode = 'stacked',
+            profile_scope = 'job',
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
                 ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
@@ -535,6 +536,7 @@ local DEFAULT_CONFIG = {
         },
         extra_bar_1 = {
             visible = true,
+            profile_scope = 'job',
             keybinds = {
                 click = {},
             },
@@ -583,6 +585,7 @@ local state = {
     keybind_capture = nil,
     keybind_message = nil,
     keybind_message_color = UI_COLORS.success,
+    main_bar_profile_scope_override = nil,
     main_bar_visible_override = nil,
     bar_window_x = nil,
     bar_window_y = nil,
@@ -595,6 +598,7 @@ local state = {
     bar_hidden_offset_x = LIMITS.frameless_window_padding,
     bar_hidden_offset_y = LIMITS.frameless_window_padding,
     click_bar_open = T{ true },
+    click_bar_profile_scope_override = nil,
     click_bar_visible_override = nil,
     click_bar_slot_size_override = nil,
     click_bar_button_gap_override = nil,
@@ -628,6 +632,7 @@ local state = {
     },
     macro_editor = {
         visible = T{ false },
+        bar_key = nil,
         profile_key = nil,
         group = nil,
         index = nil,
@@ -833,6 +838,18 @@ local function current_main_job_id()
     return job_id;
 end
 
+function BAR.current_sub_job_id()
+    local job_id = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetPlayer():GetSubJob();
+    end, nil);
+
+    if (type(job_id) ~= 'number' or job_id <= 0) then
+        return nil;
+    end
+
+    return job_id;
+end
+
 local function job_abbr(job_id)
     if (type(job_id) ~= 'number' or job_id <= 0) then
         return nil;
@@ -868,44 +885,152 @@ local function get_profile_by_key(profiles, key)
     return nil, nil;
 end
 
-local function refresh_profile_context()
+function BAR.normalize_profile_scope(value)
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    local scope = value:lower():gsub('%s+', ''):gsub('-', '_');
+    if (scope == 'global' or scope == 'all' or scope == 'default') then
+        return 'global';
+    end
+    if (scope == 'job' or scope == 'main' or scope == 'mainjob' or scope == 'main_job') then
+        return 'job';
+    end
+    if (scope == 'job_sub' or scope == 'jobsub' or scope == 'main_sub' or scope == 'mainsub' or scope == 'mainjob_subjob' or scope == 'main_job_sub_job' or scope == 'subjob' or scope == 'job+sub') then
+        return 'job_sub';
+    end
+
+    return nil;
+end
+
+function BAR.profile_scope(bar_key)
+    bar_key = bar_key or BAR.current_key();
+    local override = BAR.override(bar_key, 'profile_scope');
+    local scope = BAR.normalize_profile_scope(override);
+    if (scope ~= nil) then
+        return scope, 'runtime';
+    end
+
+    local raw, source = BAR.raw_setting(bar_key, 'profile_scope');
+    scope = BAR.normalize_profile_scope(raw);
+    if (scope ~= nil) then
+        return scope, source;
+    end
+
+    return 'job', 'default';
+end
+
+function BAR.profile_scope_label(scope)
+    scope = BAR.normalize_profile_scope(scope) or 'job';
+    if (scope == 'global') then return 'Global'; end
+    if (scope == 'job_sub') then return 'Main + Subjob'; end
+    return 'Main Job';
+end
+
+function BAR.profile_edit_key(scope, main_key, sub_key)
+    scope = BAR.normalize_profile_scope(scope) or 'job';
+    if (scope == 'global') then
+        return 'DEFAULT';
+    end
+    if (scope == 'job_sub' and main_key ~= nil and sub_key ~= nil) then
+        return normalize_profile_key(('%s_%s'):fmt(main_key, sub_key));
+    end
+    if (main_key ~= nil) then
+        return normalize_profile_key(main_key);
+    end
+
+    return 'DEFAULT';
+end
+
+function BAR.profile_candidates(scope, main_key, sub_key)
+    scope = BAR.normalize_profile_scope(scope) or 'job';
+    local candidates = {};
+    local seen = {};
+    local function add(key, source)
+        local normalized = normalize_profile_key(key);
+        if (normalized ~= nil and seen[normalized] ~= true) then
+            seen[normalized] = true;
+            table.insert(candidates, { key = normalized, source = source });
+        end
+    end
+
+    if (scope == 'global') then
+        add('DEFAULT', 'global');
+        return candidates;
+    end
+
+    if (scope == 'job_sub' and main_key ~= nil and sub_key ~= nil) then
+        add(('%s_%s'):fmt(main_key, sub_key), 'job+sub');
+        add(('%s/%s'):fmt(main_key, sub_key), 'job+sub');
+        add(('%s-%s'):fmt(main_key, sub_key), 'job+sub');
+        add(('%s+%s'):fmt(main_key, sub_key), 'job+sub');
+        add(('%s%s'):fmt(main_key, sub_key), 'job+sub');
+    end
+
+    if (main_key ~= nil) then
+        add(main_key, 'job');
+    end
+    add('DEFAULT', 'default');
+    return candidates;
+end
+
+function BAR.key_for_group(group)
+    if (group == 'click') then
+        return 'extra1';
+    end
+
+    return 'main';
+end
+
+local function refresh_profile_context(bar_key)
+    bar_key = bar_key or BAR.current_key();
     local config = state.config or DEFAULT_CONFIG;
     local profiles = config.profiles;
     local legacy_bars = config.bars;
     local job_id = current_main_job_id();
+    local subjob_id = BAR.current_sub_job_id();
     local job_key = job_abbr(job_id);
+    local subjob_key = job_abbr(subjob_id);
+    local scope, scope_source = BAR.profile_scope(bar_key);
+    local edit_key = BAR.profile_edit_key(scope, job_key, subjob_key);
     local bars = nil;
     local profile_key = nil;
+    local base_key = nil;
     local source = 'built-in';
 
-    bars, profile_key = get_profile_by_key(profiles, job_key);
-    if (bars ~= nil) then
-        source = 'job';
-    end
-
-    if (bars == nil) then
-        bars, profile_key = get_profile_by_key(profiles, 'DEFAULT');
+    for _, candidate in ipairs(BAR.profile_candidates(scope, job_key, subjob_key)) do
+        bars, profile_key = get_profile_by_key(profiles, candidate.key);
         if (bars ~= nil) then
-            source = 'default';
+            base_key = profile_key;
+            source = candidate.source;
+            break;
         end
     end
 
     if (bars == nil and type(legacy_bars) == 'table') then
         bars = legacy_bars;
-        profile_key = 'bars';
+        base_key = 'bars';
         source = 'legacy';
     end
 
     if (bars == nil) then
         bars = DEFAULT_CONFIG.profiles.DEFAULT;
-        profile_key = 'DEFAULT';
+        base_key = 'DEFAULT';
     end
 
     state.profile = {
+        bar_key = bar_key,
         bars = bars,
-        key = profile_key or 'DEFAULT',
+        key = edit_key or base_key or 'DEFAULT',
+        edit_key = edit_key or base_key or 'DEFAULT',
+        base_key = base_key or 'DEFAULT',
         job_id = job_id,
+        subjob_id = subjob_id,
         job_key = job_key,
+        subjob_key = subjob_key,
+        scope = scope,
+        scope_source = scope_source,
         source = source,
     };
 
@@ -933,6 +1058,7 @@ local function load_config()
         state.keybind_overrides = {};
         state.keybind_capture = nil;
         state.keybind_message = nil;
+        state.main_bar_profile_scope_override = nil;
         state.main_bar_visible_override = nil;
         local main_bar_settings = type(state.config.settings.main_bar) == 'table' and state.config.settings.main_bar or {};
         local extra_bar_settings = type(state.config.settings.extra_bar_1) == 'table' and state.config.settings.extra_bar_1 or {};
@@ -948,6 +1074,7 @@ local function load_config()
         state.bar_hidden_offset_x = LIMITS.frameless_window_padding;
         state.bar_hidden_offset_y = LIMITS.frameless_window_padding;
         state.click_bar_open[1] = true;
+        state.click_bar_profile_scope_override = nil;
         state.click_bar_visible_override = nil;
         state.click_bar_slot_size_override = nil;
         state.click_bar_button_gap_override = nil;
@@ -1009,6 +1136,7 @@ local function load_config()
     state.keybind_overrides = {};
     state.keybind_capture = nil;
     state.keybind_message = nil;
+    state.main_bar_profile_scope_override = nil;
     state.main_bar_visible_override = nil;
     state.bar_window_x = tonumber(main_bar_settings.window_x) or tonumber(state.config.settings.window_x) or DEFAULT_CONFIG.settings.window_x;
     state.bar_window_y = tonumber(main_bar_settings.window_y) or tonumber(state.config.settings.window_y) or DEFAULT_CONFIG.settings.window_y;
@@ -1021,6 +1149,7 @@ local function load_config()
     state.bar_hidden_offset_x = LIMITS.frameless_window_padding;
     state.bar_hidden_offset_y = LIMITS.frameless_window_padding;
     state.click_bar_open[1] = true;
+    state.click_bar_profile_scope_override = nil;
     state.click_bar_visible_override = nil;
     state.click_bar_slot_size_override = nil;
     state.click_bar_button_gap_override = nil;
@@ -1198,6 +1327,7 @@ end
 
 BAR.OVERRIDE_STATE_KEY = {
     main = {
+        profile_scope = 'main_bar_profile_scope_override',
         visible = 'main_bar_visible_override',
         display_mode = 'display_mode_override',
         slot_size = 'slot_size_override',
@@ -1207,6 +1337,7 @@ BAR.OVERRIDE_STATE_KEY = {
         label_vertical_position = 'label_vertical_position_override',
     },
     extra1 = {
+        profile_scope = 'click_bar_profile_scope_override',
         visible = 'click_bar_visible_override',
         slot_size = 'click_bar_slot_size_override',
         button_gap = 'click_bar_button_gap_override',
@@ -1229,6 +1360,9 @@ function BAR.set_override(bar_key, field, value)
     local state_key = BAR.OVERRIDE_STATE_KEY[bar_key] and BAR.OVERRIDE_STATE_KEY[bar_key][field] or nil;
     if (state_key ~= nil) then
         state[state_key] = value;
+    end
+    if (field == 'profile_scope') then
+        state.profile = nil;
     end
 end
 
@@ -2484,9 +2618,12 @@ local function current_runtime_visual_settings()
     local settings = state.config.settings or {};
     local window_x, window_y = bar_window_position(settings);
     local click_bar_window_x, click_bar_window_y = click_bar_window_position(settings);
+    local main_profile_scope = BAR.profile_scope('main');
+    local extra_profile_scope = BAR.profile_scope('extra1');
     local main_bar = {
         visible = main_bar_visible(),
         display_mode = display_mode(),
+        profile_scope = main_profile_scope,
         keybinds = KEYBIND.effective_bar_keybinds('main'),
         slot_size = slot_size('main'),
         button_gap = button_gap('main'),
@@ -2498,6 +2635,7 @@ local function current_runtime_visual_settings()
     };
     local extra_bar_1 = {
         visible = click_bar_visible(),
+        profile_scope = extra_profile_scope,
         keybinds = KEYBIND.effective_bar_keybinds('extra1'),
         slot_size = slot_size('extra1'),
         button_gap = button_gap('extra1'),
@@ -2536,11 +2674,13 @@ function BAR.apply_visual_settings(target, settings, bar_key)
     local glow_size = normalize_slot_glow_size(settings.slot_glow_size);
     local glow_opacity = normalize_slot_glow_opacity(settings.slot_glow_opacity);
     local label_position = normalize_label_vertical_position(settings.label_vertical_position);
+    local profile_scope = BAR.normalize_profile_scope(settings.profile_scope);
     local window_x = tonumber(settings.window_x);
     local window_y = tonumber(settings.window_y);
 
     if (settings.visible ~= nil) then target.visible = settings.visible ~= false; end
     if (bar_key == 'main' and mode ~= nil) then target.display_mode = mode; end
+    if (profile_scope ~= nil) then target.profile_scope = profile_scope; end
     KEYBIND.apply_to_target(target, settings, bar_key);
     if (size ~= nil) then target.slot_size = size; end
     if (gap ~= nil) then target.button_gap = gap; end
@@ -2577,6 +2717,7 @@ local function apply_visual_settings(settings)
     local glow_size = normalize_slot_glow_size(settings.slot_glow_size);
     local glow_opacity = normalize_slot_glow_opacity(settings.slot_glow_opacity);
     local label_position = normalize_label_vertical_position(settings.label_vertical_position);
+    local profile_scope = BAR.normalize_profile_scope(settings.profile_scope);
     local window_x = tonumber(settings.window_x);
     local window_y = tonumber(settings.window_y);
     local click_bar_window_x = tonumber(settings.click_bar_window_x);
@@ -2584,6 +2725,14 @@ local function apply_visual_settings(settings)
 
     if (settings.visible ~= nil) then target.main_bar.visible = settings.visible ~= false; end
     if (mode ~= nil) then target.main_bar.display_mode = mode; end
+    if (profile_scope ~= nil) then
+        if (settings.main_bar == nil or BAR.normalize_profile_scope(settings.main_bar.profile_scope) == nil) then
+            target.main_bar.profile_scope = profile_scope;
+        end
+        if (settings.extra_bar_1 == nil or BAR.normalize_profile_scope(settings.extra_bar_1.profile_scope) == nil) then
+            target.extra_bar_1.profile_scope = profile_scope;
+        end
+    end
     KEYBIND.apply_to_target(target.main_bar, settings, 'main');
     if (size ~= nil) then
         target.main_bar.slot_size = size;
@@ -2613,6 +2762,7 @@ local function apply_visual_settings(settings)
 
     target.visible = target.main_bar.visible ~= false;
     target.display_mode = target.main_bar.display_mode or target.display_mode;
+    target.profile_scope = target.main_bar.profile_scope or target.profile_scope;
     target.slot_size = target.main_bar.slot_size or target.slot_size;
     target.button_gap = target.main_bar.button_gap or target.button_gap;
     target.slot_glow_size = target.main_bar.slot_glow_size or target.slot_glow_size;
@@ -2636,6 +2786,7 @@ local function serialize_visual_settings(settings)
         '        main_bar = {',
         ('            visible = %s,'):fmt(tostring(main.visible ~= false)),
         ('            display_mode = %s,'):fmt(lua_string_literal(main.display_mode or settings.display_mode)),
+        ('            profile_scope = %s,'):fmt(lua_string_literal(main.profile_scope or settings.profile_scope or 'job')),
     };
 
     for _, line in ipairs(KEYBIND.serialize_lines(main.keybinds, '            ', 'main')) do
@@ -2653,6 +2804,7 @@ local function serialize_visual_settings(settings)
         '        },',
         '        extra_bar_1 = {',
         ('            visible = %s,'):fmt(tostring(extra.visible ~= false)),
+        ('            profile_scope = %s,'):fmt(lua_string_literal(extra.profile_scope or 'job')),
     }) do
         table.insert(lines, line);
     end
@@ -2671,6 +2823,7 @@ local function serialize_visual_settings(settings)
         ('            window_y = %d,'):fmt(extra.window_y or settings.click_bar_window_y),
         '        },',
         ('        display_mode = %s,'):fmt(lua_string_literal(settings.display_mode)),
+        ('        profile_scope = %s,'):fmt(lua_string_literal(settings.profile_scope or main.profile_scope or 'job')),
         ('        slot_size = %d,'):fmt(settings.slot_size),
         ('        button_gap = %d,'):fmt(settings.button_gap),
         ('        slot_glow_size = %d,'):fmt(settings.slot_glow_size),
@@ -2735,7 +2888,9 @@ local function save_visual_settings()
     state.label_vertical_position_override = nil;
     state.keybind_overrides = {};
     state.keybind_capture = nil;
+    state.main_bar_profile_scope_override = nil;
     state.main_bar_visible_override = nil;
+    state.click_bar_profile_scope_override = nil;
     state.click_bar_visible_override = nil;
     state.click_bar_slot_size_override = nil;
     state.click_bar_button_gap_override = nil;
@@ -2750,6 +2905,7 @@ local function save_visual_settings()
     state.click_bar_window_y = settings.click_bar_window_y;
     state.click_bar_anchor_x = settings.click_bar_window_x;
     state.click_bar_anchor_y = settings.click_bar_window_y;
+    state.profile = nil;
 
     return true, 'Saved visual settings to config/addons/ashitabars/visual_settings.lua.';
 end
@@ -3016,7 +3172,7 @@ local function editable_profile_key(profile)
         profile = refresh_profile_context();
     end
 
-    local key = normalize_profile_key(profile.key);
+    local key = normalize_profile_key(profile.edit_key or profile.key);
     if (key ~= nil and key ~= 'BARS') then
         return key;
     end
@@ -3233,7 +3389,8 @@ local function row_transition_alpha(row_id, mode)
 end
 
 local function get_slot(group, index)
-    local profile = state.profile or refresh_profile_context();
+    local bar_key = BAR.key_for_group(group);
+    local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
     local profile_key = editable_profile_key(profile);
     local slot = get_raw_config_slot(profile, group, index);
     local override = get_slot_override(profile_key, group, index);
@@ -5348,7 +5505,8 @@ function MACRO.run_editor_commands()
 end
 
 local function execute_slot(group, index, source)
-    refresh_profile_context();
+    local bar_key = BAR.key_for_group(group);
+    refresh_profile_context(bar_key);
 
     local slot = get_slot(group, index);
     local commands = MACRO.slot_commands(slot);
@@ -5362,7 +5520,7 @@ local function execute_slot(group, index, source)
         return false;
     end
 
-    local profile = state.profile or refresh_profile_context();
+    local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
     local context = {
         profile_key = editable_profile_key(profile),
         group = group,
@@ -5613,13 +5771,15 @@ local function editor_row_label(group)
 end
 
 local function open_macro_editor(row, index)
-    local profile = refresh_profile_context();
+    local bar_key = BAR.key_for_group(row.id);
+    local profile = refresh_profile_context(bar_key);
     local profile_key = editable_profile_key(profile);
     local slot = get_slot(row.id, index) or {};
     local override = get_slot_override(profile_key, row.id, index);
     local editor = state.macro_editor;
 
     editor.visible[1] = true;
+    editor.bar_key = bar_key;
     editor.profile_key = profile_key;
     editor.group = row.id;
     editor.index = index;
@@ -5736,7 +5896,7 @@ local function reset_macro_editor()
         return false;
     end
 
-    local profile = refresh_profile_context();
+    local profile = refresh_profile_context(editor.bar_key or BAR.key_for_group(editor.group));
     local slot = SHARED.resolve_slot(get_raw_config_slot(profile, editor.group, editor.index));
     slot = MACRO.normalize_slot_runtime(slot) or {};
     editor.shared_ref = SHARED.normalize_name(slot.shared);
@@ -7577,7 +7737,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local recast_info = slot_recast(slot);
     local visual_state = slot_visual_state(slot);
     local macro_run_info = has_command and command_supported and MACRO.run_overlay_info({
-        profile_key = editable_profile_key(state.profile or refresh_profile_context()),
+        profile_key = editable_profile_key(refresh_profile_context(BAR.key_for_group(row.id))),
         group = row.id,
         index = index,
     }) or nil;
@@ -7734,7 +7894,7 @@ local function render_tooltip(row, index)
             imgui.Text(('recast: %s'):fmt(recast_info.label));
         end
         local macro_run_info = MACRO.run_overlay_info({
-            profile_key = editable_profile_key(state.profile or refresh_profile_context()),
+            profile_key = editable_profile_key(refresh_profile_context(BAR.key_for_group(row.id))),
             group = row.id,
             index = index,
         });
@@ -7780,7 +7940,7 @@ local function render_bars()
 
     local previous_bar_key = state.render_bar_key;
     state.render_bar_key = 'main';
-    local profile = refresh_profile_context();
+    local profile = refresh_profile_context('main');
     local settings = state.config.settings or {};
     local current_slot_size = slot_size();
     local gap = button_gap();
@@ -7879,7 +8039,7 @@ local function render_click_bar()
 
     local previous_bar_key = state.render_bar_key;
     state.render_bar_key = 'extra1';
-    local profile = refresh_profile_context();
+    local profile = refresh_profile_context('extra1');
     local settings = state.config.settings or {};
     local current_slot_size = slot_size();
     local gap = button_gap();
@@ -7971,6 +8131,30 @@ local function render_runtime_int_control(label, id, value, source, min_value, m
     end
 end
 
+function BAR.render_profile_scope_config(bar_key)
+    local scope, source = BAR.profile_scope(bar_key);
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Button Scope');
+    if (imgui.RadioButton(('Global##ashitabars_config_%s_scope_global'):fmt(bar_key), scope == 'global')) then
+        BAR.set_override(bar_key, 'profile_scope', 'global');
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.RadioButton(('Main Job##ashitabars_config_%s_scope_job'):fmt(bar_key), scope == 'job')) then
+        BAR.set_override(bar_key, 'profile_scope', 'job');
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.RadioButton(('Main + Subjob##ashitabars_config_%s_scope_job_sub'):fmt(bar_key), scope == 'job_sub')) then
+        BAR.set_override(bar_key, 'profile_scope', 'job_sub');
+    end
+    imgui.SameLine(0, 8);
+    imgui.Text(('(%s)'):fmt(source));
+
+    local profile = refresh_profile_context(bar_key);
+    imgui.Text(('Edits: %s'):fmt(profile.key or 'DEFAULT'));
+    imgui.SameLine(0, 8);
+    imgui.Text(('Base: %s (%s)'):fmt(profile.base_key or 'DEFAULT', profile.source or 'default'));
+end
+
 function BAR.render_config_tab(bar_key)
     local is_main = bar_key == 'main';
 
@@ -8002,6 +8186,8 @@ function BAR.render_config_tab(bar_key)
         imgui.SameLine(0, 8);
         imgui.Text(('(%s)'):fmt(display_mode_source()));
     end
+
+    BAR.render_profile_scope_config(bar_key);
 
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
@@ -8299,12 +8485,13 @@ ashita.events.register('command', 'command_cb', function (e)
     elseif (sub == 'status') then
         local input_state = AshitaCore:GetChatManager():IsInputOpen();
         local settings = state.config.settings or {};
-        local profile = refresh_profile_context();
+        local profile = refresh_profile_context('main');
+        local extra_profile = refresh_profile_context('extra1');
         local active = active_group();
         local _, theme_key = current_theme();
         local window_x, window_y = bar_window_position(settings);
         local click_window_x, click_window_y = click_bar_window_position(settings);
-        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s profile=%s source=%s blockModifiers=%s'):fmt(
+        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s'):fmt(
             tostring(main_bar_visible()),
             main_bar_visible_source(),
             input_state,
@@ -8349,8 +8536,17 @@ ashita.events.register('command', 'command_cb', function (e)
             tostring(setting_enabled('show_availability', true)),
             setting_number('weaponskill_tp_threshold', 1000),
             profile.job_key or 'unknown',
+            profile.subjob_key or 'none',
+            BAR.profile_scope_label(profile.scope),
+            tostring(profile.scope_source),
             tostring(profile.key),
+            tostring(profile.base_key),
             tostring(profile.source),
+            BAR.profile_scope_label(extra_profile.scope),
+            tostring(extra_profile.scope_source),
+            tostring(extra_profile.key),
+            tostring(extra_profile.base_key),
+            tostring(extra_profile.source),
             tostring(settings.block_native_macro_modifiers ~= false)));
         local keybind_conflicts = KEYBIND.conflict_messages();
         log_info(('keybinds main=%s extra1=%s conflicts=%d'):fmt(

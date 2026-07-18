@@ -122,6 +122,7 @@ settings = {
     main_bar = {
         visible = true,
         display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+        profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
         keybinds = {
             base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
             ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
@@ -137,6 +138,7 @@ settings = {
     },
     extra_bar_1 = {
         visible = true,
+        profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
         keybinds = {
             click = {},
         },
@@ -159,6 +161,14 @@ is optional; leave `click = {}` empty to keep the extra bar click-only.
 Configured duplicate keybinds are allowed but warned about in the config window
 and `/ashitabars status`; the first matching button runs.
 
+Each bar has its own `profile_scope`:
+
+- `global`: use `profiles.DEFAULT` and save runtime edits under `DEFAULT`.
+- `job`: use the current main job key, such as `BST`, falling back to
+  `DEFAULT` for configured slots.
+- `job_sub`: use the current main+subjob key, such as `BST_WHM`, falling back
+  to the main job and then `DEFAULT` for configured slots.
+
 `extra_bar_1` configures the second 10-button single-row bar.
 `extra_bar_1.window_x` / `extra_bar_1.window_y` store its independent position.
 
@@ -176,12 +186,13 @@ setting when present, otherwise `main_bar.display_mode`. `/ashitabars reload`
 also clears runtime overrides and reapplies saved visual settings.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
-and `Extra Bar 1` tabs. The bar tabs expose independent visibility, sizing,
-spacing, text placement, glow, keybinds, and position settings. Numeric
+and `Extra Bar 1` tabs. The bar tabs expose independent visibility, profile
+scope, sizing, spacing, text placement, glow, keybinds, and position settings. Numeric
 controls use sliders. Click a keybind button, then press the new key; Backspace
 or Delete clears the bind and Escape cancels. Changes apply immediately as
 runtime overrides; click `Save` in the window to persist display mode, button
-size, button gap, button glow, label placement, keybinds, and bar positions to:
+scope, button size, button gap, button glow, label placement, keybinds, and bar
+positions to:
 
 ```txt
 Ashita/config/addons/ashitabars/visual_settings.lua
@@ -243,8 +254,9 @@ Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
 preserves the current brass-and-crystal look; the other themes only change the
 window chrome and overlay palette.
 
-Profiles are keyed by main-job abbreviation. `DEFAULT` is used when the current
-job does not have a configured profile:
+Profiles are keyed by the current bar's configured `profile_scope`. `DEFAULT`
+is used for global bars and as the configured-slot fallback when a specific
+profile does not exist:
 
 ```lua
 profiles = {
@@ -258,6 +270,16 @@ profiles = {
     },
 
     WAR = {
+        base = {
+            [1] = { label = 'Provoke', command = '/ja "Provoke" <t>' },
+        },
+        ctrl = {},
+        alt = {},
+        click = {},
+    },
+
+    -- Optional exact main+subjob profile used by `profile_scope = 'job_sub'`.
+    WAR_NIN = {
         base = {
             [1] = { label = 'Provoke', command = '/ja "Provoke" <t>' },
         },
@@ -327,11 +349,11 @@ outside the addon folder in:
 Ashita/config/addons/ashitabars/button_overrides.lua
 ```
 
-Saved button edits are overlaid on top of the current job-aware profile and
-persist across addon reloads and game sessions. `Clear` saves an empty button
-for that slot, while `Reset` removes the saved edit and returns to the
-configured profile slot. `Validate & Run` validates the current editor command
-or macro lines and queues them immediately without saving the button.
+Saved button edits are overlaid on top of the current bar's resolved profile
+scope and persist across addon reloads and game sessions. `Clear` saves an
+empty button for that slot, while `Reset` removes the saved edit and returns to
+the configured profile slot. `Validate & Run` validates the current editor
+command or macro lines and queues them immediately without saving the button.
 
 Command mode options are:
 
@@ -469,8 +491,8 @@ Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 `/ashitabars status` prints the normalized display mode, current visual row,
 display-mode source, button size/source, button gap/source, theme, icon style,
 click-bar visibility/position, recast/count/availability settings, keybind
-summary/conflict count, and weapon-skill TP threshold alongside input, profile,
-and modifier-blocking state.
+summary/conflict count, and weapon-skill TP threshold alongside input, job,
+subjob, per-bar profile scope/resolution, and modifier-blocking state.
 
 Modifier blocking is scoped to AshitaBars configured Ctrl/Alt digit hotkeys so
 native shortcuts such as `Ctrl+E` and `Ctrl+I` can continue to work unless you
