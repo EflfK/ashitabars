@@ -3,21 +3,23 @@
 Experimental Ashita v4 action bar addon for CatsEyeXI.
 
 AshitaBars is intended to replace the visible feel of the native FFXI macro
-palette while the addon is loaded. It does not use `/bind`; it handles key
-events directly so plain `1-0` can pass through normally while chat or another
-text input is open.
+palette while the addon is loaded. It does not use `/bind`; it handles
+configurable key events directly so keys can pass through normally while chat
+or another text input is open.
 
 ## Current Scope
 
 - Shows configurable action-bar visuals:
-  - `stacked`: three rows for `1-0`, `Ctrl+1-0`, and `Alt+1-0`
+  - `stacked`: three rows for the base, Ctrl, and Alt profile rows
   - `single`: one visible row that switches between base, Ctrl, and Alt while
     the modifier is held, with a brief row-switch glow
-- Captures those keys only while FFXI chat/input is closed.
+- Defaults to `1-0`, `Ctrl+1-0`, and `Alt+1-0`, with per-button keybinds
+  configurable in game.
+- Captures configured keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state only while an
-  AshitaBars number hotkey is pressed, so FFXI should not also show or execute
-  native macro rows for `Ctrl+1-0` / `Alt+1-0`.
+  AshitaBars Ctrl/Alt digit hotkey is pressed, so FFXI should not also show or
+  execute native macro rows for configured `Ctrl+1-0` / `Alt+1-0` style binds.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command, structured
   generated command, or static multi-line macro.
@@ -120,6 +122,11 @@ settings = {
     main_bar = {
         visible = true,
         display_mode = 'single', -- Use 'stacked' for the existing three-row view.
+        keybinds = {
+            base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
+            ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
+            alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
+        },
         slot_size = 64,
         button_gap = 6,
         slot_glow_size = 100,
@@ -130,6 +137,9 @@ settings = {
     },
     extra_bar_1 = {
         visible = true,
+        keybinds = {
+            click = {},
+        },
         slot_size = 64,
         button_gap = 6,
         slot_glow_size = 100,
@@ -141,12 +151,15 @@ settings = {
 }
 ```
 
-`main_bar.display_mode` changes only the visible UI for the keyboard-bound bar.
-Key execution remains `1-0`, `Ctrl+1-0`, and `Alt+1-0` in both modes. Existing
+`main_bar.display_mode` changes only the visible UI for the main bar. Existing
 configs without `main_bar.display_mode` keep the original stacked view.
 
-`extra_bar_1` configures the second 10-button single-row bar. It is click-only:
-it never binds keys and never changes which commands the keyboard rows run.
+`main_bar.keybinds` controls the default keyboard rows. `extra_bar_1.keybinds`
+is optional; leave `click = {}` empty to keep the extra bar click-only.
+Configured duplicate keybinds are allowed but warned about in the config window
+and `/ashitabars status`; the first matching button runs.
+
+`extra_bar_1` configures the second 10-button single-row bar.
 `extra_bar_1.window_x` / `extra_bar_1.window_y` store its independent position.
 
 You can switch display modes at runtime without editing the config:
@@ -164,17 +177,18 @@ also clears runtime overrides and reapplies saved visual settings.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
 and `Extra Bar 1` tabs. The bar tabs expose independent visibility, sizing,
-spacing, text placement, glow, and position settings. Numeric controls use
-sliders. Changes apply immediately as runtime overrides; click `Save` in the
-window to persist display mode, button size, button gap, button glow, label
-placement, and bar positions to:
+spacing, text placement, glow, keybinds, and position settings. Numeric
+controls use sliders. Click a keybind button, then press the new key; Backspace
+or Delete clears the bind and Escape cancels. Changes apply immediately as
+runtime overrides; click `Save` in the window to persist display mode, button
+size, button gap, button glow, label placement, keybinds, and bar positions to:
 
 ```txt
 Ashita/config/addons/ashitabars/visual_settings.lua
 ```
 
 That file lives outside the addon folder, so running `install.ps1` for a new
-test build does not reset placement, size, spacing, or glow settings.
+test build does not reset placement, size, spacing, glow, or keybind settings.
 
 Button labels are drawn as shadowed text without a background strip.
 Each bar's `label_vertical_position` controls their vertical placement from `0`
@@ -428,6 +442,13 @@ fall back to a small two-letter text glyph. Prefix any built-in icon token with
 `sigil_` to use that alternate line-art variant on a single button, for example
 `sigil_cure` or `sigil_weapon`.
 
+Image-backed icon tokens are also available in the icon picker. They use PNG
+assets under `ashitabars/assets/icons/` and are stored by token name, such as
+`asset_fire_flame`, `asset_ice_crystal`, `asset_weapon_swords`,
+`asset_item_bag`, `asset_mount_chocobo`, and `asset_target_mark`.
+Item buttons use the resolved in-game item icon automatically, while mount
+buttons can use any selected built-in, sigil, or image-backed icon token.
+
 In `auto` mode, common FFXI spell names infer matching icons. For example,
 `Fire`/`Blizzard`/`Aero` use elemental glyphs, `Drain`/`Aspir`/`Bio` use dark,
 common enfeebles use `debuff`, songs use `song`, and avatar names use
@@ -447,12 +468,14 @@ Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
 `/ashitabars status` prints the normalized display mode, current visual row,
 display-mode source, button size/source, button gap/source, theme, icon style,
-click-bar visibility/position, recast/count/availability settings, and
-weapon-skill TP threshold alongside input, profile, and modifier-blocking state.
+click-bar visibility/position, recast/count/availability settings, keybind
+summary/conflict count, and weapon-skill TP threshold alongside input, profile,
+and modifier-blocking state.
 
-Modifier blocking is scoped to AshitaBars number hotkeys so native shortcuts
-such as `Ctrl+E` and `Ctrl+I` can continue to work. If modifier blocking still
-conflicts with another hotkey, disable it:
+Modifier blocking is scoped to AshitaBars configured Ctrl/Alt digit hotkeys so
+native shortcuts such as `Ctrl+E` and `Ctrl+I` can continue to work unless you
+explicitly bind them. If modifier blocking still conflicts with another hotkey,
+disable it:
 
 ```lua
 block_native_macro_modifiers = false,

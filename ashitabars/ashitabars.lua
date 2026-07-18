@@ -16,6 +16,10 @@ local VK = {
     CONTROL = 0x11,
     ALT     = 0x12,
     SHIFT   = 0x10,
+    BACKSPACE = 0x08,
+    DELETE    = 0x2E,
+    ESCAPE    = 0x1B,
+    OEM_3     = 0xC0,
     DIGITS  = {
         [0x31] = 1,
         [0x32] = 2,
@@ -53,7 +57,7 @@ local KEY_UP_MASK       = bit.lshift(0x8000, 16);
 local KEY_WAS_DOWN_MASK = bit.lshift(0x4000, 16);
 local DIGIT_LABELS      = { '1', '2', '3', '4', '5', '6', '7', '8', '9', '0' };
 local ROWS              = {
-    { id = 'base', label = '1-0',  keyPrefix = ''  },
+    { id = 'base', label = 'Base', keyPrefix = ''  },
     { id = 'ctrl', label = 'Ctrl', keyPrefix = 'C' },
     { id = 'alt',  label = 'Alt',  keyPrefix = 'A' },
 };
@@ -399,6 +403,30 @@ local ICON_DEFS = {
     chat        = { family = 'chat',        mark = 'chat',    accent = { 0.90, 0.90, 0.98, 1.00 } },
     test        = { family = 'chat',        mark = 'text',    text = 'T', accent = { 0.88, 0.84, 0.72, 1.00 } },
     command     = { family = 'command',     mark = 'diamond', accent = { 0.76, 0.70, 0.54, 1.00 } },
+    asset_crystal_compass = { family = 'white_magic', asset = 'crystal_compass.png', accent = { 0.56, 1.00, 0.92, 1.00 } },
+    asset_aegis_shield    = { family = 'ability',     asset = 'aegis_shield.png',    accent = { 0.58, 0.82, 1.00, 1.00 } },
+    asset_aether_orb      = { family = 'white_magic', asset = 'aether_orb.png',      accent = { 0.64, 1.00, 0.74, 1.00 } },
+    asset_holy_ascent     = { family = 'white_magic', asset = 'holy_ascent.png',     accent = { 1.00, 0.92, 0.64, 1.00 } },
+    asset_shadow_hood     = { family = 'black_magic', asset = 'shadow_hood.png',     accent = { 0.74, 0.54, 1.00, 1.00 } },
+    asset_void_burst      = { family = 'black_magic', asset = 'void_burst.png',      accent = { 0.92, 0.36, 1.00, 1.00 } },
+    asset_fire_flame      = { family = 'black_magic', asset = 'fire_flame.png',      accent = { 1.00, 0.42, 0.18, 1.00 } },
+    asset_ice_crystal     = { family = 'black_magic', asset = 'ice_crystal.png',     accent = { 0.68, 0.92, 1.00, 1.00 } },
+    asset_wind_gale       = { family = 'black_magic', asset = 'wind_gale.png',       accent = { 0.64, 1.00, 0.52, 1.00 } },
+    asset_earth_rocks     = { family = 'black_magic', asset = 'earth_rocks.png',     accent = { 0.78, 0.62, 0.34, 1.00 } },
+    asset_lightning_bolt  = { family = 'black_magic', asset = 'lightning_bolt.png',  accent = { 1.00, 0.84, 0.20, 1.00 } },
+    asset_water_drop      = { family = 'black_magic', asset = 'water_drop.png',      accent = { 0.40, 0.82, 1.00, 1.00 } },
+    asset_holy_star       = { family = 'white_magic', asset = 'holy_star.png',       accent = { 1.00, 0.92, 0.56, 1.00 } },
+    asset_dark_vortex     = { family = 'black_magic', asset = 'dark_vortex.png',     accent = { 0.78, 0.42, 1.00, 1.00 } },
+    asset_pink_crystal    = { family = 'black_magic', asset = 'pink_crystal.png',    accent = { 1.00, 0.42, 0.78, 1.00 } },
+    asset_weapon_crest    = { family = 'weapon',      asset = 'weapon_crest.png',    accent = { 0.86, 0.86, 0.82, 1.00 } },
+    asset_song_harp       = { family = 'ability',     asset = 'song_harp.png',       accent = { 1.00, 0.82, 0.46, 1.00 } },
+    asset_summon_avatar   = { family = 'ability',     asset = 'summon_avatar.png',   accent = { 0.62, 0.84, 1.00, 1.00 } },
+    asset_pet_paw         = { family = 'ability',     asset = 'pet_paw.png',         accent = { 0.98, 0.78, 0.42, 1.00 } },
+    asset_weapon_swords   = { family = 'weapon',      asset = 'weapon_swords.png',   accent = { 1.00, 0.38, 0.28, 1.00 } },
+    asset_ranged_bow      = { family = 'weapon',      asset = 'ranged_bow.png',      accent = { 1.00, 0.58, 0.28, 1.00 } },
+    asset_item_bag        = { family = 'item',        asset = 'item_bag.png',        accent = { 0.78, 0.94, 0.52, 1.00 } },
+    asset_mount_chocobo   = { family = 'mount',       asset = 'mount_chocobo.png',   accent = { 1.00, 0.82, 0.38, 1.00 } },
+    asset_target_mark     = { family = 'target',      asset = 'target_mark.png',     accent = { 0.58, 0.84, 1.00, 1.00 } },
 };
 
 local ICON_SELECTOR_CATEGORIES = {
@@ -407,6 +435,62 @@ local ICON_SELECTOR_CATEGORIES = {
     { label = 'Combat', tokens = { 'ability', 'weapon', 'ranged' } },
     { label = 'Pet', tokens = { 'pet', 'fight', 'charm', 'reward', 'summon' } },
     { label = 'Utility', tokens = { 'item', 'mount', 'target', 'assist', 'check', 'chat', 'rest', 'song', 'test', 'command' } },
+    { label = 'Image Magic', tokens = { 'asset_crystal_compass', 'asset_aether_orb', 'asset_holy_ascent', 'asset_void_burst', 'asset_fire_flame', 'asset_ice_crystal', 'asset_wind_gale', 'asset_earth_rocks', 'asset_lightning_bolt', 'asset_water_drop', 'asset_holy_star', 'asset_dark_vortex', 'asset_pink_crystal' } },
+    { label = 'Image Combat', tokens = { 'asset_aegis_shield', 'asset_shadow_hood', 'asset_weapon_crest', 'asset_summon_avatar', 'asset_pet_paw', 'asset_weapon_swords', 'asset_ranged_bow' } },
+    { label = 'Image Utility', tokens = { 'asset_song_harp', 'asset_item_bag', 'asset_mount_chocobo', 'asset_target_mark' } },
+};
+
+local KEYBIND = {
+    BAR_KEYS = { 'main', 'extra1' },
+    EXTRA_ROWS = { CLICK_ROW },
+    EVENT_LABELS = {
+        [0x09] = 'Tab',
+        [0x0D] = 'Enter',
+        [0x20] = 'Space',
+        [0x21] = 'PageUp',
+        [0x22] = 'PageDown',
+        [0x23] = 'End',
+        [0x24] = 'Home',
+        [0x25] = 'Left',
+        [0x26] = 'Up',
+        [0x27] = 'Right',
+        [0x28] = 'Down',
+        [0x2D] = 'Insert',
+        [0x2E] = 'Delete',
+        [0xC0] = '`',
+    },
+    KEY_ALIASES = {
+        ['`'] = '`',
+        ['~'] = '`',
+        backspace = 'Backspace',
+        backtick = '`',
+        bksp = 'Backspace',
+        del = 'Delete',
+        delete = 'Delete',
+        down = 'Down',
+        ['end'] = 'End',
+        endkey = 'End',
+        enter = 'Enter',
+        escape = 'Escape',
+        esc = 'Escape',
+        grave = '`',
+        graveaccent = '`',
+        home = 'Home',
+        insert = 'Insert',
+        ins = 'Insert',
+        left = 'Left',
+        pagedown = 'PageDown',
+        pageup = 'PageUp',
+        pgdn = 'PageDown',
+        pgup = 'PageUp',
+        ['return'] = 'Enter',
+        returnkey = 'Enter',
+        right = 'Right',
+        space = 'Space',
+        spacebar = 'Space',
+        tab = 'Tab',
+        up = 'Up',
+    },
 };
 
 local DEFAULT_CONFIG = {
@@ -436,6 +520,11 @@ local DEFAULT_CONFIG = {
         main_bar = {
             visible = true,
             display_mode = 'stacked',
+            keybinds = {
+                base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
+                ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
+                alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
+            },
             slot_size = 64,
             button_gap = 6,
             slot_glow_size = 100,
@@ -446,6 +535,9 @@ local DEFAULT_CONFIG = {
         },
         extra_bar_1 = {
             visible = true,
+            keybinds = {
+                click = {},
+            },
             slot_size = 64,
             button_gap = 6,
             slot_glow_size = 100,
@@ -487,6 +579,10 @@ local state = {
     slot_glow_size_override = nil,
     slot_glow_opacity_override = nil,
     label_vertical_position_override = nil,
+    keybind_overrides = {},
+    keybind_capture = nil,
+    keybind_message = nil,
+    keybind_message_color = UI_COLORS.success,
     main_bar_visible_override = nil,
     bar_window_x = nil,
     bar_window_y = nil,
@@ -523,6 +619,8 @@ local state = {
     item_count_cache = {},
     item_texture_cache = {},
     item_texture_handles = {},
+    icon_asset_texture_cache = {},
+    icon_asset_texture_handles = {},
     command_mode_cache = {},
     visual = {
         row = 'base',
@@ -832,6 +930,9 @@ local function load_config()
         state.slot_glow_size_override = nil;
         state.slot_glow_opacity_override = nil;
         state.label_vertical_position_override = nil;
+        state.keybind_overrides = {};
+        state.keybind_capture = nil;
+        state.keybind_message = nil;
         state.main_bar_visible_override = nil;
         local main_bar_settings = type(state.config.settings.main_bar) == 'table' and state.config.settings.main_bar or {};
         local extra_bar_settings = type(state.config.settings.extra_bar_1) == 'table' and state.config.settings.extra_bar_1 or {};
@@ -905,6 +1006,9 @@ local function load_config()
     state.slot_glow_size_override = nil;
     state.slot_glow_opacity_override = nil;
     state.label_vertical_position_override = nil;
+    state.keybind_overrides = {};
+    state.keybind_capture = nil;
+    state.keybind_message = nil;
     state.main_bar_visible_override = nil;
     state.bar_window_x = tonumber(main_bar_settings.window_x) or tonumber(state.config.settings.window_x) or DEFAULT_CONFIG.settings.window_x;
     state.bar_window_y = tonumber(main_bar_settings.window_y) or tonumber(state.config.settings.window_y) or DEFAULT_CONFIG.settings.window_y;
@@ -958,18 +1062,18 @@ local function input_is_closed()
     return AshitaCore:GetChatManager():IsInputOpen() == 0x00;
 end
 
-local function directinput_digit_down(keyptr)
+local function directinput_digit_index(keyptr)
     if (keyptr == nil) then
-        return false;
+        return nil;
     end
 
-    for _, scancode in ipairs(DIK_DIGITS) do
+    for index, scancode in ipairs(DIK_DIGITS) do
         if (bit.band(keyptr[scancode], 0x80) ~= 0) then
-            return true;
+            return index;
         end
     end
 
-    return false;
+    return nil;
 end
 
 local function clear_directinput_modifier_state(e)
@@ -978,8 +1082,20 @@ local function clear_directinput_modifier_state(e)
         return;
     end
 
+    local ctrl = key_down(VK.CONTROL);
+    local alt = key_down(VK.ALT);
+    if (not ctrl and not alt) then
+        return;
+    end
+
     local keyptr = ffi.cast('uint8_t*', e.data_raw);
-    if (not directinput_digit_down(keyptr)) then
+    local index = directinput_digit_index(keyptr);
+    if (index == nil) then
+        return;
+    end
+
+    local combo = KEYBIND.combo_from_parts(DIGIT_LABELS[index], ctrl, alt, key_down(VK.SHIFT));
+    if (combo == nil or not KEYBIND.combo_bound(combo)) then
         return;
     end
 
@@ -1755,6 +1871,468 @@ local function sorted_keys(tbl)
     return keys;
 end
 
+function KEYBIND.rows_for_bar(bar_key)
+    if (bar_key == 'extra1') then
+        return KEYBIND.EXTRA_ROWS;
+    end
+
+    return ROWS;
+end
+
+function KEYBIND.bar_label(bar_key)
+    if (bar_key == 'extra1') then
+        return 'Extra Bar 1';
+    end
+
+    return 'Main Bar';
+end
+
+function KEYBIND.row_label(row_id)
+    local row = ROW_BY_ID[row_id];
+    return row ~= nil and row.label or tostring(row_id);
+end
+
+function KEYBIND.slot_name(bar_key, row_id, index)
+    return ('%s %s %s'):fmt(KEYBIND.bar_label(bar_key), KEYBIND.row_label(row_id), DIGIT_LABELS[index] or tostring(index));
+end
+
+function KEYBIND.normalize_key_token(token)
+    local raw = trim_string(token or '');
+    if (raw == '') then
+        return nil;
+    end
+
+    if (#raw == 1) then
+        local upper = raw:upper();
+        if (upper:match('^[A-Z0-9]$')) then
+            return upper;
+        end
+    end
+
+    local compact = raw:gsub('%s+', ''):gsub('[_%-]+', ''):lower();
+    local fn = compact:match('^f(%d%d?)$');
+    if (fn ~= nil) then
+        local number = tonumber(fn);
+        if (number ~= nil and number >= 1 and number <= 12) then
+            return 'F' .. tostring(number);
+        end
+    end
+
+    local numpad = compact:match('^numpad(%d)$') or compact:match('^num(%d)$');
+    if (numpad ~= nil) then
+        return 'Num' .. numpad;
+    end
+
+    return KEYBIND.KEY_ALIASES[compact];
+end
+
+function KEYBIND.normalize(value)
+    local text = trim_string(value or '');
+    if (text == '') then
+        return nil;
+    end
+
+    local ctrl = false;
+    local alt = false;
+    local shift = false;
+    local key = nil;
+
+    for token in text:gmatch('[^+]+') do
+        local compact = trim_string(token):gsub('%s+', ''):lower();
+        if (compact == 'ctrl' or compact == 'control') then
+            ctrl = true;
+        elseif (compact == 'alt') then
+            alt = true;
+        elseif (compact == 'shift') then
+            shift = true;
+        else
+            if (key ~= nil) then
+                return nil;
+            end
+            key = KEYBIND.normalize_key_token(token);
+            if (key == nil) then
+                return nil;
+            end
+        end
+    end
+
+    if (key == nil) then
+        return nil;
+    end
+
+    local parts = {};
+    if (ctrl) then table.insert(parts, 'Ctrl'); end
+    if (alt) then table.insert(parts, 'Alt'); end
+    if (shift) then table.insert(parts, 'Shift'); end
+    table.insert(parts, key);
+    return table.concat(parts, '+');
+end
+
+function KEYBIND.event_key_label(wparam)
+    local vk = tonumber(wparam);
+    if (vk == nil or vk == VK.CONTROL or vk == VK.ALT or vk == VK.SHIFT) then
+        return nil;
+    end
+
+    local digit = VK.DIGITS[vk];
+    if (digit ~= nil) then
+        return DIGIT_LABELS[digit];
+    end
+
+    if (vk >= 0x41 and vk <= 0x5A) then
+        return string.char(vk);
+    end
+
+    if (vk >= 0x70 and vk <= 0x7B) then
+        return 'F' .. tostring(vk - 0x6F);
+    end
+
+    if (vk >= 0x60 and vk <= 0x69) then
+        return 'Num' .. tostring(vk - 0x60);
+    end
+
+    if (vk == VK.BACKSPACE) then return 'Backspace'; end
+    if (vk == VK.ESCAPE) then return 'Escape'; end
+    return KEYBIND.EVENT_LABELS[vk];
+end
+
+function KEYBIND.combo_from_parts(key_label, ctrl, alt, shift)
+    local key = KEYBIND.normalize_key_token(key_label);
+    if (key == nil) then
+        return nil;
+    end
+
+    local parts = {};
+    if (ctrl) then table.insert(parts, 'Ctrl'); end
+    if (alt) then table.insert(parts, 'Alt'); end
+    if (shift) then table.insert(parts, 'Shift'); end
+    table.insert(parts, key);
+    return table.concat(parts, '+');
+end
+
+function KEYBIND.combo_from_event(e)
+    local key = KEYBIND.event_key_label(e.wparam);
+    if (key == nil) then
+        return nil;
+    end
+
+    return KEYBIND.combo_from_parts(key, key_down(VK.CONTROL), key_down(VK.ALT), key_down(VK.SHIFT));
+end
+
+function KEYBIND.display_label(combo)
+    local normalized = KEYBIND.normalize(combo);
+    if (normalized == nil) then
+        return nil;
+    end
+
+    local parts = {};
+    for token in normalized:gmatch('[^+]+') do
+        if (token == 'Ctrl') then
+            table.insert(parts, 'C');
+        elseif (token == 'Alt') then
+            table.insert(parts, 'A');
+        elseif (token == 'Shift') then
+            table.insert(parts, 'S');
+        else
+            table.insert(parts, token);
+        end
+    end
+
+    return table.concat(parts, '+');
+end
+
+function KEYBIND.empty_bar_keybinds(bar_key)
+    local result = {};
+    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+        result[row.id] = {};
+    end
+    return result;
+end
+
+function KEYBIND.overlay_bar_keybinds(target, source, bar_key)
+    if (type(target) ~= 'table' or type(source) ~= 'table') then
+        return target;
+    end
+
+    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+        local row_source = source[row.id];
+        if (type(row_source) == 'table') then
+            if (type(target[row.id]) ~= 'table') then
+                target[row.id] = {};
+            end
+            for index = 1, 10 do
+                if (row_source[index] ~= nil) then
+                    target[row.id][index] = KEYBIND.normalize(row_source[index]) or '';
+                end
+            end
+        end
+    end
+
+    return target;
+end
+
+function KEYBIND.default_bar_keybinds(bar_key)
+    local result = KEYBIND.empty_bar_keybinds(bar_key);
+    local settings_key = BAR.SETTINGS_KEY[bar_key];
+    local defaults = (settings_key ~= nil and DEFAULT_CONFIG.settings[settings_key]) or nil;
+    if (type(defaults) == 'table') then
+        KEYBIND.overlay_bar_keybinds(result, defaults.keybinds, bar_key);
+    end
+    return result;
+end
+
+function KEYBIND.config_bar_keybinds(bar_key)
+    local settings = BAR.settings(bar_key);
+    if (type(settings) == 'table' and type(settings.keybinds) == 'table') then
+        return settings.keybinds;
+    end
+    return nil;
+end
+
+function KEYBIND.effective_bar_keybinds(bar_key)
+    local result = KEYBIND.default_bar_keybinds(bar_key);
+    KEYBIND.overlay_bar_keybinds(result, KEYBIND.config_bar_keybinds(bar_key), bar_key);
+    if (type(state.keybind_overrides) == 'table') then
+        KEYBIND.overlay_bar_keybinds(result, state.keybind_overrides[bar_key], bar_key);
+    end
+    return result;
+end
+
+function KEYBIND.slot_combo(bar_key, row_id, index)
+    local keybinds = KEYBIND.effective_bar_keybinds(bar_key);
+    local row = keybinds[row_id];
+    if (type(row) ~= 'table') then
+        return nil;
+    end
+    return KEYBIND.normalize(row[index]);
+end
+
+function KEYBIND.slot_display_label(bar_key, row_id, index)
+    return KEYBIND.display_label(KEYBIND.slot_combo(bar_key, row_id, index));
+end
+
+function KEYBIND.set_slot_override(bar_key, row_id, index, combo)
+    if (bar_key ~= 'main' and bar_key ~= 'extra1') then
+        return false;
+    end
+    local numeric_index = tonumber(index);
+    if (not valid_row_id(row_id) or numeric_index == nil or numeric_index < 1 or numeric_index > 10) then
+        return false;
+    end
+    index = math.floor(numeric_index);
+
+    if (type(state.keybind_overrides) ~= 'table') then
+        state.keybind_overrides = {};
+    end
+    if (type(state.keybind_overrides[bar_key]) ~= 'table') then
+        state.keybind_overrides[bar_key] = KEYBIND.effective_bar_keybinds(bar_key);
+    end
+    if (type(state.keybind_overrides[bar_key][row_id]) ~= 'table') then
+        state.keybind_overrides[bar_key][row_id] = {};
+    end
+
+    state.keybind_overrides[bar_key][row_id][index] = KEYBIND.normalize(combo) or '';
+    return true;
+end
+
+function KEYBIND.sanitize_for_storage(bar_key, keybinds)
+    local result = KEYBIND.empty_bar_keybinds(bar_key);
+    KEYBIND.overlay_bar_keybinds(result, keybinds, bar_key);
+    return result;
+end
+
+function KEYBIND.apply_to_target(target, settings, bar_key)
+    if (type(target) ~= 'table' or type(settings) ~= 'table' or settings.keybinds == nil) then
+        return;
+    end
+
+    target.keybinds = KEYBIND.sanitize_for_storage(bar_key, settings.keybinds);
+end
+
+function KEYBIND.serialize_lines(keybinds, indent, bar_key)
+    local lines = {
+        indent .. 'keybinds = {',
+    };
+
+    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+        local row_values = type(keybinds) == 'table' and keybinds[row.id] or nil;
+        local parts = {};
+        for index = 1, 10 do
+            local combo = nil;
+            if (type(row_values) == 'table') then
+                combo = KEYBIND.normalize(row_values[index]);
+            end
+            table.insert(parts, ('[%d] = %s'):fmt(index, lua_string_literal(combo or '')));
+        end
+        table.insert(lines, ('%s    %s = { %s },'):fmt(indent, row.id, table.concat(parts, ', ')));
+    end
+
+    table.insert(lines, indent .. '},');
+    return lines;
+end
+
+function KEYBIND.binding_map()
+    local map = {};
+    local conflicts = {};
+
+    for _, bar_key in ipairs(KEYBIND.BAR_KEYS) do
+        local keybinds = KEYBIND.effective_bar_keybinds(bar_key);
+        for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+            local row_values = keybinds[row.id];
+            if (type(row_values) == 'table') then
+                for index = 1, 10 do
+                    local combo = KEYBIND.normalize(row_values[index]);
+                    if (combo ~= nil) then
+                        local entry = {
+                            combo = combo,
+                            bar_key = bar_key,
+                            group = row.id,
+                            index = index,
+                            name = KEYBIND.slot_name(bar_key, row.id, index),
+                        };
+                        if (map[combo] == nil) then
+                            map[combo] = entry;
+                        else
+                            if (conflicts[combo] == nil) then
+                                conflicts[combo] = { map[combo] };
+                            end
+                            table.insert(conflicts[combo], entry);
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    return map, conflicts;
+end
+
+function KEYBIND.combo_bound(combo)
+    local normalized = KEYBIND.normalize(combo);
+    if (normalized == nil) then
+        return false;
+    end
+
+    local map = KEYBIND.binding_map();
+    return map[normalized] ~= nil;
+end
+
+function KEYBIND.conflict_messages()
+    local _, conflicts = KEYBIND.binding_map();
+    local combos = {};
+    local messages = {};
+
+    for combo, _ in pairs(conflicts) do
+        table.insert(combos, combo);
+    end
+    table.sort(combos);
+
+    for _, combo in ipairs(combos) do
+        local names = {};
+        for _, entry in ipairs(conflicts[combo]) do
+            table.insert(names, entry.name);
+        end
+        table.insert(messages, ('%s: %s'):fmt(combo, table.concat(names, ', ')));
+    end
+
+    return messages;
+end
+
+function KEYBIND.summary(bar_key)
+    local keybinds = KEYBIND.effective_bar_keybinds(bar_key);
+    local rows = {};
+    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+        local values = {};
+        local row_values = keybinds[row.id];
+        for index = 1, 10 do
+            values[index] = KEYBIND.display_label(type(row_values) == 'table' and row_values[index] or nil) or '-';
+        end
+        table.insert(rows, ('%s=%s'):fmt(row.id, table.concat(values, ',')));
+    end
+    return table.concat(rows, ';');
+end
+
+function KEYBIND.start_capture(bar_key, row_id, index)
+    state.keybind_capture = {
+        bar_key = bar_key,
+        row_id = row_id,
+        index = index,
+    };
+    state.keybind_message = ('Press a key for %s. Backspace clears, Esc cancels.'):fmt(KEYBIND.slot_name(bar_key, row_id, index));
+    state.keybind_message_color = UI_COLORS.config_header;
+end
+
+function KEYBIND.handle_capture_event(e)
+    local capture = state.keybind_capture;
+    if (type(capture) ~= 'table') then
+        return false;
+    end
+
+    if (e.wparam == VK.ESCAPE) then
+        state.keybind_capture = nil;
+        state.keybind_message = 'Keybind cancelled.';
+        state.keybind_message_color = UI_COLORS.config_header;
+        return true;
+    end
+
+    if (e.wparam == VK.BACKSPACE or e.wparam == VK.DELETE) then
+        KEYBIND.set_slot_override(capture.bar_key, capture.row_id, capture.index, '');
+        state.keybind_capture = nil;
+        state.keybind_message = ('Unbound %s. Save to persist.'):fmt(KEYBIND.slot_name(capture.bar_key, capture.row_id, capture.index));
+        state.keybind_message_color = UI_COLORS.success;
+        return true;
+    end
+
+    local combo = KEYBIND.combo_from_event(e);
+    if (combo == nil) then
+        return true;
+    end
+
+    KEYBIND.set_slot_override(capture.bar_key, capture.row_id, capture.index, combo);
+    state.keybind_capture = nil;
+    state.keybind_message = ('Bound %s to %s. Save to persist.'):fmt(KEYBIND.slot_name(capture.bar_key, capture.row_id, capture.index), combo);
+    state.keybind_message_color = UI_COLORS.success;
+    return true;
+end
+
+function KEYBIND.render_config_section(bar_key)
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Keybinds');
+    imgui.Text('Click a key, then press the new key. Backspace clears, Esc cancels.');
+
+    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+        imgui.TextColored(UI_COLORS.config_header, KEYBIND.row_label(row.id));
+        for index = 1, 10 do
+            if (index > 1) then
+                imgui.SameLine(0, 4);
+            end
+
+            local capture = state.keybind_capture;
+            local is_capture = type(capture) == 'table' and capture.bar_key == bar_key and capture.row_id == row.id and capture.index == index;
+            local label = is_capture and '...' or (KEYBIND.slot_display_label(bar_key, row.id, index) or '-');
+            if (imgui.Button(('%s##ashitabars_keybind_%s_%s_%d'):fmt(label, bar_key, row.id, index), { 44, 0 })) then
+                KEYBIND.start_capture(bar_key, row.id, index);
+            end
+        end
+    end
+
+    local conflicts = KEYBIND.conflict_messages();
+    if (#conflicts > 0) then
+        imgui.TextColored(UI_COLORS.error, 'Keybind conflicts:');
+        for index, message in ipairs(conflicts) do
+            if (index > 4) then
+                imgui.TextColored(UI_COLORS.error, ('+%d more'):fmt(#conflicts - 4));
+                break;
+            end
+            imgui.TextColored(UI_COLORS.error, message);
+        end
+    end
+
+    if (state.keybind_message ~= nil) then
+        imgui.TextColored(state.keybind_message_color or UI_COLORS.config_header, state.keybind_message);
+    end
+end
+
 function SHARED.normalize_name(value)
     local name = trim_one_line(value, SHARED.NAME_MAX);
     name = name:gsub('%s+', ' ');
@@ -1909,6 +2487,7 @@ local function current_runtime_visual_settings()
     local main_bar = {
         visible = main_bar_visible(),
         display_mode = display_mode(),
+        keybinds = KEYBIND.effective_bar_keybinds('main'),
         slot_size = slot_size('main'),
         button_gap = button_gap('main'),
         slot_glow_size = slot_glow_size('main'),
@@ -1919,6 +2498,7 @@ local function current_runtime_visual_settings()
     };
     local extra_bar_1 = {
         visible = click_bar_visible(),
+        keybinds = KEYBIND.effective_bar_keybinds('extra1'),
         slot_size = slot_size('extra1'),
         button_gap = button_gap('extra1'),
         slot_glow_size = slot_glow_size('extra1'),
@@ -1961,6 +2541,7 @@ function BAR.apply_visual_settings(target, settings, bar_key)
 
     if (settings.visible ~= nil) then target.visible = settings.visible ~= false; end
     if (bar_key == 'main' and mode ~= nil) then target.display_mode = mode; end
+    KEYBIND.apply_to_target(target, settings, bar_key);
     if (size ~= nil) then target.slot_size = size; end
     if (gap ~= nil) then target.button_gap = gap; end
     if (glow_size ~= nil) then target.slot_glow_size = glow_size; end
@@ -2003,6 +2584,7 @@ local function apply_visual_settings(settings)
 
     if (settings.visible ~= nil) then target.main_bar.visible = settings.visible ~= false; end
     if (mode ~= nil) then target.main_bar.display_mode = mode; end
+    KEYBIND.apply_to_target(target.main_bar, settings, 'main');
     if (size ~= nil) then
         target.main_bar.slot_size = size;
         if (settings.extra_bar_1 == nil) then target.extra_bar_1.slot_size = size; end
@@ -2048,12 +2630,19 @@ local function serialize_visual_settings(settings)
     local extra = settings.extra_bar_1 or {};
     local lines = {
         '-- Generated by AshitaBars. Runtime visual settings are stored here.',
-        '-- This file lives outside the addon folder so installs do not reset placement or sizing.',
+        '-- This file lives outside the addon folder so installs do not reset placement, sizing, or keybinds.',
         'return {',
         '    settings = {',
         '        main_bar = {',
         ('            visible = %s,'):fmt(tostring(main.visible ~= false)),
         ('            display_mode = %s,'):fmt(lua_string_literal(main.display_mode or settings.display_mode)),
+    };
+
+    for _, line in ipairs(KEYBIND.serialize_lines(main.keybinds, '            ', 'main')) do
+        table.insert(lines, line);
+    end
+
+    for _, line in ipairs({
         ('            slot_size = %d,'):fmt(main.slot_size or settings.slot_size),
         ('            button_gap = %d,'):fmt(main.button_gap or settings.button_gap),
         ('            slot_glow_size = %d,'):fmt(main.slot_glow_size or settings.slot_glow_size),
@@ -2064,6 +2653,15 @@ local function serialize_visual_settings(settings)
         '        },',
         '        extra_bar_1 = {',
         ('            visible = %s,'):fmt(tostring(extra.visible ~= false)),
+    }) do
+        table.insert(lines, line);
+    end
+
+    for _, line in ipairs(KEYBIND.serialize_lines(extra.keybinds, '            ', 'extra1')) do
+        table.insert(lines, line);
+    end
+
+    for _, line in ipairs({
         ('            slot_size = %d,'):fmt(extra.slot_size or settings.slot_size),
         ('            button_gap = %d,'):fmt(extra.button_gap or settings.button_gap),
         ('            slot_glow_size = %d,'):fmt(extra.slot_glow_size or settings.slot_glow_size),
@@ -2086,7 +2684,9 @@ local function serialize_visual_settings(settings)
         '    },',
         '}',
         '',
-    };
+    }) do
+        table.insert(lines, line);
+    end
 
     return table.concat(lines, '\n');
 end
@@ -2133,6 +2733,8 @@ local function save_visual_settings()
     state.slot_glow_size_override = nil;
     state.slot_glow_opacity_override = nil;
     state.label_vertical_position_override = nil;
+    state.keybind_overrides = {};
+    state.keybind_capture = nil;
     state.main_bar_visible_override = nil;
     state.click_bar_visible_override = nil;
     state.click_bar_slot_size_override = nil;
@@ -2594,7 +3196,7 @@ local function apply_editor_preview(slot, profile_key, group, index)
     else
         preview_slot.script = nil;
     end
-    if (mode ~= 'item' and mode ~= 'mount') then
+    if (mode ~= 'item') then
         preview_slot.icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
     end
     return preview_slot;
@@ -2849,6 +3451,11 @@ end
 function COMMAND_MODE.start_mount_recast_overlay()
     local total = 60;
     local now = os.time();
+    local overlay = state.mount_recast_overlay;
+    if (type(overlay) == 'table' and (tonumber(overlay.expires_at) or 0) > now) then
+        return;
+    end
+
     state.mount_recast_overlay = {
         started_at = now,
         total = total,
@@ -3503,6 +4110,113 @@ function COMMAND_MODE.item_icon_handle(item_id, resource)
     return handle;
 end
 
+function ICON_ART_STYLE.addon_dir_path()
+    local source = safe_read(function ()
+        local info = debug.getinfo(1, 'S');
+        return info and info.source or nil;
+    end, nil);
+
+    if (type(source) == 'string') then
+        if (source:sub(1, 1) == '@') then
+            source = source:sub(2);
+        end
+
+        local dir = source:match('^(.*[\\/])');
+        if (dir ~= nil) then
+            return dir;
+        end
+    end
+
+    return nil;
+end
+
+function ICON_ART_STYLE.asset_path(file_name)
+    if (type(file_name) ~= 'string' or not file_name:match('^[%w_%-]+%.png$')) then
+        return nil;
+    end
+
+    local dir = ICON_ART_STYLE.addon_dir_path();
+    if (dir == nil) then
+        return nil;
+    end
+
+    return dir .. 'assets\\icons\\' .. file_name;
+end
+
+function ICON_ART_STYLE.asset_icon_handle(file_name)
+    if (type(file_name) ~= 'string' or not file_name:match('^[%w_%-]+%.png$')) then
+        return nil;
+    end
+
+    if (state.icon_asset_texture_handles ~= nil and state.icon_asset_texture_handles[file_name] ~= nil) then
+        return state.icon_asset_texture_handles[file_name];
+    end
+    if (state.icon_asset_texture_cache ~= nil and state.icon_asset_texture_cache[file_name] == false) then
+        return nil;
+    end
+    if (not COMMAND_MODE.ensure_texture_state()) then
+        return nil;
+    end
+
+    if (state.icon_asset_texture_cache == nil) then
+        state.icon_asset_texture_cache = {};
+    end
+    if (state.icon_asset_texture_handles == nil) then
+        state.icon_asset_texture_handles = {};
+    end
+
+    local path = ICON_ART_STYLE.asset_path(file_name);
+    local bytes = path ~= nil and read_text_file(path) or nil;
+    if (type(bytes) ~= 'string' or #bytes == 0) then
+        state.icon_asset_texture_cache[file_name] = false;
+        return nil;
+    end
+
+    local ok, handle = pcall(function ()
+        local texture_ptr = ffi.new('IDirect3DTexture8*[1]');
+        local result = ffi.C.D3DXCreateTextureFromFileInMemoryEx(
+            COMMAND_MODE.d3d_device,
+            bytes,
+            #bytes,
+            0xFFFFFFFF,
+            0xFFFFFFFF,
+            1,
+            0,
+            ffi.C.D3DFMT_A8R8G8B8,
+            ffi.C.D3DPOOL_MANAGED,
+            ffi.C.D3DX_DEFAULT,
+            ffi.C.D3DX_DEFAULT,
+            0xFF000000,
+            nil,
+            nil,
+            texture_ptr);
+
+        if (result ~= ffi.C.S_OK) then
+            return nil;
+        end
+
+        local texture = COMMAND_MODE.d3d.gc_safe_release(ffi.cast('IDirect3DTexture8*', texture_ptr[0]));
+        state.icon_asset_texture_cache[file_name] = texture;
+        state.icon_asset_texture_handles[file_name] = tonumber(ffi.cast('uint32_t', texture));
+        return state.icon_asset_texture_handles[file_name];
+    end);
+
+    if (not ok or handle == nil) then
+        state.icon_asset_texture_cache[file_name] = false;
+        return nil;
+    end
+
+    return handle;
+end
+
+function ICON_ART_STYLE.icon_handle(icon_def)
+    if (type(icon_def) ~= 'table') then
+        return nil;
+    end
+
+    return ICON_ART_STYLE.asset_icon_handle(icon_def.asset);
+end
+
 function COMMAND_MODE.item_description_text(resource)
     local desc = resource ~= nil and safe_read(function ()
         return resource.Description[1];
@@ -3809,7 +4523,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     if (COMMAND_MODE.is_structured_mode(mode)) then
         editor.use_action_name_label[1] = true;
     end
-    if (mode == 'item' or mode == 'mount') then
+    if (mode == 'item') then
         buffer_set(editor.icon_buffer, '');
     end
     if (COMMAND_MODE.mode_from_command(current_command) ~= mode) then
@@ -4761,7 +5475,7 @@ function SHARED.editor_slot(require_command)
     end
 
     local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
-    local slot_icon = (mode == 'item' or mode == 'mount') and '' or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    local slot_icon = (mode == 'item') and '' or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
     local label = use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max);
     local slot = {
         label = label,
@@ -4967,7 +5681,7 @@ local function save_macro_editor(clear_slot)
     command = clear_slot and '' or command;
     commands = clear_slot and {} or commands;
     local icon = clear_slot and '' or trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
-    if (mode == 'item' or mode == 'mount') then
+    if (mode == 'item') then
         icon = '';
     end
     local validation_error = ((not clear_slot) and COMMAND_MODE.editor_selection_validation_error(mode, editor))
@@ -5054,6 +5768,9 @@ local function icon_selector_label(token)
         end
 
         if (ICON_DEFS[base] ~= nil) then
+            if (ICON_DEFS[base].asset ~= nil) then
+                return base:gsub('^asset_', 'image: ');
+            end
             if (sigil_base ~= nil) then
                 return ('%s (sigil)'):fmt(base);
             end
@@ -6431,8 +7148,13 @@ local function draw_hotkey_badge(draw_list, x, y, slot_size, hotkey, color, dimm
         return;
     end
 
+    local label = fit_text(hotkey, slot_size - 8);
+    if (label == '') then
+        return;
+    end
+
     local theme = current_theme();
-    local tw, th = imgui.CalcTextSize(hotkey);
+    local tw, th = imgui.CalcTextSize(label);
     tw = tonumber(tw) or 0;
     th = tonumber(th) or 0;
 
@@ -6446,7 +7168,7 @@ local function draw_hotkey_badge(draw_list, x, y, slot_size, hotkey, color, dimm
 
     draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(bg, dimmed and 0.54 or 0.74)), 1.5);
     draw_list:AddRect({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(color, dimmed and 0.24 or 0.55)), 1.5, ImDrawCornerFlags_All, 1.0);
-    draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, text_color, hotkey);
+    draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, text_color, label);
 end
 
 local function draw_label_overlay(draw_list, x, y, slot_size, label, color)
@@ -6601,10 +7323,15 @@ local function draw_icon_preview_tile(draw_list, x, y, size, slot)
     local iy1 = y + inset;
     local ix2 = x + size - inset;
     local iy2 = y + size - inset;
+    local asset_handle = ICON_ART_STYLE.icon_handle(icon_def);
 
     draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ icon_color[1] * 0.20, icon_color[2] * 0.20, icon_color[3] * 0.20, 0.96 }), 2.5);
-    draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 }, 0.05)), 2.0);
-    draw_icon_mark(draw_list, icon_def, x + size * 0.50, y + size * 0.48, size * 0.22, icon_color);
+    if (asset_handle ~= nil) then
+        draw_list:AddImage(asset_handle, { ix1, iy1 }, { ix2, iy2 }, { 0, 0 }, { 1, 1 }, color_u32({ 1.00, 1.00, 1.00, 1.00 }));
+    else
+        draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 }, 0.05)), 2.0);
+        draw_icon_mark(draw_list, icon_def, x + size * 0.50, y + size * 0.48, size * 0.22, icon_color);
+    end
     draw_list:AddRect({ x, y }, { x + size, y + size }, color_u32(color_with_alpha(theme.hover_border or { 1.00, 0.96, 0.72, 0.52 }, 0.45)), 4.0, ImDrawCornerFlags_All, 1.0);
 end
 
@@ -6636,9 +7363,10 @@ local function render_icon_picker_tile(editor, token, selected, tile_size)
         border_color = theme.hover_border or { 1.00, 0.96, 0.72, 0.80 };
     end
 
-    draw_list:AddRectFilled({ x, y }, { x + tile_size, y + tile_size }, color_u32(color_with_alpha(theme.button_bg or { 0.04, 0.04, 0.05, 1.00 }, bg_alpha)), 4.0);
-    draw_icon_preview_tile(draw_list, x + 4, y + 4, tile_size - 8, editor_icon_preview_slot(editor, token));
-    draw_list:AddRect({ x, y }, { x + tile_size, y + tile_size }, color_u32(border_color), 4.0, ImDrawCornerFlags_All, selected and 2.0 or 1.0);
+    local padding = math.max(4, math.floor(tile_size * 0.08));
+    draw_list:AddRectFilled({ x, y }, { x + tile_size, y + tile_size }, color_u32(color_with_alpha(theme.button_bg or { 0.04, 0.04, 0.05, 1.00 }, bg_alpha)), 5.0);
+    draw_icon_preview_tile(draw_list, x + padding, y + padding, tile_size - (padding * 2), editor_icon_preview_slot(editor, token));
+    draw_list:AddRect({ x, y }, { x + tile_size, y + tile_size }, color_u32(border_color), 5.0, ImDrawCornerFlags_All, selected and 2.4 or 1.2);
 
     if (hovered) then
         imgui.BeginTooltip();
@@ -6654,14 +7382,14 @@ local function render_icon_selector(editor, width)
     local normalized_current = DEFERRED.normalize_icon_token(current_icon);
     local changed = false;
     local picker_width = width or 360;
-    local tile_size = 40;
-    local gap = 6;
+    local tile_size = 80;
+    local gap = 5;
     local columns = math.max(1, math.floor((picker_width + gap) / (tile_size + gap)));
     local rows = 1;
     for _, category in ipairs(ICON_SELECTOR_CATEGORIES) do
         rows = rows + 1 + math.ceil((#category.tokens * 2) / columns);
     end
-    local visible_rows = math.min(rows, 6);
+    local visible_rows = math.min(rows, 4);
     local picker_height = math.max(tile_size + 8, (visible_rows * tile_size) + ((visible_rows - 1) * gap) + 8);
     local child_open = false;
     local child_visible = true;
@@ -6686,6 +7414,11 @@ local function render_icon_selector(editor, width)
     end
 
     local function render_token_variants(token)
+        if (ICON_DEFS[token] ~= nil and ICON_DEFS[token].asset ~= nil) then
+            render_option(token, normalized_current == token);
+            return;
+        end
+
         render_option(token, normalized_current == token);
         render_option(('sigil_%s'):fmt(token), normalized_current == ('sigil_%s'):fmt(token));
     end
@@ -6884,16 +7617,25 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_list:AddRectFilled({ ix1, iy1 }, { ix2, iy2 }, color_u32({ draw_icon_color[1] * 0.20, draw_icon_color[2] * 0.20, draw_icon_color[3] * 0.20, icon_alpha }), 2.5);
         local highlight = theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 };
         draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(highlight, command_supported and 0.05 or 0.02)), 2.0);
-        local drew_item_icon = false;
-        local item_handle = COMMAND_MODE.item_icon_handle_for_slot(slot);
-        if (item_handle ~= nil) then
-            local image_inset = math.max(2, math.floor(slot_size * 0.08));
+        local drew_image_icon = false;
+        local asset_handle = ICON_ART_STYLE.icon_handle(icon_def);
+        if (asset_handle ~= nil) then
             local tint = available and { 1.00, 1.00, 1.00, icon_alpha } or { 0.58, 0.58, 0.58, icon_alpha };
-            drew_item_icon = pcall(function ()
-                draw_list:AddImage(item_handle, { ix1 + image_inset, iy1 + image_inset }, { ix2 - image_inset, iy2 - image_inset }, { 0, 0 }, { 1, 1 }, color_u32(tint));
+            drew_image_icon = pcall(function ()
+                draw_list:AddImage(asset_handle, { ix1, iy1 }, { ix2, iy2 }, { 0, 0 }, { 1, 1 }, color_u32(tint));
             end);
         end
-        if (not drew_item_icon) then
+        if (not drew_image_icon) then
+            local item_handle = COMMAND_MODE.item_icon_handle_for_slot(slot);
+            if (item_handle ~= nil) then
+                local image_inset = math.max(2, math.floor(slot_size * 0.08));
+                local tint = available and { 1.00, 1.00, 1.00, icon_alpha } or { 0.58, 0.58, 0.58, icon_alpha };
+                drew_image_icon = pcall(function ()
+                    draw_list:AddImage(item_handle, { ix1 + image_inset, iy1 + image_inset }, { ix2 - image_inset, iy2 - image_inset }, { 0, 0 }, { 1, 1 }, color_u32(tint));
+                end);
+            end
+        end
+        if (not drew_image_icon) then
             draw_icon_mark(draw_list, icon_def, rx + slot_size * 0.50, ry + slot_size * 0.48, slot_size * 0.21, draw_icon_color);
         end
     else
@@ -6913,10 +7655,12 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, macro_run_info);
     end
 
-    if (row.showHotkeys ~= false and setting_enabled('show_hotkeys', true)) then
-        local hotkey = row.keyPrefix .. DIGIT_LABELS[index];
+    if (setting_enabled('show_hotkeys', true)) then
+        local hotkey = KEYBIND.slot_display_label(BAR.current_key(), row.id, index);
         local key_color = command_supported and row_color or (has_command and { 1.00, 0.30, 0.24, 1.00 } or { 0.54, 0.54, 0.58, 1.00 });
-        draw_hotkey_badge(draw_list, rx, ry, slot_size, hotkey, key_color, not has_command);
+        if (hotkey ~= nil and (row.showHotkeys ~= false or hotkey ~= '')) then
+            draw_hotkey_badge(draw_list, rx, ry, slot_size, hotkey, key_color, not has_command);
+        end
     end
 
     local label = COMMAND_MODE.slot_label(slot);
@@ -6965,7 +7709,7 @@ local function render_tooltip(row, index)
     if (label ~= nil and label ~= '') then
         imgui.Text(label);
     end
-    if (prefix ~= '/item' and prefix ~= '/mount' and icon_token ~= nil) then
+    if (prefix ~= '/item' and icon_token ~= nil) then
         imgui.Text('icon: ' .. icon_token);
     end
     if (slot and slot.command) then
@@ -7284,6 +8028,8 @@ function BAR.render_config_tab(bar_key)
     render_runtime_int_control('Glow Opacity', ('%s_slot_glow_opacity'):fmt(bar_key), slot_glow_opacity(bar_key), slot_glow_opacity_source(bar_key), LIMITS.slot_glow_opacity_min, LIMITS.slot_glow_opacity_max, function (value)
         BAR.set_override(bar_key, 'slot_glow_opacity', normalize_slot_glow_opacity(value));
     end, '%');
+
+    KEYBIND.render_config_section(bar_key);
 end
 
 local function render_config_window()
@@ -7407,7 +8153,7 @@ local function render_macro_editor_window()
         if (mode ~= 'single' and mode ~= 'multi') then
             COMMAND_MODE.render_structured_editor(editor, mode);
         end
-        if (mode ~= 'item' and mode ~= 'mount') then
+        if (mode ~= 'item') then
             render_icon_selector(editor, 360);
         end
 
@@ -7456,7 +8202,7 @@ local function print_help()
     log_info('/ashitabars toggle - Show or hide the bars.');
     log_info('/ashitabars show - Show the bars.');
     log_info('/ashitabars hide - Hide the bars.');
-    log_info('/ashitabars config - Toggle the runtime configuration window.');
+    log_info('/ashitabars config - Toggle the runtime configuration and keybind window.');
     log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
     log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(LIMITS.slot_size_min, LIMITS.slot_size_max));
     log_info(('/ashitabars gap %d-%d|config - Change button spacing until config reload.'):fmt(LIMITS.button_gap_min, LIMITS.button_gap_max));
@@ -7466,7 +8212,7 @@ end
 
 ashita.events.register('load', 'load_cb', function ()
     load_config();
-    log_info('Loaded. Uses key events, not /bind. Number keys pass through while chat/input is open.');
+    log_info('Loaded. Uses configurable key events, not /bind. Keys pass through while chat/input is open.');
 end);
 
 ashita.events.register('unload', 'unload_cb', function ()
@@ -7606,6 +8352,14 @@ ashita.events.register('command', 'command_cb', function (e)
             tostring(profile.key),
             tostring(profile.source),
             tostring(settings.block_native_macro_modifiers ~= false)));
+        local keybind_conflicts = KEYBIND.conflict_messages();
+        log_info(('keybinds main=%s extra1=%s conflicts=%d'):fmt(
+            KEYBIND.summary('main'),
+            KEYBIND.summary('extra1'),
+            #keybind_conflicts));
+        for _, message in ipairs(keybind_conflicts) do
+            log_warn(('Keybind conflict: %s'):fmt(message));
+        end
     else
         print_help();
     end
@@ -7626,12 +8380,19 @@ ashita.events.register('key', 'key_cb', function (e)
         return;
     end
 
+    if (type(state.keybind_capture) == 'table') then
+        if (input_is_closed() and KEYBIND.handle_capture_event(e)) then
+            e.blocked = true;
+        end
+        return;
+    end
+
     if (imgui_wants_keyboard()) then
         return;
     end
 
-    local index = VK.DIGITS[e.wparam];
-    if (index == nil) then
+    local combo = KEYBIND.combo_from_event(e);
+    if (combo == nil) then
         return;
     end
 
@@ -7639,16 +8400,13 @@ ashita.events.register('key', 'key_cb', function (e)
         return;
     end
 
-    if (key_down(VK.SHIFT)) then
+    local map = KEYBIND.binding_map();
+    local binding = map[combo];
+    if (binding == nil) then
         return;
     end
 
-    local group = active_group();
-    if (group == nil) then
-        return;
-    end
-
-    execute_slot(group, index, 'key');
+    execute_slot(binding.group, binding.index, 'key');
     e.blocked = true;
 end);
 
