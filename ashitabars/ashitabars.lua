@@ -57,15 +57,17 @@ local KEY_UP_MASK       = bit.lshift(0x8000, 16);
 local KEY_WAS_DOWN_MASK = bit.lshift(0x4000, 16);
 local DIGIT_LABELS      = { '1', '2', '3', '4', '5', '6', '7', '8', '9', '0' };
 local ROWS              = {
-    { id = 'base', label = 'Base', keyPrefix = ''  },
+    { id = 'base', label = 'Main', keyPrefix = ''  },
     { id = 'ctrl', label = 'Ctrl', keyPrefix = 'C' },
     { id = 'alt',  label = 'Alt',  keyPrefix = 'A' },
+    { id = 'shift', label = 'Shift', keyPrefix = 'S' },
 };
 local CLICK_ROW         = { id = 'click', label = 'Click', keyPrefix = '', showHotkeys = false };
 local BUTTON_ROWS       = {
     ROWS[1],
     ROWS[2],
     ROWS[3],
+    ROWS[4],
     CLICK_ROW,
 };
 local ROW_BY_ID         = {};
@@ -152,11 +154,11 @@ local ROW_THEME = {
     base = { 0.92, 0.74, 0.32, 1.00 },
     ctrl = { 0.35, 0.70, 1.00, 1.00 },
     alt  = { 1.00, 0.55, 0.26, 1.00 },
+    shift = { 0.72, 0.56, 1.00, 1.00 },
     click = { 0.55, 0.86, 0.64, 1.00 },
 };
 
 local LIMITS = {
-    row_transition_seconds = 0.24,
     item_count_containers = { 0, 3 },
     item_count_cache_seconds = 0.40,
     slot_size_min = 40,
@@ -496,7 +498,7 @@ local KEYBIND = {
 local DEFAULT_CONFIG = {
     settings = {
         visible = true,
-        display_mode = 'stacked',
+        display_mode = 'single',
         theme = 'ffxi',
         show_hotkeys = true,
         show_labels = true,
@@ -519,12 +521,13 @@ local DEFAULT_CONFIG = {
         block_native_macro_modifiers = true,
         main_bar = {
             visible = true,
-            display_mode = 'stacked',
+            display_mode = 'single',
             profile_scope = 'job',
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
                 ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
                 alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
+                shift = { [1] = 'Shift+1', [2] = 'Shift+2', [3] = 'Shift+3', [4] = 'Shift+4', [5] = 'Shift+5', [6] = 'Shift+6', [7] = 'Shift+7', [8] = 'Shift+8', [9] = 'Shift+9', [10] = 'Shift+0' },
             },
             slot_size = 64,
             button_gap = 6,
@@ -554,6 +557,7 @@ local DEFAULT_CONFIG = {
             base = {},
             ctrl = {},
             alt = {},
+            shift = {},
             click = {},
         },
     },
@@ -561,6 +565,7 @@ local DEFAULT_CONFIG = {
         base = {},
         ctrl = {},
         alt = {},
+        shift = {},
         click = {},
     },
 };
@@ -626,18 +631,18 @@ local state = {
     icon_asset_texture_cache = {},
     icon_asset_texture_handles = {},
     command_mode_cache = {},
-    visual = {
-        row = 'base',
-        changed_at = 0,
-    },
     macro_editor = {
         visible = T{ false },
         bar_key = nil,
+        parent_group = nil,
         profile_key = nil,
         group = nil,
         index = nil,
         source = nil,
         shared_ref = nil,
+        modifier_ctrl_enabled = T{ false },
+        modifier_alt_enabled = T{ false },
+        modifier_shift_enabled = T{ false },
         macro_mode = 'single',
         shared_name_buffer = T{ '' },
         label_buffer = T{ '' },
@@ -1236,10 +1241,12 @@ end
 local function active_group()
     local ctrl = key_down(VK.CONTROL);
     local alt = key_down(VK.ALT);
+    local shift = key_down(VK.SHIFT);
 
-    if (ctrl and not alt) then return 'ctrl'; end
-    if (alt and not ctrl) then return 'alt'; end
-    if (not ctrl and not alt) then return 'base'; end
+    if (ctrl and not alt and not shift) then return 'ctrl'; end
+    if (alt and not ctrl and not shift) then return 'alt'; end
+    if (shift and not ctrl and not alt) then return 'shift'; end
+    if (not ctrl and not alt and not shift) then return 'base'; end
     return nil;
 end
 
@@ -1249,9 +1256,7 @@ local function normalize_display_mode(value)
     end
 
     local mode = value:lower():gsub('%s+', '');
-    if (mode == 'stacked' or mode == 'single') then
-        return mode;
-    end
+    if (mode == 'single') then return 'single'; end
 
     return nil;
 end
@@ -1377,22 +1382,14 @@ local function configured_display_mode()
         return mode, source;
     end
 
-    return DEFAULT_CONFIG.settings.display_mode, 'default';
+    return 'single', 'fixed';
 end
 
 local function display_mode()
-    if (state.display_mode_override ~= nil) then
-        return state.display_mode_override;
-    end
-
-    return configured_display_mode();
+    return 'single';
 end
 
 local function display_mode_source()
-    if (state.display_mode_override ~= nil) then
-        return 'runtime';
-    end
-
     local _, source = configured_display_mode();
     return source;
 end
@@ -2316,7 +2313,8 @@ function KEYBIND.binding_map()
             if (type(row_values) == 'table') then
                 for index = 1, 10 do
                     local combo = KEYBIND.normalize(row_values[index]);
-                    if (combo ~= nil) then
+                    local enabled = KEYBIND.slot_enabled_for_binding == nil or KEYBIND.slot_enabled_for_binding(row.id, index);
+                    if (combo ~= nil and enabled) then
                         local entry = {
                             combo = combo,
                             bar_key = bar_key,
@@ -3358,36 +3356,6 @@ local function apply_editor_preview(slot, profile_key, group, index)
     return preview_slot;
 end
 
-local function visual_group()
-    return active_group() or 'base';
-end
-
-local function row_transition_alpha(row_id, mode)
-    if (state.visual == nil) then
-        state.visual = { row = row_id, changed_at = os.clock() };
-        return 0;
-    end
-
-    local now = os.clock();
-    if (state.visual.row ~= row_id) then
-        state.visual.row = row_id;
-        state.visual.changed_at = now;
-    end
-
-    if (mode ~= 'single') then
-        return 0;
-    end
-
-    local elapsed = now - (state.visual.changed_at or now);
-    if (elapsed < 0 or elapsed >= LIMITS.row_transition_seconds) then
-        return 0;
-    end
-
-    local progress = elapsed / LIMITS.row_transition_seconds;
-    local remaining = 1.0 - progress;
-    return remaining * remaining;
-end
-
 local function get_slot(group, index)
     local bar_key = BAR.key_for_group(group);
     local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
@@ -3403,6 +3371,51 @@ local function get_slot(group, index)
     end
 
     return slot;
+end
+
+function MACRO.get_slot_without_editor_preview(profile, profile_key, group, index)
+    local slot = get_raw_config_slot(profile, group, index);
+    local override = get_slot_override(profile_key, group, index);
+    slot = apply_slot_override(slot, override);
+    slot = SHARED.resolve_slot(slot);
+    return MACRO.normalize_slot_runtime(slot);
+end
+
+function MACRO.slot_has_action(slot)
+    if (type(slot) ~= 'table') then
+        return false;
+    end
+
+    if (SHARED.normalize_name(slot.shared) ~= nil) then
+        return true;
+    end
+
+    return #MACRO.slot_commands(slot) > 0;
+end
+
+function BAR.modifier_slot_enabled(group, index)
+    if (group ~= 'ctrl' and group ~= 'alt' and group ~= 'shift') then
+        return true;
+    end
+
+    return MACRO.slot_has_action(get_slot(group, index));
+end
+
+function BAR.visual_row_for_index(index)
+    local active = active_group();
+    if ((active == 'ctrl' or active == 'alt' or active == 'shift') and BAR.modifier_slot_enabled(active, index)) then
+        return ROW_BY_ID[active] or ROW_BY_ID.base;
+    end
+
+    return ROW_BY_ID.base;
+end
+
+function KEYBIND.slot_enabled_for_binding(row_id, index)
+    if (row_id == 'ctrl' or row_id == 'alt' or row_id == 'shift') then
+        return BAR.modifier_slot_enabled(row_id, index);
+    end
+
+    return true;
 end
 
 COMMAND_MODE.ORDER = {
@@ -5761,6 +5774,32 @@ local function remove_slot_override(profile_key, group, index)
     prune_button_overrides();
 end
 
+function MACRO.set_empty_slot_override(profile_key, group, index)
+    return set_slot_override(profile_key, group, index, '', '', '', 'single', {}, nil, false, false);
+end
+
+function MACRO.apply_editor_modifier_toggles()
+    local editor = state.macro_editor;
+    if (type(editor) ~= 'table' or editor.parent_group ~= 'base' or editor.group ~= 'base') then
+        return true;
+    end
+
+    if (editor.modifier_ctrl_enabled[1] == false) then
+        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, 'ctrl', editor.index);
+        if (not ok) then return false, err; end
+    end
+    if (editor.modifier_alt_enabled[1] == false) then
+        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, 'alt', editor.index);
+        if (not ok) then return false, err; end
+    end
+    if (editor.modifier_shift_enabled[1] == false) then
+        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, 'shift', editor.index);
+        if (not ok) then return false, err; end
+    end
+
+    return true;
+end
+
 local function editor_row_label(group)
     local row = ROW_BY_ID[group];
     if (row == nil) then
@@ -5770,21 +5809,54 @@ local function editor_row_label(group)
     return row.label;
 end
 
-local function open_macro_editor(row, index)
-    local bar_key = BAR.key_for_group(row.id);
+function MACRO.editor_parent_group(group)
+    if (group == 'base' or group == 'ctrl' or group == 'alt' or group == 'shift') then
+        return 'base';
+    end
+
+    return group;
+end
+
+function MACRO.editor_is_main_parent(editor)
+    return type(editor) == 'table' and editor.parent_group == 'base';
+end
+
+function MACRO.initialize_editor_modifier_state(editor, profile, profile_key, index, preserve)
+    if (not MACRO.editor_is_main_parent(editor)) then
+        editor.modifier_ctrl_enabled[1] = false;
+        editor.modifier_alt_enabled[1] = false;
+        editor.modifier_shift_enabled[1] = false;
+        return;
+    end
+
+    if (preserve == true) then
+        return;
+    end
+
+    editor.modifier_ctrl_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, 'ctrl', index));
+    editor.modifier_alt_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, 'alt', index));
+    editor.modifier_shift_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, 'shift', index));
+end
+
+local function open_macro_editor(row, index, preserve_modifier_state)
+    local group = (row ~= nil and row.id) or 'base';
+    local parent_group = MACRO.editor_parent_group(group);
+    local bar_key = BAR.key_for_group(parent_group);
     local profile = refresh_profile_context(bar_key);
     local profile_key = editable_profile_key(profile);
-    local slot = get_slot(row.id, index) or {};
-    local override = get_slot_override(profile_key, row.id, index);
+    local slot = get_slot(group, index) or {};
+    local override = get_slot_override(profile_key, group, index);
     local editor = state.macro_editor;
 
     editor.visible[1] = true;
     editor.bar_key = bar_key;
+    editor.parent_group = parent_group;
     editor.profile_key = profile_key;
-    editor.group = row.id;
+    editor.group = group;
     editor.index = index;
     editor.shared_ref = SHARED.normalize_name(slot.shared);
     editor.source = (editor.shared_ref ~= nil) and ('shared: ' .. editor.shared_ref) or ((override ~= nil) and 'saved edit' or profile.source);
+    MACRO.initialize_editor_modifier_state(editor, profile, profile_key, index, preserve_modifier_state == true);
     buffer_set(editor.shared_name_buffer, editor.shared_ref or '');
     buffer_set(editor.label_buffer, slot.label or '');
     buffer_set(editor.command_buffer, MACRO.primary_command(slot));
@@ -5815,6 +5887,13 @@ local function save_macro_editor(clear_slot)
         local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, nil, nil, nil, nil, nil, shared_ref);
         if (not set_ok) then
             editor.message = set_err;
+            editor.message_color = UI_COLORS.error;
+            return false;
+        end
+
+        local modifier_ok, modifier_err = MACRO.apply_editor_modifier_toggles();
+        if (not modifier_ok) then
+            editor.message = modifier_err;
             editor.message_color = UI_COLORS.error;
             return false;
         end
@@ -5855,6 +5934,13 @@ local function save_macro_editor(clear_slot)
     local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true);
     if (not set_ok) then
         editor.message = set_err;
+        editor.message_color = UI_COLORS.error;
+        return false;
+    end
+
+    local modifier_ok, modifier_err = MACRO.apply_editor_modifier_toggles();
+    if (not modifier_ok) then
+        editor.message = modifier_err;
         editor.message_color = UI_COLORS.error;
         return false;
     end
@@ -7847,7 +7933,8 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     if (edit_clicked) then
-        open_macro_editor(row, index);
+        local editor_row = (row.id == 'ctrl' or row.id == 'alt' or row.id == 'shift') and ROW_BY_ID.base or row;
+        open_macro_editor(editor_row, index);
         return false;
     end
 
@@ -7926,10 +8013,19 @@ local function render_row(row, active, transition_alpha, show_row_label, capture
         end
 
         local should_capture_anchor = (index == 1) and capture_anchor or false;
-        if (render_slot_button(row, index, current_slot_size, active, transition_alpha, should_capture_anchor, show_frame)) then
-            execute_slot(row.id, index, 'click');
+        local effective_row = row;
+        local effective_active = active;
+        local effective_transition_alpha = transition_alpha;
+        if (row.id == 'base') then
+            effective_row = BAR.visual_row_for_index(index);
+            effective_active = active_group() == effective_row.id;
+            effective_transition_alpha = 0;
         end
-        render_tooltip(row, index);
+
+        if (render_slot_button(effective_row, index, current_slot_size, effective_active, effective_transition_alpha, should_capture_anchor, show_frame)) then
+            execute_slot(effective_row.id, index, 'click');
+        end
+        render_tooltip(effective_row, index);
     end
 end
 
@@ -7945,10 +8041,9 @@ local function render_bars()
     local current_slot_size = slot_size();
     local gap = button_gap();
     local row_gap = tonumber(settings.row_gap) or DEFAULT_CONFIG.settings.row_gap;
-    local mode = display_mode();
     local theme = current_theme();
     local show_frame = bar_frame_visible();
-    local row_count = (mode == 'single') and 1 or #ROWS;
+    local row_count = 1;
     local label_width = show_frame and 58 or 0;
     local content_width = label_width + (current_slot_size * 10) + (gap * 9);
     local content_height = (current_slot_size * row_count) + (row_gap * (row_count - 1));
@@ -7956,7 +8051,6 @@ local function render_bars()
     local width = content_width + (show_frame and 20 or (hidden_pad * 2));
     local height = content_height + (show_frame and 48 or (hidden_pad * 2));
     local active = active_group();
-    local visual = visual_group();
     local anchor_x, anchor_y = bar_window_position(settings);
     local offset_x, offset_y = bar_window_offset(show_frame);
     local window_x = anchor_x - offset_x;
@@ -7982,7 +8076,7 @@ local function render_bars()
     imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
     imgui.PushStyleColor(ImGuiCol_Border,   theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
 
-    local window_title = ('AshitaBars [%s %s]###AshitaBars'):fmt(profile.key or 'DEFAULT', mode);
+    local window_title = ('AshitaBars [%s]###AshitaBars'):fmt(profile.key or 'DEFAULT');
     if (imgui.Begin(window_title, state.visible, window_flags)) then
         state.bar_window_x, state.bar_window_y = imgui.GetWindowPos();
 
@@ -7990,19 +8084,7 @@ local function render_bars()
             imgui.Text('Config load failed. Using defaults.');
         end
 
-        if (mode == 'single') then
-            local row = ROW_BY_ID[visual] or ROW_BY_ID.base;
-            local transition_alpha = row_transition_alpha(row.id, mode);
-            render_row(row, active == row.id, transition_alpha, show_frame, true, show_frame);
-        else
-            row_transition_alpha(visual, mode);
-            for i, row in ipairs(ROWS) do
-                render_row(row, active == row.id, 0, show_frame, i == 1, show_frame);
-                if (i < #ROWS) then
-                    imgui.Dummy({ 1, row_gap });
-                end
-            end
-        end
+        render_row(ROW_BY_ID.base, active == 'base', 0, show_frame, true, show_frame);
 
         if (state.bar_measured_anchor_x ~= nil and state.bar_measured_anchor_y ~= nil) then
             if (state.bar_anchor_lock_x ~= nil and state.bar_anchor_lock_y ~= nil) then
@@ -8172,21 +8254,6 @@ function BAR.render_config_tab(bar_key)
     imgui.SameLine(0, 8);
     imgui.Text(('(%s)'):fmt(is_main and main_bar_visible_source() or click_bar_visible_source()));
 
-    if (is_main) then
-        imgui.Separator();
-        imgui.TextColored(UI_COLORS.config_header, 'Display Mode');
-        local mode = display_mode();
-        if (imgui.RadioButton(('Single##ashitabars_config_%s_mode_single'):fmt(bar_key), mode == 'single')) then
-            BAR.set_override(bar_key, 'display_mode', 'single');
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.RadioButton(('Stacked##ashitabars_config_%s_mode_stacked'):fmt(bar_key), mode == 'stacked')) then
-            BAR.set_override(bar_key, 'display_mode', 'stacked');
-        end
-        imgui.SameLine(0, 8);
-        imgui.Text(('(%s)'):fmt(display_mode_source()));
-    end
-
     BAR.render_profile_scope_config(bar_key);
 
     imgui.Separator();
@@ -8261,124 +8328,177 @@ local function render_config_window()
     imgui.End();
 end
 
+function MACRO.render_editor_active_form(editor)
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Shared Button');
+    SHARED.render_selector(editor);
+    imgui.PushItemWidth(360);
+    imgui.InputText('Shared Name##ashitabars_button_shared_name', editor.shared_name_buffer, SHARED.NAME_MAX);
+    imgui.PopItemWidth();
+    if (imgui.Button('Save Shared##ashitabars_button_save_shared')) then
+        local ok, message = SHARED.save_editor_shared();
+        editor.message = message;
+        editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
+        if (not ok) then
+            log_warn(message);
+        end
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Assign Shared##ashitabars_button_assign_shared')) then
+        local ok, message = SHARED.assign_editor_shared();
+        editor.message = message;
+        editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
+        if (not ok) then
+            log_warn(message);
+        end
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Detach Local##ashitabars_button_detach_shared')) then
+        local detached = editor.shared_ref;
+        SHARED.detach_editor_shared();
+        if (save_macro_editor(false)) then
+            editor.message = detached ~= nil and ('Detached local copy from: ' .. detached) or 'Saved local copy.';
+            editor.message_color = UI_COLORS.success;
+        end
+    end
+
+    imgui.Separator();
+    local mode = MACRO.normalize_mode(editor.macro_mode);
+    imgui.TextColored(UI_COLORS.config_header, 'Command Mode');
+    COMMAND_MODE.render_mode_selector(editor);
+
+    mode = MACRO.normalize_mode(editor.macro_mode);
+
+    imgui.PushItemWidth(360);
+    if (COMMAND_MODE.is_structured_mode(mode)) then
+        if (imgui.Checkbox('Use Action Name As Label##ashitabars_button_action_name_label', editor.use_action_name_label)) then
+            if (editor.use_action_name_label[1] ~= false) then
+                COMMAND_MODE.apply_editor_action_label(editor, mode);
+            end
+        end
+    end
+    if (not COMMAND_MODE.is_structured_mode(mode) or editor.use_action_name_label[1] == false) then
+        imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, LIMITS.macro_label_max);
+    elseif (COMMAND_MODE.is_structured_mode(mode)) then
+        COMMAND_MODE.apply_editor_action_label(editor, mode);
+    end
+    if (mode == 'multi') then
+        MACRO.render_multiline_input('Commands##ashitabars_button_commands', editor.commands_buffer, MACRO.COMMANDS_TEXT_MAX, { 360, 122 });
+        imgui.Checkbox('Run As Ashita Script##ashitabars_button_run_as_script', editor.run_as_script);
+    elseif (mode == 'single') then
+        imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, LIMITS.macro_command_max);
+    end
+    imgui.PopItemWidth();
+    if (mode ~= 'single' and mode ~= 'multi') then
+        COMMAND_MODE.render_structured_editor(editor, mode);
+    end
+    if (mode ~= 'item') then
+        render_icon_selector(editor, 360);
+    end
+
+    local validation_error = MACRO.editor_validation_error();
+    if (validation_error ~= nil) then
+        imgui.TextColored(UI_COLORS.error, validation_error);
+    end
+
+    imgui.Separator();
+    if (validation_error == nil) then
+        if (imgui.Button('Save##ashitabars_button_save')) then
+            save_macro_editor(false);
+        end
+        imgui.SameLine(0, 8);
+        if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
+            local ok, message = MACRO.run_editor_commands();
+            editor.message = message;
+            editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
+            if (not ok) then
+                log_warn(message);
+            end
+        end
+        imgui.SameLine(0, 8);
+    end
+    if (imgui.Button('Clear##ashitabars_button_clear')) then
+        save_macro_editor(true);
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Reset##ashitabars_button_reset')) then
+        reset_macro_editor();
+    end
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Close##ashitabars_button_close')) then
+        editor.visible[1] = false;
+    end
+
+    if (editor.message ~= nil) then
+        imgui.SameLine(0, 8);
+        imgui.TextColored(editor.message_color or UI_COLORS.success, editor.message);
+    end
+end
+
+function MACRO.render_editor_variant_tabs(editor)
+    if (not MACRO.editor_is_main_parent(editor)) then
+        return false;
+    end
+
+    local switched = false;
+    if (imgui.BeginTabBar('##ashitabars_button_variant_tabs', ImGuiTabBarFlags_NoCloseWithMiddleMouseButton)) then
+        local function variant_tab(label, group, enabled)
+            if (not enabled) then
+                return;
+            end
+            if (imgui.BeginTabItem(('%s##ashitabars_button_variant_%s'):fmt(label, group), nil)) then
+                if (editor.group ~= group) then
+                    open_macro_editor(ROW_BY_ID[group], editor.index, true);
+                    switched = true;
+                end
+                imgui.EndTabItem();
+            end
+        end
+
+        variant_tab('Main', 'base', true);
+        variant_tab('Ctrl', 'ctrl', editor.modifier_ctrl_enabled[1] == true);
+        variant_tab('Alt', 'alt', editor.modifier_alt_enabled[1] == true);
+        variant_tab('Shift', 'shift', editor.modifier_shift_enabled[1] == true);
+        imgui.EndTabBar();
+    end
+
+    if (switched) then
+        return true;
+    end
+
+    if (editor.group == 'base') then
+        imgui.TextColored(UI_COLORS.config_header, 'Modifiers');
+        imgui.Checkbox('Ctrl##ashitabars_button_enable_ctrl', editor.modifier_ctrl_enabled);
+        imgui.SameLine(0, 12);
+        imgui.Checkbox('Alt##ashitabars_button_enable_alt', editor.modifier_alt_enabled);
+        imgui.SameLine(0, 12);
+        imgui.Checkbox('Shift##ashitabars_button_enable_shift', editor.modifier_shift_enabled);
+    end
+
+    return false;
+end
+
 local function render_macro_editor_window()
     local editor = state.macro_editor;
     if (editor == nil or not editor.visible[1]) then
         return;
     end
 
-    local row_label = editor_row_label(editor.group);
+    local row_label = MACRO.editor_is_main_parent(editor) and 'Button' or editor_row_label(editor.group);
     local digit = DIGIT_LABELS[editor.index or 1] or '?';
     local title = ('AshitaBars Button Editor###AshitaBarsButtonEditor');
     imgui.SetNextWindowSize({ 560, 0 }, ImGuiCond_FirstUseEver);
     if (imgui.Begin(title, editor.visible, ImGuiWindowFlags_AlwaysAutoResize)) then
         imgui.TextColored(UI_COLORS.config_header, ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, digit));
+        if (MACRO.editor_is_main_parent(editor) and editor.group ~= 'base') then
+            imgui.SameLine(0, 8);
+            imgui.Text(('%s variant'):fmt(editor_row_label(editor.group)));
+        end
         imgui.SameLine(0, 8);
         imgui.Text(('(%s)'):fmt(editor.source or 'config'));
 
-        imgui.Separator();
-        imgui.TextColored(UI_COLORS.config_header, 'Shared Button');
-        SHARED.render_selector(editor);
-        imgui.PushItemWidth(360);
-        imgui.InputText('Shared Name##ashitabars_button_shared_name', editor.shared_name_buffer, SHARED.NAME_MAX);
-        imgui.PopItemWidth();
-        if (imgui.Button('Save Shared##ashitabars_button_save_shared')) then
-            local ok, message = SHARED.save_editor_shared();
-            editor.message = message;
-            editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
-            if (not ok) then
-                log_warn(message);
-            end
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.Button('Assign Shared##ashitabars_button_assign_shared')) then
-            local ok, message = SHARED.assign_editor_shared();
-            editor.message = message;
-            editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
-            if (not ok) then
-                log_warn(message);
-            end
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.Button('Detach Local##ashitabars_button_detach_shared')) then
-            local detached = editor.shared_ref;
-            SHARED.detach_editor_shared();
-            if (save_macro_editor(false)) then
-                editor.message = detached ~= nil and ('Detached local copy from: ' .. detached) or 'Saved local copy.';
-                editor.message_color = UI_COLORS.success;
-            end
-        end
-
-        imgui.Separator();
-        local mode = MACRO.normalize_mode(editor.macro_mode);
-        imgui.TextColored(UI_COLORS.config_header, 'Command Mode');
-        COMMAND_MODE.render_mode_selector(editor);
-
-        mode = MACRO.normalize_mode(editor.macro_mode);
-
-        imgui.PushItemWidth(360);
-        if (COMMAND_MODE.is_structured_mode(mode)) then
-            if (imgui.Checkbox('Use Action Name As Label##ashitabars_button_action_name_label', editor.use_action_name_label)) then
-                if (editor.use_action_name_label[1] ~= false) then
-                    COMMAND_MODE.apply_editor_action_label(editor, mode);
-                end
-            end
-        end
-        if (not COMMAND_MODE.is_structured_mode(mode) or editor.use_action_name_label[1] == false) then
-            imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, LIMITS.macro_label_max);
-        elseif (COMMAND_MODE.is_structured_mode(mode)) then
-            COMMAND_MODE.apply_editor_action_label(editor, mode);
-        end
-        if (mode == 'multi') then
-            MACRO.render_multiline_input('Commands##ashitabars_button_commands', editor.commands_buffer, MACRO.COMMANDS_TEXT_MAX, { 360, 122 });
-            imgui.Checkbox('Run As Ashita Script##ashitabars_button_run_as_script', editor.run_as_script);
-        elseif (mode == 'single') then
-            imgui.InputText('Command##ashitabars_button_command', editor.command_buffer, LIMITS.macro_command_max);
-        end
-        imgui.PopItemWidth();
-        if (mode ~= 'single' and mode ~= 'multi') then
-            COMMAND_MODE.render_structured_editor(editor, mode);
-        end
-        if (mode ~= 'item') then
-            render_icon_selector(editor, 360);
-        end
-
-        local validation_error = MACRO.editor_validation_error();
-        if (validation_error ~= nil) then
-            imgui.TextColored(UI_COLORS.error, validation_error);
-        end
-
-        imgui.Separator();
-        if (validation_error == nil) then
-            if (imgui.Button('Save##ashitabars_button_save')) then
-                save_macro_editor(false);
-            end
-            imgui.SameLine(0, 8);
-            if (imgui.Button('Validate & Run##ashitabars_button_validate_run')) then
-                local ok, message = MACRO.run_editor_commands();
-                editor.message = message;
-                editor.message_color = ok and UI_COLORS.success or UI_COLORS.error;
-                if (not ok) then
-                    log_warn(message);
-                end
-            end
-            imgui.SameLine(0, 8);
-        end
-        if (imgui.Button('Clear##ashitabars_button_clear')) then
-            save_macro_editor(true);
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.Button('Reset##ashitabars_button_reset')) then
-            reset_macro_editor();
-        end
-        imgui.SameLine(0, 8);
-        if (imgui.Button('Close##ashitabars_button_close')) then
-            editor.visible[1] = false;
-        end
-
-        if (editor.message ~= nil) then
-            imgui.SameLine(0, 8);
-            imgui.TextColored(editor.message_color or UI_COLORS.success, editor.message);
+        if (not MACRO.render_editor_variant_tabs(editor)) then
+            MACRO.render_editor_active_form(editor);
         end
     end
     imgui.End();
@@ -8389,7 +8509,6 @@ local function print_help()
     log_info('/ashitabars show - Show the bars.');
     log_info('/ashitabars hide - Hide the bars.');
     log_info('/ashitabars config - Toggle the runtime configuration and keybind window.');
-    log_info('/ashitabars mode single|stacked|config - Change the display mode until config reload.');
     log_info(('/ashitabars size %d-%d|config - Change button size until config reload.'):fmt(LIMITS.slot_size_min, LIMITS.slot_size_max));
     log_info(('/ashitabars gap %d-%d|config - Change button spacing until config reload.'):fmt(LIMITS.button_gap_min, LIMITS.button_gap_max));
     log_info('/ashitabars reload - Reload ashitabars_config.lua.');
@@ -8432,21 +8551,7 @@ ashita.events.register('command', 'command_cb', function (e)
         state.config_visible[1] = not state.config_visible[1];
         log_info(state.config_visible[1] and 'Configuration shown.' or 'Configuration hidden.');
     elseif (sub == 'mode') then
-        local requested = (#args >= 3) and args[3]:lower() or nil;
-        if (requested == nil) then
-            log_info(('Display mode is %s (%s).'):fmt(display_mode(), display_mode_source()));
-        elseif (requested == 'config' or requested == 'default') then
-            state.display_mode_override = nil;
-            log_info(('Display mode override cleared. Using %s (%s).'):fmt(display_mode(), display_mode_source()));
-        else
-            local mode = normalize_display_mode(requested);
-            if (mode == nil) then
-                log_warn('Usage: /ashitabars mode single|stacked|config');
-            else
-                state.display_mode_override = mode;
-                log_info(('Display mode set to %s (runtime).'):fmt(mode));
-            end
-        end
+        log_info('Stacked mode has been removed. AshitaBars now uses a single per-button modifier row.');
     elseif (sub == 'size') then
         local requested = (#args >= 3) and args[3]:lower() or nil;
         if (requested == nil) then
@@ -8491,14 +8596,13 @@ ashita.events.register('command', 'command_cb', function (e)
         local _, theme_key = current_theme();
         local window_x, window_y = bar_window_position(settings);
         local click_window_x, click_window_y = click_bar_window_position(settings);
-        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X active=%s displayMode=%s displayModeSource=%s visualRow=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s'):fmt(
+        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X activeModifier=%s displayMode=%s displayModeSource=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s'):fmt(
             tostring(main_bar_visible()),
             main_bar_visible_source(),
             input_state,
             active or 'none',
             display_mode(),
             display_mode_source(),
-            visual_group(),
             slot_size('main'),
             slot_size_source('main'),
             button_gap('main'),
@@ -8602,8 +8706,9 @@ ashita.events.register('key', 'key_cb', function (e)
         return;
     end
 
-    execute_slot(binding.group, binding.index, 'key');
-    e.blocked = true;
+    if (execute_slot(binding.group, binding.index, 'key')) then
+        e.blocked = true;
+    end
 end);
 
 ashita.events.register('d3d_present', 'present_cb', function ()

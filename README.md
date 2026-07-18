@@ -10,11 +10,11 @@ or another text input is open.
 ## Current Scope
 
 - Shows configurable action-bar visuals:
-  - `stacked`: three rows for the base, Ctrl, and Alt profile rows
-  - `single`: one visible row that switches between base, Ctrl, and Alt while
-    the modifier is held, with a brief row-switch glow
-- Defaults to `1-0`, `Ctrl+1-0`, and `Alt+1-0`, with per-button keybinds
-  configurable in game.
+  - The main bar is one visible row of ten parent buttons.
+  - Ctrl, Alt, and Shift are optional per-button variants edited from the parent
+    button, not separate visible rows.
+- Defaults to `1-0`, `Ctrl+1-0`, `Alt+1-0`, and `Shift+1-0`, with per-button
+  keybinds configurable in game.
 - Captures configured keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state only while an
@@ -34,7 +34,7 @@ or another text input is open.
   `auto` mode.
 - When `/ashitabars config` is open, each button shows a small edit corner that
   opens an in-game editor for that button's label, command mode, command data,
-  and optional icon.
+  optional icon, and enabled Ctrl/Alt/Shift variants.
 - Ships default test commands that only `/echo`.
 
 ## Safety Boundary
@@ -82,9 +82,6 @@ Commands:
 /ashitabars hide
 /ashitabars toggle
 /ashitabars config
-/ashitabars mode single
-/ashitabars mode stacked
-/ashitabars mode config
 /ashitabars size 72
 /ashitabars size config
 /ashitabars gap 8
@@ -107,7 +104,7 @@ Edit:
 ashitabars/ashitabars_config.lua
 ```
 
-Visual display mode is controlled in `settings`:
+Visual and input settings are configured under `settings`:
 
 ```lua
 settings = {
@@ -121,12 +118,12 @@ settings = {
     icon_style = 'auto',
     main_bar = {
         visible = true,
-        display_mode = 'single', -- Use 'stacked' for the existing three-row view.
         profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
         keybinds = {
             base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
             ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
             alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
+            shift = { [1] = 'Shift+1', [2] = 'Shift+2', [3] = 'Shift+3', [4] = 'Shift+4', [5] = 'Shift+5', [6] = 'Shift+6', [7] = 'Shift+7', [8] = 'Shift+8', [9] = 'Shift+9', [10] = 'Shift+0' },
         },
         slot_size = 64,
         button_gap = 6,
@@ -153,13 +150,17 @@ settings = {
 }
 ```
 
-`main_bar.display_mode` changes only the visible UI for the main bar. Existing
-configs without `main_bar.display_mode` keep the original stacked view.
+Stacked mode has been removed. Existing configs that still set
+`main_bar.display_mode` or top-level `display_mode` are tolerated, but the main
+bar now always renders as one row.
 
-`main_bar.keybinds` controls the default keyboard rows. `extra_bar_1.keybinds`
-is optional; leave `click = {}` empty to keep the extra bar click-only.
-Configured duplicate keybinds are allowed but warned about in the config window
-and `/ashitabars status`; the first matching button runs.
+`main_bar.keybinds` controls the default parent and modifier key combinations.
+Ctrl/Alt/Shift keybinds only run when that specific button's modifier variant
+is enabled in the button editor. Modifier combinations such as `Ctrl+Shift+1`
+are not separate button layers. `extra_bar_1.keybinds` is optional; leave
+`click = {}` empty to keep the extra bar click-only. Configured duplicate
+keybinds are allowed but warned about in the config window and `/ashitabars
+status`; the first matching enabled button runs.
 
 Each bar has its own `profile_scope`:
 
@@ -172,26 +173,13 @@ Each bar has its own `profile_scope`:
 `extra_bar_1` configures the second 10-button single-row bar.
 `extra_bar_1.window_x` / `extra_bar_1.window_y` store its independent position.
 
-You can switch display modes at runtime without editing the config:
-
-```txt
-/ashitabars config
-/ashitabars mode single
-/ashitabars mode stacked
-/ashitabars mode config
-```
-
-`mode config` clears the runtime override and returns to the saved visual
-setting when present, otherwise `main_bar.display_mode`. `/ashitabars reload`
-also clears runtime overrides and reapplies saved visual settings.
-
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
 and `Extra Bar 1` tabs. The bar tabs expose independent visibility, profile
 scope, sizing, spacing, text placement, glow, keybinds, and position settings. Numeric
 controls use sliders. Click a keybind button, then press the new key; Backspace
 or Delete clears the bind and Escape cancels. Changes apply immediately as
-runtime overrides; click `Save` in the window to persist display mode, button
-scope, button size, button gap, button glow, label placement, keybinds, and bar
+runtime overrides; click `Save` in the window to persist button scope, button
+size, button gap, button glow, label placement, keybinds, and bar
 positions to:
 
 ```txt
@@ -266,6 +254,7 @@ profiles = {
         },
         ctrl = {},
         alt = {},
+        shift = {},
         click = {}, -- Optional click-only row.
     },
 
@@ -275,6 +264,7 @@ profiles = {
         },
         ctrl = {},
         alt = {},
+        shift = {},
         click = {},
     },
 
@@ -285,6 +275,7 @@ profiles = {
         },
         ctrl = {},
         alt = {},
+        shift = {},
         click = {},
     },
 }
@@ -341,6 +332,11 @@ small top-left corner of a button to edit it. The editor can save a label,
 command mode, command data, and an optional icon chosen from a built-in visual
 picker grouped by category. Each picker option stores its own button art token,
 so individual buttons can mix the default crystal art and alternate sigil art.
+Main-bar buttons open on a `Main` tab. That tab has Ctrl, Alt, and Shift
+checkboxes; checking one exposes a matching modifier tab for that button. Each
+modifier tab has its own command mode, command data, label, shared-button
+reference, and icon, but does not define further modifiers. Unchecked modifier
+variants do not run or block their keybinds.
 Item mode does not show the manual icon selector because item buttons use the
 selected item's in-game icon automatically. These runtime edits are stored
 outside the addon folder in:
@@ -488,9 +484,9 @@ Alt support.
 
 Planned visual and quality-of-life improvements are tracked in `ROADMAP.md`.
 
-`/ashitabars status` prints the normalized display mode, current visual row,
-display-mode source, button size/source, button gap/source, theme, icon style,
-click-bar visibility/position, recast/count/availability settings, keybind
+`/ashitabars status` prints the fixed display mode, active keyboard modifier,
+button size/source, button gap/source, theme, icon style, click-bar
+visibility/position, recast/count/availability settings, keybind
 summary/conflict count, and weapon-skill TP threshold alongside input, job,
 subjob, per-bar profile scope/resolution, and modifier-blocking state.
 
@@ -512,6 +508,6 @@ clicked or pressed.
 
 ## Notes
 
-Single-row mode is visual only. It does not add timers, alternate command
-selection, or unattended behavior.
+Modifier variants are still static button definitions. They do not add timers,
+reactive command selection, or unattended behavior.
 
