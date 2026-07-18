@@ -38,6 +38,8 @@ local default_profile = {
         [10] = { label = 'A0', command = '/echo AshitaBars DEFAULT alt 0' },
     },
 
+    shift = {},
+
     click = {},
 };
 
@@ -80,6 +82,8 @@ local whm_profile = {
         [9]  = { label = 'Reraise', icon = 'raise',   command = '/ma "Reraise" <me>' },
         [10] = { label = 'DivSeal', icon = 'ability', command = '/ja "Divine Seal" <me>' },
     },
+
+    shift = {},
 
     click = {},
 };
@@ -124,6 +128,8 @@ local bst_profile = {
         [10] = { label = 'Heal',    icon = 'rest',   command = '/heal' },
     },
 
+    shift = {},
+
     click = {},
 };
 
@@ -141,12 +147,12 @@ return {
         block_native_macro_modifiers = true,
         main_bar = {
             visible = true,
-            display_mode = 'single', -- Use 'stacked' for the existing three-row view.
             profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
                 ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
                 alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
+                shift = { [1] = 'Shift+1', [2] = 'Shift+2', [3] = 'Shift+3', [4] = 'Shift+4', [5] = 'Shift+5', [6] = 'Shift+6', [7] = 'Shift+7', [8] = 'Shift+8', [9] = 'Shift+9', [10] = 'Shift+0' },
             },
             slot_size = 64,
             button_gap = 6,
@@ -199,6 +205,7 @@ return {
         --     },
         --     ctrl = {},
         --     alt = {},
+        --     shift = {},
         --     click = {}, -- Optional click-only row. Never bound to keys.
         -- },
     },
