@@ -4215,21 +4215,69 @@ COMMAND_MODE.DEFS = {
     target      = { label = 'Target / Assist', action_label = 'Action' },
 };
 
+COMMAND_MODE.TARGET_SET_ALL = {
+    '<t>',
+    '<bt>',
+    '<ht>',
+    '<ft>',
+    '<st>',
+    '<stpc>',
+    '<stpt>',
+    '<stal>',
+    '<stnpc>',
+    '<lastst>',
+    '<me>',
+    '<pet>',
+    '<scan>',
+    '<r>',
+};
+
+COMMAND_MODE.TARGET_SET_COMBAT = {
+    '<t>',
+    '<bt>',
+    '<ht>',
+    '<st>',
+    '<stnpc>',
+    '<lastst>',
+    '<scan>',
+};
+
+COMMAND_MODE.TARGET_SET_PET = {
+    '<t>',
+    '<bt>',
+    '<ht>',
+    '<st>',
+    '<stnpc>',
+    '<lastst>',
+    '<scan>',
+    '<me>',
+    '<pet>',
+};
+
 COMMAND_MODE.TARGETS = {
-    spell       = { '<t>', '<stpt>', '<stpc>', '<me>', '<bt>' },
-    ability     = { '<t>', '<me>', '<bt>', '<stpc>', '<stpt>' },
-    pet         = { '<t>', '<bt>', '<me>' },
-    weaponskill = { '<t>', '<bt>' },
-    ranged      = { '<t>', '<bt>' },
-    target      = { '<bt>', '<t>', '<stpc>', '<stpt>', '<me>' },
+    spell       = COMMAND_MODE.TARGET_SET_ALL,
+    ability     = COMMAND_MODE.TARGET_SET_ALL,
+    pet         = COMMAND_MODE.TARGET_SET_PET,
+    weaponskill = COMMAND_MODE.TARGET_SET_COMBAT,
+    ranged      = COMMAND_MODE.TARGET_SET_COMBAT,
+    target      = COMMAND_MODE.TARGET_SET_ALL,
 };
 
 COMMAND_MODE.TARGET_LABELS = {
-    ['<t>']    = 'Current Target (<t>)',
-    ['<bt>']   = 'Battle Target (<bt>)',
-    ['<me>']   = 'Self (<me>)',
-    ['<stpc>'] = 'Select PC (<stpc>)',
-    ['<stpt>'] = 'Select Party (<stpt>)',
+    ['<t>']      = 'Current Target (<t>)',
+    ['<bt>']     = 'Battle Target (<bt>)',
+    ['<ht>']     = 'Help Target (<ht>)',
+    ['<ft>']     = 'Fellow NPC (<ft>)',
+    ['<st>']     = 'Subtarget: Any (<st>)',
+    ['<stpc>']   = 'Subtarget: PC (<stpc>)',
+    ['<stpt>']   = 'Subtarget: Party (<stpt>)',
+    ['<stal>']   = 'Subtarget: Alliance (<stal>)',
+    ['<stnpc>']  = 'Subtarget: NPC (<stnpc>)',
+    ['<lastst>'] = 'Last Subtarget (<lastst>)',
+    ['<me>']     = 'Self (<me>)',
+    ['<pet>']    = 'Active Pet (<pet>)',
+    ['<scan>']   = 'Wide Scan Target (<scan>)',
+    ['<r>']      = 'Reply Target (<r>)',
 };
 
 COMMAND_MODE.TARGET_ACTIONS = {
