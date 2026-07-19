@@ -462,6 +462,12 @@ Command mode options are:
   buttons do not show a target selector. If the current zone's associated buff
   is not in the player's active status icons, the button shows a display-only
   pulse.
+- `Config Toggle`: enter a client config key and two numeric values. The saved
+  button stores `/config get <id>` plus the two toggle values. When pressed,
+  AshitaBars reads the current config value locally and queues one attended
+  `/config set <id> <value>` command: value B when the current value is value A,
+  otherwise value A. For example, key `145` with values `0` and `1` toggles
+  between `/config set 145 0` and `/config set 145 1`.
 - `Weapon Skill`: search known weapon skills, choose one, and select a target;
   generates `/ws`.
 - `Job Ability`: search known job abilities, choose one, and select a target;
@@ -474,11 +480,12 @@ Command mode options are:
 - `Ranged Attack`: choose the ranged attack action and target; generates `/ra`.
 - `Target / Assist`: choose target, assist, attack, or check plus a target.
 
-Structured modes still save normal command text in
-`button_overrides.lua`, so key execution, validation, icon inference, recast
-display, item counts, and availability dimming use the same path as hand-written
-commands. Existing command buttons are parsed back into the matching structured
-mode when possible; unsupported or unusual commands open as `Freeform Command`.
+Structured modes still save normal command text in `button_overrides.lua`, with
+small mode-specific metadata only when needed, such as `Config Toggle`'s two
+stored values. Key execution, validation, icon inference, recast display, item
+counts, and availability dimming use the same path as hand-written commands.
+Existing command buttons are parsed back into the matching structured mode when
+possible; unsupported or unusual commands open as `Freeform Command`.
 All structured modes default to using the selected action name as the bar label.
 Uncheck `Use Action Name As Label` to show the normal label field and save a
 custom label instead. If a filter hides the selected action, the editor clears
@@ -603,7 +610,8 @@ block_native_macro_modifiers = false,
 
 Allowed command prefixes are intentionally narrow. Player action commands such
 as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, and `/map` are
-accepted.
+accepted. `/config get <id>` and `/config set <id> <value>` are accepted for
+attended client configuration buttons.
 Chat commands such as `/say` and `/s` are accepted for attended chat/server
 command use. Supported bare CatsEye support commands such as `!signet`,
 `!sigil`, `!sanction`, and `!ionis` are also accepted and are queued as the

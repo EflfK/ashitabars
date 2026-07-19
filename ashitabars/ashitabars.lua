@@ -11,6 +11,7 @@ local ffi   = require('ffi');
 local imgui = require('imgui');
 
 pcall(ffi.cdef, 'short __stdcall GetKeyState(int nVirtKey);');
+pcall(ffi.cdef, 'typedef int32_t (__cdecl* ashitabars_get_config_value_t)(int32_t);');
 
 local VK = {
     CONTROL = 0x11,
@@ -125,6 +126,7 @@ local ALLOWED_PREFIXES = T{
     ['/attack'] = true,
     ['/check'] = true,
     ['/map'] = true,
+    ['/config'] = true,
     ['/echo'] = true,
     ['/p'] = true,
     ['/party'] = true,
@@ -869,6 +871,9 @@ local state = {
         pet_search_buffer = T{ '' },
         mount_search_buffer = T{ '' },
         server_search_buffer = T{ '' },
+        config_key_buffer = T{ '' },
+        config_value_a_buffer = T{ '0' },
+        config_value_b_buffer = T{ '1' },
         message = nil,
         message_color = UI_COLORS.success,
     },
@@ -943,6 +948,9 @@ function MACRO.normalize_mode(value)
     end
     if (mode == 'server' or mode == 'servercommand' or mode == 'server-command' or mode == 'catseye' or mode == 'catseyecommand' or mode == 'catseye-command' or mode == 'bang') then
         return 'server';
+    end
+    if (mode == 'configtoggle' or mode == 'config-toggle' or mode == 'toggleconfig' or mode == 'toggle-config' or mode == 'config') then
+        return 'configtoggle';
     end
     if (mode == 'weaponskill' or mode == 'weapon-skill' or mode == 'ws') then
         return 'weaponskill';
@@ -2999,6 +3007,15 @@ function SHARED.slot_parts(slot)
     if (slot.weaponskill_effect_frequency ~= nil) then
         table.insert(parts, ('weaponskill_effect_frequency = %d'):fmt(slot.weaponskill_effect_frequency));
     end
+    if (slot.config_key ~= nil) then
+        table.insert(parts, ('config_key = %d'):fmt(slot.config_key));
+    end
+    if (slot.config_value_a ~= nil) then
+        table.insert(parts, ('config_value_a = %d'):fmt(slot.config_value_a));
+    end
+    if (slot.config_value_b ~= nil) then
+        table.insert(parts, ('config_value_b = %d'):fmt(slot.config_value_b));
+    end
     if (slot.command ~= nil) then
         table.insert(parts, ('command = %s'):fmt(lua_string_literal(slot.command)));
     end
@@ -3493,8 +3510,20 @@ local function sanitize_slot_override(slot, allow_shared)
     if (weaponskill_effect_frequency ~= nil) then
         sanitized.weaponskill_effect_frequency = weaponskill_effect_frequency;
     end
+    local config_key = COMMAND_MODE.normalize_config_id(slot.config_key);
+    local config_value_a = COMMAND_MODE.normalize_config_value(slot.config_value_a);
+    local config_value_b = COMMAND_MODE.normalize_config_value(slot.config_value_b);
+    if (config_key ~= nil) then
+        sanitized.config_key = config_key;
+    end
+    if (config_value_a ~= nil) then
+        sanitized.config_value_a = config_value_a;
+    end
+    if (config_value_b ~= nil) then
+        sanitized.config_value_b = config_value_b;
+    end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil) then
         return nil;
     end
 
@@ -3771,6 +3800,15 @@ local function apply_slot_override(base_slot, override)
     if (override.weaponskill_effect_frequency ~= nil) then
         slot.weaponskill_effect_frequency = override.weaponskill_effect_frequency;
     end
+    if (override.config_key ~= nil) then
+        slot.config_key = override.config_key;
+    end
+    if (override.config_value_a ~= nil) then
+        slot.config_value_a = override.config_value_a;
+    end
+    if (override.config_value_b ~= nil) then
+        slot.config_value_b = override.config_value_b;
+    end
 
     if (next(slot) == nil) then
         return nil;
@@ -3838,6 +3876,9 @@ function MACRO.normalize_slot_runtime(slot)
     normalized.weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(normalized.weaponskill_effect_intensity) or 70;
     normalized.weaponskill_effect_opacity = MACRO.normalize_weaponskill_effect_opacity(normalized.weaponskill_effect_opacity) or 100;
     normalized.weaponskill_effect_frequency = MACRO.normalize_weaponskill_effect_frequency(normalized.weaponskill_effect_frequency) or 100;
+    normalized.config_key = COMMAND_MODE.normalize_config_id(normalized.config_key);
+    normalized.config_value_a = COMMAND_MODE.normalize_config_value(normalized.config_value_a);
+    normalized.config_value_b = COMMAND_MODE.normalize_config_value(normalized.config_value_b);
 
     return normalized;
 end
@@ -3978,6 +4019,7 @@ COMMAND_MODE.ORDER = {
     'item',
     'mount',
     'server',
+    'configtoggle',
     'weaponskill',
     'ability',
     'pet',
@@ -3992,6 +4034,7 @@ COMMAND_MODE.DEFS = {
     item        = { label = 'Item', action_label = 'Item', empty_label = 'No inventory items found.' },
     mount       = { label = 'Mount', action_label = 'Mount', empty_label = 'No mount names found.' },
     server      = { label = 'Server Command', action_label = 'Server Command', empty_label = 'No server commands configured.' },
+    configtoggle = { label = 'Config Toggle' },
     weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
     ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
     pet         = { label = 'Pet Command', action_label = 'Pet Command', empty_label = 'No usable pet commands found.' },
@@ -4479,6 +4522,166 @@ function COMMAND_MODE.parse_command(command)
     return prefix:lower(), COMMAND_MODE.clean_name(name), trim_string(remainder or ''), trim_string(rest);
 end
 
+function COMMAND_MODE.config_number(value)
+    if (type(value) == 'number') then
+        if (value ~= value) then
+            return nil;
+        end
+        return math.floor(value);
+    end
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    value = trim_string(value);
+    if (value == '') then
+        return nil;
+    end
+    if (value:match('^%-?%d+$') == nil and value:match('^0[xX]%x+$') == nil) then
+        return nil;
+    end
+
+    local number = tonumber(value);
+    if (number == nil or number ~= number) then
+        return nil;
+    end
+
+    return math.floor(number);
+end
+
+function COMMAND_MODE.normalize_config_id(value)
+    local id = COMMAND_MODE.config_number(value);
+    if (id == nil or id < 1 or id > 207) then
+        return nil;
+    end
+
+    return id;
+end
+
+function COMMAND_MODE.normalize_config_value(value)
+    return COMMAND_MODE.config_number(value);
+end
+
+function COMMAND_MODE.parse_config_command(command)
+    local prefix, action, remainder = COMMAND_MODE.parse_command(command);
+    if (prefix ~= '/config') then
+        return nil;
+    end
+
+    action = type(action) == 'string' and action:lower() or '';
+    if (action == 'get') then
+        local id_text = trim_string(remainder);
+        local id = COMMAND_MODE.normalize_config_id(id_text);
+        if (id == nil or id_text:find('%s') ~= nil) then
+            return { action = action, error = 'Invalid config get syntax. Use /config get <id>.' };
+        end
+        return { action = action, id = id };
+    end
+
+    if (action == 'set') then
+        local id_text, value_text = trim_string(remainder):match('^(%S+)%s+(%S+)$');
+        local id = COMMAND_MODE.normalize_config_id(id_text);
+        local value = COMMAND_MODE.normalize_config_value(value_text);
+        if (id == nil or value == nil) then
+            return { action = action, error = 'Invalid config set syntax. Use /config set <id> <value>.' };
+        end
+        return { action = action, id = id, value = value };
+    end
+
+    return { action = action, error = 'Only /config get and /config set are supported.' };
+end
+
+function COMMAND_MODE.config_value_getter()
+    if (COMMAND_MODE.config_getter ~= nil) then
+        return COMMAND_MODE.config_getter;
+    end
+
+    local ptr = safe_read(function ()
+        return ashita.memory.find('FFXiMain.dll', 0, '8B0D????????85C974??8B44240450E8????????C383C8FFC3', 0, 0);
+    end, nil);
+    if (ptr == nil or ptr == 0) then
+        return nil;
+    end
+
+    local ok, getter = pcall(function ()
+        return ffi.cast('ashitabars_get_config_value_t', ptr);
+    end);
+    if (not ok or getter == nil) then
+        return nil;
+    end
+
+    COMMAND_MODE.config_getter = getter;
+    return getter;
+end
+
+function COMMAND_MODE.current_config_value(id)
+    id = COMMAND_MODE.normalize_config_id(id);
+    if (id == nil) then
+        return nil, 'Invalid config id.';
+    end
+
+    local getter = COMMAND_MODE.config_value_getter();
+    if (getter == nil) then
+        return nil, 'Config reader unavailable.';
+    end
+
+    local ok, value = pcall(function ()
+        return getter(id);
+    end);
+    if (not ok) then
+        return nil, 'Config read failed.';
+    end
+
+    return tonumber(value), nil;
+end
+
+function COMMAND_MODE.config_toggle_values_from_editor(editor)
+    if (editor == nil) then
+        return nil, nil, nil;
+    end
+
+    return COMMAND_MODE.normalize_config_id(editor.config_key_buffer[1]),
+        COMMAND_MODE.normalize_config_value(editor.config_value_a_buffer[1]),
+        COMMAND_MODE.normalize_config_value(editor.config_value_b_buffer[1]);
+end
+
+function COMMAND_MODE.config_toggle_values_from_slot(slot)
+    if (type(slot) ~= 'table') then
+        return nil, nil, nil;
+    end
+
+    return COMMAND_MODE.normalize_config_id(slot.config_key),
+        COMMAND_MODE.normalize_config_value(slot.config_value_a),
+        COMMAND_MODE.normalize_config_value(slot.config_value_b);
+end
+
+function COMMAND_MODE.config_toggle_validation_error(id, value_a, value_b)
+    if (id == nil) then
+        return 'Enter a config key from 1 to 207.';
+    end
+    if (value_a == nil) then
+        return 'Enter the first toggle value.';
+    end
+    if (value_b == nil) then
+        return 'Enter the second toggle value.';
+    end
+    if (value_a == value_b) then
+        return 'Toggle values must be different.';
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.config_toggle_next_command(id, value_a, value_b)
+    local current, err = COMMAND_MODE.current_config_value(id);
+    if (current == nil) then
+        return nil, err;
+    end
+
+    local next_value = (current == value_a) and value_b or value_a;
+    return ('/config set %d %d'):fmt(id, next_value), nil, current, next_value;
+end
+
 function COMMAND_MODE.server_command_key(command)
     if (type(command) ~= 'string') then
         return nil;
@@ -4554,6 +4757,12 @@ function COMMAND_MODE.mode_from_command(command)
     if (prefix == '/mount') then
         return 'mount';
     end
+    if (prefix == '/config') then
+        local parsed = COMMAND_MODE.parse_config_command(command);
+        if (parsed ~= nil and (parsed.action == 'get' or parsed.action == 'set') and parsed.error == nil) then
+            return 'configtoggle';
+        end
+    end
     if (prefix == '/ws' or prefix == '/weaponskill') then
         return 'weaponskill';
     end
@@ -4615,6 +4824,10 @@ function COMMAND_MODE.command_action_for_mode(mode, command)
         local server_action = COMMAND_MODE.server_action_for_command(command);
         return server_action ~= nil and server_action.name or '', '';
     end
+    if (mode == 'configtoggle') then
+        local parsed = COMMAND_MODE.parse_config_command(command);
+        return parsed ~= nil and parsed.id ~= nil and tostring(parsed.id) or '', '';
+    end
     if (mode == 'pet') then
         return name or '', target ~= '' and target or COMMAND_MODE.pet_command_default_target(name);
     end
@@ -4652,6 +4865,16 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.pet_search_buffer, '');
     buffer_set(editor.mount_search_buffer, '');
     buffer_set(editor.server_search_buffer, '');
+    local config_key, config_value_a, config_value_b = COMMAND_MODE.config_toggle_values_from_slot(slot);
+    if (mode == 'configtoggle') then
+        buffer_set(editor.config_key_buffer, config_key ~= nil and tostring(config_key) or action or '');
+        buffer_set(editor.config_value_a_buffer, config_value_a ~= nil and tostring(config_value_a) or '0');
+        buffer_set(editor.config_value_b_buffer, config_value_b ~= nil and tostring(config_value_b) or '1');
+    else
+        buffer_set(editor.config_key_buffer, '');
+        buffer_set(editor.config_value_a_buffer, '0');
+        buffer_set(editor.config_value_b_buffer, '1');
+    end
     if (mode == 'target') then
         editor.target_action = action or '/target';
     end
@@ -4690,6 +4913,10 @@ function COMMAND_MODE.editor_command(mode, editor)
     if (mode == 'server') then
         local server_action = COMMAND_MODE.server_action_by_name(action);
         return (server_action ~= nil) and ('/say %s'):fmt(server_action.command) or '';
+    end
+    if (mode == 'configtoggle') then
+        local id = COMMAND_MODE.normalize_config_id(editor.config_key_buffer[1]);
+        return (id ~= nil) and ('/config get %d'):fmt(id) or '';
     end
     if (mode == 'weaponskill') then
         return (action ~= '') and ('/ws "%s" %s'):fmt(action, target) or '';
@@ -4926,6 +5153,10 @@ function COMMAND_MODE.editor_action_label(editor, mode)
     if (mode == 'ranged') then
         return 'Ranged Attack';
     end
+    if (mode == 'configtoggle') then
+        local id = COMMAND_MODE.normalize_config_id(editor ~= nil and editor.config_key_buffer[1] or nil);
+        return trim_one_line(id ~= nil and ('Config %d'):fmt(id) or 'Config Toggle', LIMITS.macro_label_max);
+    end
 
     return trim_one_line(editor ~= nil and editor.command_action or '', LIMITS.macro_label_max);
 end
@@ -4941,6 +5172,10 @@ end
 
 function COMMAND_MODE.editor_selection_validation_error(mode, editor)
     mode = MACRO.normalize_mode(mode);
+    if (mode == 'configtoggle') then
+        local id, value_a, value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
+        return COMMAND_MODE.config_toggle_validation_error(id, value_a, value_b);
+    end
     if (COMMAND_MODE.clean_name(editor ~= nil and editor.command_action or '') == '') then
         if (mode == 'spell') then
             return 'Choose a spell.';
@@ -5441,14 +5676,14 @@ function COMMAND_MODE.ensure_structured_selection(editor, mode)
     end
     if (mode == 'item' or mode == 'mount') then
         editor.command_target = '<me>';
-    elseif (mode == 'server') then
+    elseif (mode == 'server' or mode == 'configtoggle') then
         editor.command_target = '';
     elseif (mode == 'pet') then
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.pet_command_default_target(editor.command_action);
     else
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'configtoggle' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
         return;
     end
 
@@ -5502,6 +5737,12 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     local action, target = COMMAND_MODE.command_action_for_mode(mode, current_command);
     editor.command_action = action or '';
     editor.command_target = target or COMMAND_MODE.default_target(mode);
+    if (mode == 'configtoggle') then
+        local parsed = COMMAND_MODE.parse_config_command(current_command);
+        buffer_set(editor.config_key_buffer, parsed ~= nil and parsed.id ~= nil and tostring(parsed.id) or '');
+        buffer_set(editor.config_value_a_buffer, '0');
+        buffer_set(editor.config_value_b_buffer, '1');
+    end
     if (mode == 'target') then
         editor.target_action = action or '/target';
     end
@@ -6197,10 +6438,47 @@ function COMMAND_MODE.render_target_selector(editor, mode)
     imgui.PopItemWidth();
 end
 
+function COMMAND_MODE.render_config_toggle_editor(editor)
+    imgui.TextColored(UI_COLORS.config_header, 'Config Toggle');
+
+    imgui.PushItemWidth(110);
+    local changed = imgui.InputText('Key##ashitabars_config_toggle_key', editor.config_key_buffer, 16);
+    imgui.PopItemWidth();
+
+    imgui.PushItemWidth(110);
+    local changed_a = imgui.InputText('Value A##ashitabars_config_toggle_value_a', editor.config_value_a_buffer, 16);
+    imgui.SameLine(0, 8);
+    local changed_b = imgui.InputText('Value B##ashitabars_config_toggle_value_b', editor.config_value_b_buffer, 16);
+    imgui.PopItemWidth();
+
+    local id, value_a, value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
+    editor.command_action = id ~= nil and tostring(id) or trim_string(editor.config_key_buffer[1]);
+    if ((changed or changed_a or changed_b) and editor.use_action_name_label[1] ~= false) then
+        COMMAND_MODE.apply_editor_action_label(editor, 'configtoggle');
+    end
+
+    local validation_error = COMMAND_MODE.config_toggle_validation_error(id, value_a, value_b);
+    if (validation_error ~= nil) then
+        return;
+    end
+
+    local set_command, read_error, current, next_value = COMMAND_MODE.config_toggle_next_command(id, value_a, value_b);
+    if (set_command ~= nil) then
+        imgui.Text(('Current Value: %d'):fmt(current));
+        imgui.Text(('Next Press: %s'):fmt(set_command));
+    elseif (read_error ~= nil) then
+        imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, read_error);
+    end
+end
+
 function COMMAND_MODE.render_structured_editor(editor, mode)
     COMMAND_MODE.ensure_structured_selection(editor, mode);
-    COMMAND_MODE.render_action_selector(editor, mode);
-    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server') then
+    if (mode == 'configtoggle') then
+        COMMAND_MODE.render_config_toggle_editor(editor);
+    else
+        COMMAND_MODE.render_action_selector(editor, mode);
+    end
+    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server' and mode ~= 'configtoggle') then
         COMMAND_MODE.render_target_selector(editor, mode);
     end
 
@@ -6233,6 +6511,14 @@ local function command_validation_error(command)
             return 'Unsupported server command.';
         end
         return 'Unsupported command prefix.';
+    end
+
+    local prefix = command:lower():match('^%s*(/%S+)');
+    if (prefix == '/config') then
+        local parsed = COMMAND_MODE.parse_config_command(command);
+        if (parsed == nil or parsed.error ~= nil) then
+            return parsed ~= nil and parsed.error or 'Invalid config command.';
+        end
     end
 
     return nil;
@@ -6316,6 +6602,14 @@ function MACRO.run_editor_commands()
         index = editor.index,
         script = mode == 'multi' and editor.run_as_script[1] == true,
     };
+    if (mode == 'configtoggle') then
+        local config_key, config_value_a, config_value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
+        context.config_toggle = {
+            key = config_key,
+            value_a = config_value_a,
+            value_b = config_value_b,
+        };
+    end
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
@@ -6355,6 +6649,7 @@ local function execute_slot(group, index, source)
         group = group,
         index = index,
         script = MACRO.script_enabled(slot),
+        slot = slot,
     };
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
@@ -6387,7 +6682,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > LIMITS.button_count_max) then
         return false, 'Invalid button selection.';
@@ -6433,6 +6728,12 @@ local function set_slot_override(profile_key, group, index, label, command, icon
         slot.macro_mode = MACRO.normalize_mode(macro_mode);
         if (COMMAND_MODE.is_structured_mode(slot.macro_mode)) then
             slot.use_action_name_label = use_action_name_label ~= false;
+        end
+        if (slot.macro_mode == 'configtoggle') then
+            local ok, err = MACRO.apply_config_toggle_to_slot(slot, config_key, config_value_a, config_value_b);
+            if (not ok) then
+                return false, err;
+            end
         end
         if (slot.macro_mode == 'multi') then
             slot.commands = MACRO.commands_from_table(commands);
@@ -6496,6 +6797,12 @@ function SHARED.editor_slot(require_command)
         slot.command = slot.commands[1] or '';
         if (editor.run_as_script[1] == true) then
             slot.script = true;
+        end
+    end
+    if (mode == 'configtoggle') then
+        local ok, err = MACRO.apply_config_toggle_to_slot(slot, COMMAND_MODE.config_toggle_values_from_editor(editor));
+        if (not ok) then
+            return nil, err;
         end
     end
     MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
@@ -6682,6 +6989,25 @@ function MACRO.apply_weaponskill_effect_to_slot(slot, style, intensity, opacity,
     end
 end
 
+function MACRO.apply_config_toggle_to_slot(slot, id, value_a, value_b)
+    if (type(slot) ~= 'table') then
+        return false, 'No button selected.';
+    end
+
+    id = COMMAND_MODE.normalize_config_id(id);
+    value_a = COMMAND_MODE.normalize_config_value(value_a);
+    value_b = COMMAND_MODE.normalize_config_value(value_b);
+    local validation_error = COMMAND_MODE.config_toggle_validation_error(id, value_a, value_b);
+    if (validation_error ~= nil) then
+        return false, validation_error;
+    end
+
+    slot.config_key = id;
+    slot.config_value_a = value_a;
+    slot.config_value_b = value_b;
+    return true, nil;
+end
+
 function MACRO.load_editor_weaponskill_effect(editor, slot)
     if (type(editor) ~= 'table') then
         return;
@@ -6734,6 +7060,12 @@ function MACRO.editor_snapshot_slot(editor)
         slot.command = slot.commands[1] or '';
         if (editor.run_as_script[1] == true) then
             slot.script = true;
+        end
+    end
+    if (mode == 'configtoggle') then
+        local ok, err = MACRO.apply_config_toggle_to_slot(slot, COMMAND_MODE.config_toggle_values_from_editor(editor));
+        if (not ok) then
+            return nil, err;
         end
     end
     MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
@@ -6952,7 +7284,11 @@ local function save_macro_editor(clear_slot)
     end
 
     local weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency = MACRO.editor_weaponskill_effect_values(editor);
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency);
+    local config_key, config_value_a, config_value_b = nil, nil, nil;
+    if (mode == 'configtoggle' and not clear_slot) then
+        config_key, config_value_a, config_value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
+    end
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = UI_COLORS.error;
@@ -7147,6 +7483,30 @@ end
 function COMMAND_MODE.commands_for_execution(commands, options)
     if (type(commands) ~= 'table' or #commands ~= 1 or (type(options) == 'table' and options.script == true)) then
         return commands;
+    end
+
+    local config_toggle = type(options) == 'table' and options.config_toggle or nil;
+    local slot = type(options) == 'table' and options.slot or nil;
+    if (config_toggle ~= nil or (type(slot) == 'table' and slot.config_key ~= nil)) then
+        local id = config_toggle ~= nil and config_toggle.key or slot.config_key;
+        local value_a = config_toggle ~= nil and config_toggle.value_a or slot.config_value_a;
+        local value_b = config_toggle ~= nil and config_toggle.value_b or slot.config_value_b;
+        local validation_error = COMMAND_MODE.config_toggle_validation_error(
+            COMMAND_MODE.normalize_config_id(id),
+            COMMAND_MODE.normalize_config_value(value_a),
+            COMMAND_MODE.normalize_config_value(value_b));
+        if (validation_error ~= nil) then
+            log_warn(('Config toggle rejected: %s'):fmt(validation_error));
+            return {};
+        end
+
+        local command, read_error = COMMAND_MODE.config_toggle_next_command(id, value_a, value_b);
+        if (command == nil) then
+            log_warn(('Config toggle rejected: %s'):fmt(read_error or 'Unable to read current config value.'));
+            return {};
+        end
+
+        return { command };
     end
 
     local server_action = COMMAND_MODE.server_action_for_command(commands[1]);
@@ -9115,6 +9475,14 @@ function COMMAND_MODE.action_name_for_slot(slot)
     if (mode == 'server') then
         local server_action = COMMAND_MODE.server_action_for_command(slot.command);
         return server_action ~= nil and trim_one_line(server_action.name, LIMITS.macro_label_max) or nil;
+    end
+    if (mode == 'configtoggle') then
+        local id = COMMAND_MODE.normalize_config_id(slot.config_key);
+        if (id == nil) then
+            local parsed = COMMAND_MODE.parse_config_command(slot.command);
+            id = parsed ~= nil and parsed.id or nil;
+        end
+        return id ~= nil and trim_one_line(('Config %d'):fmt(id), LIMITS.macro_label_max) or nil;
     end
 
     local prefix, name = COMMAND_MODE.parse_command(slot.command);
