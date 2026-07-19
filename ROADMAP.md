@@ -52,6 +52,9 @@ most one configured action or static macro.
   into another button or modifier without copying the source modifier itself.
 - Done: independent click-only extra bars with their own saved positions and
   layout settings, excluded from all keyboard hotkey handling.
+- Done: curated CatsEye `Signet` server-command mode that resolves to
+  `!signet`, `!sigil`, `!sanction`, or `!ionis` by current zone, with
+  display-only pulse when the zone-appropriate buff is missing.
 
 ## Later Feature Ideas
 

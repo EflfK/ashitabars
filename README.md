@@ -454,6 +454,14 @@ Command mode options are:
   mount resource names and does not claim whether the current character has
   unlocked each mount. When a single-command mount button is pressed while the
   player is already mounted, AshitaBars sends `/dismount` instead.
+- `Server Command`: choose `Signet`, a curated CatsEye support-buff command.
+  Saved buttons generate normal chat command text, then resolve at press time
+  to the current zone's support buff: old-world/normal leveling zones use
+  `/say !signet`, past `[S]`/Campaign zones use `/say !sigil`, Aht Urhgan
+  zones use `/say !sanction`, and Adoulin zones use `/say !ionis`. These
+  buttons do not show a target selector. If the current zone's associated buff
+  is not in the player's active status icons, the button shows a display-only
+  pulse.
 - `Weapon Skill`: search known weapon skills, choose one, and select a target;
   generates `/ws`.
 - `Job Ability`: search known job abilities, choose one, and select a target;
@@ -466,7 +474,7 @@ Command mode options are:
 - `Ranged Attack`: choose the ranged attack action and target; generates `/ra`.
 - `Target / Assist`: choose target, assist, attack, or check plus a target.
 
-Structured modes still save normal slash command text in
+Structured modes still save normal command text in
 `button_overrides.lua`, so key execution, validation, icon inference, recast
 display, item counts, and availability dimming use the same path as hand-written
 commands. Existing command buttons are parsed back into the matching structured
@@ -535,11 +543,15 @@ grows with current TP and becomes stronger once TP reaches
 frequency. This is display-only and does not block, delay, retarget, or change
 the configured command.
 
+Server-command buff pulses are also display-only. AshitaBars checks the current
+zone and local active status icon names, then pulses the `Signet` server command
+button only when the zone-appropriate support buff is missing.
+
 Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
 `raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,
 `earth`, `lightning`, `water`, `light`, `dark`, `ability`, `song`, `summon`,
 `pet`, `fight`, `charm`, `reward`, `weapon`, `ranged`, `item`, `target`,
-`assist`, `check`, `chat`, `rest`, `test`, and `command`. Unknown icon tokens
+`assist`, `check`, `chat`, `rest`, `server`, `test`, and `command`. Unknown icon tokens
 fall back to a small two-letter text glyph. Prefix any built-in icon token with
 `sigil_` to use that alternate line-art variant on a single button, for example
 `sigil_cure` or `sigil_weapon`.
@@ -547,9 +559,14 @@ fall back to a small two-letter text glyph. Prefix any built-in icon token with
 Image-backed icon tokens are also available in the icon picker. They use PNG
 assets under `ashitabars/assets/icons/` and are stored by token name, such as
 `asset_fire_flame`, `asset_ice_crystal`, `asset_weapon_swords`,
-`asset_item_bag`, `asset_mount_chocobo`, and `asset_target_mark`.
+`asset_item_bag`, `asset_mount_chocobo`, `asset_raptor_mount`, `asset_signet`,
+`asset_sigil`, `asset_sanction`, `asset_ionis`, `asset_moogle`, and
+`asset_maps`, `asset_target_mark`, `asset_ws_axe_raging_axe`, and
+`asset_ws_sword_savage_blade`.
 Item buttons use the resolved in-game item icon automatically, while mount
 buttons can use any selected built-in, sigil, or image-backed icon token.
+Weapon-skill art is grouped in the picker by weapon type, using source file
+names as stable token IDs.
 
 In `auto` mode, common FFXI spell names infer matching icons. For example,
 `Fire`/`Blizzard`/`Aero` use elemental glyphs, `Drain`/`Aspir`/`Bio` use dark,
@@ -585,7 +602,12 @@ block_native_macro_modifiers = false,
 ```
 
 Allowed command prefixes are intentionally narrow. Player action commands such
-as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, and `/target` are accepted.
+as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, and `/map` are
+accepted.
+Chat commands such as `/say` and `/s` are accepted for attended chat/server
+command use. Supported bare CatsEye support commands such as `!signet`,
+`!sigil`, `!sanction`, and `!ionis` are also accepted and are queued as the
+current zone's `/say !command` when pressed.
 Ashita control commands such as `/addon`, `/bind`, `/unbind`, `/exec`, and
 `/alias` are not accepted as slot commands or macro lines. Slots with
 unsupported prefixes draw a red warning corner and are still rejected when

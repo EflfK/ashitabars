@@ -124,11 +124,13 @@ local ALLOWED_PREFIXES = T{
     ['/assist'] = true,
     ['/attack'] = true,
     ['/check'] = true,
+    ['/map'] = true,
     ['/echo'] = true,
     ['/p'] = true,
     ['/party'] = true,
     ['/l'] = true,
     ['/linkshell'] = true,
+    ['/s'] = true,
     ['/say'] = true,
     ['/tell'] = true,
 };
@@ -302,6 +304,7 @@ local COMMAND_THEME = {
     weapon      = { 0.95, 0.38, 0.30, 1.00 },
     item        = { 0.48, 0.84, 0.48, 1.00 },
     mount       = { 0.95, 0.78, 0.36, 1.00 },
+    server      = { 0.78, 0.96, 0.72, 1.00 },
     target      = { 0.58, 0.80, 0.98, 1.00 },
     chat        = { 0.82, 0.82, 0.88, 1.00 },
     command     = { 0.72, 0.66, 0.52, 1.00 },
@@ -321,6 +324,11 @@ local ICON_ALIASES = {
     shell = 'buff',
     barspell = 'buff',
     buff = 'buff',
+    signet = 'buff',
+    sanction = 'buff',
+    sigil = 'buff',
+    ionis = 'buff',
+    server = 'buff',
     status = 'status',
     cleanse = 'status',
     na = 'status',
@@ -451,12 +459,27 @@ local ICON_ASSET_CATEGORIES = {
     { label = 'White Mage', family = 'white_magic', tokens = { 'whm_aquaveil', 'whm_banish', 'whm_banish_2', 'whm_banishga', 'whm_baraera', 'whm_barblindra', 'whm_barblizzara', 'whm_barfira', 'whm_barparalyzra', 'whm_barpoisonra', 'whm_barsilencera', 'whm_barsleepra', 'whm_barstonra', 'whm_barthundra', 'whm_barwatera', 'whm_blindna', 'whm_blink', 'whm_curaga', 'whm_cure', 'whm_cure_2', 'whm_cure_3', 'whm_cursna', 'whm_deodorize', 'whm_dia', 'whm_diaga', 'whm_invisible', 'whm_paralyna', 'whm_paralyze', 'whm_poisona', 'whm_protect', 'whm_protect_2', 'whm_protectra', 'whm_protectra_2', 'whm_raise', 'whm_regen', 'whm_reraise', 'whm_shell', 'whm_shellra', 'whm_silena', 'whm_silence', 'whm_slow', 'whm_sneak', 'whm_stoneskin' } },
     { label = 'Beastmaster', family = 'ability', tokens = { 'bst_bestial_loyalty', 'bst_call_beast', 'bst_charm', 'bst_familiar', 'bst_feral_howl', 'bst_fight', 'bst_gauge', 'bst_heel', 'bst_killer_instinct', 'bst_leave', 'bst_ready', 'bst_reward', 'bst_run_wild', 'bst_sic', 'bst_snarl', 'bst_spur', 'bst_stay', 'bst_tame', 'bst_unleash' } },
     { label = 'Cure', family = 'white_magic', tokens = { 'cure_1', 'cure_2', 'cure_3', 'cure_4' } },
-    { label = 'Support', family = 'white_magic', tokens = { 'protect_1', 'protect_2', 'protect_3', 'protect_4', 'raise_1', 'raise_2', 'raise_3', 'raise_4', 'shell_1', 'shell_2', 'shell_3', 'shell_4', 'status_1', 'status_2', 'status_3', 'status_4', 'stealth_1', 'stealth_2', 'stealth_3', 'stealth_4' } },
+    { label = 'Support', family = 'white_magic', tokens = { 'protect_1', 'protect_2', 'protect_3', 'protect_4', 'raise_1', 'raise_2', 'raise_3', 'raise_4', 'shell_1', 'shell_2', 'shell_3', 'shell_4', 'status_1', 'status_2', 'status_3', 'status_4', 'stealth_1', 'stealth_2', 'stealth_3', 'stealth_4', 'signet', 'sigil', 'sanction', 'ionis' } },
     { label = 'Enfeebling', family = 'black_magic', tokens = { 'debuff_1', 'debuff_2', 'debuff_3', 'debuff_4' } },
     { label = 'Elements', family = 'black_magic', tokens = { 'dark_1', 'dark_2', 'dark_3', 'dark_4', 'earth_1', 'earth_2', 'earth_3', 'earth_4', 'fire_1', 'fire_2', 'fire_3', 'fire_4', 'ice_1', 'ice_2', 'ice_3', 'ice_4', 'light_1', 'light_2', 'light_3', 'light_4', 'lightning_1', 'lightning_2', 'lightning_3', 'lightning_4', 'water_1', 'water_2', 'water_3', 'water_4', 'wind_1', 'wind_2', 'wind_3', 'wind_4' } },
     { label = 'Magic Art', family = 'black_magic', tokens = { 'aether_orb', 'crystal_compass', 'dark_vortex', 'earth_rocks', 'fire_flame', 'holy_ascent', 'holy_star', 'ice_crystal', 'lightning_bolt', 'pink_crystal', 'void_burst', 'water_drop', 'wind_gale' } },
     { label = 'Combat Art', family = 'weapon', tokens = { 'aegis_shield', 'pet_paw', 'ranged_bow', 'shadow_hood', 'summon_avatar', 'weapon_crest', 'weapon_swords' } },
-    { label = 'Utility Art', family = 'item', tokens = { 'item_bag', 'mount_chocobo', 'song_harp', 'target_mark', 'warp_ring' } },
+    { label = 'Weapon Skills - Archery', family = 'weapon', tokens = { 'ws_archery_apex_arrow', 'ws_archery_arching_arrow', 'ws_archery_blast_arrow', 'ws_archery_dulling_arrow', 'ws_archery_empyreal_arrow', 'ws_archery_flaming_arrow', 'ws_archery_jishnus_radiance', 'ws_archery_namas_arrow', 'ws_archery_piercing_arrow', 'ws_archery_refulgent_arrow', 'ws_archery_sarv', 'ws_archery_sidewinder' } },
+    { label = 'Weapon Skills - Automaton', family = 'weapon', tokens = { 'ws_automaton_arcuballista', 'ws_automaton_armor_piercer', 'ws_automaton_armor_shatterer', 'ws_automaton_bone_crusher', 'ws_automaton_cannibal_blade', 'ws_automaton_chimera_ripper', 'ws_automaton_daze', 'ws_automaton_knockout', 'ws_automaton_magic_mortar', 'ws_automaton_slapstick', 'ws_automaton_string_clipper', 'ws_automaton_string_shredder' } },
+    { label = 'Weapon Skills - Axe', family = 'weapon', tokens = { 'ws_axe_avalanche_axe', 'ws_axe_blitz', 'ws_axe_bora_axe', 'ws_axe_calamity', 'ws_axe_cloudsplitter', 'ws_axe_decimation', 'ws_axe_gale_axe', 'ws_axe_mistral_axe', 'ws_axe_onslaught', 'ws_axe_primal_rend', 'ws_axe_raging_axe', 'ws_axe_rampage', 'ws_axe_ruinator', 'ws_axe_smash_axe', 'ws_axe_spinning_axe' } },
+    { label = 'Weapon Skills - Club', family = 'weapon', tokens = { 'ws_club_black_halo', 'ws_club_brainshaker', 'ws_club_dagan', 'ws_club_dagda', 'ws_club_exudation', 'ws_club_flash_nova', 'ws_club_hexa_strike', 'ws_club_judgment', 'ws_club_moonlight', 'ws_club_mystic_boon', 'ws_club_randgrith', 'ws_club_realmrazer', 'ws_club_seraph_strike', 'ws_club_shining_strike', 'ws_club_skullbreaker', 'ws_club_starlight', 'ws_club_true_strike' } },
+    { label = 'Weapon Skills - Dagger', family = 'weapon', tokens = { 'ws_dagger_aeolian_edge', 'ws_dagger_cyclone', 'ws_dagger_dancing_edge', 'ws_dagger_energy_drain', 'ws_dagger_energy_steal', 'ws_dagger_evisceration', 'ws_dagger_exenterator', 'ws_dagger_gust_slash', 'ws_dagger_mandalic_stab', 'ws_dagger_mercy_stroke', 'ws_dagger_mordant_rime', 'ws_dagger_pyrrhic_kleos', 'ws_dagger_rudras_storm', 'ws_dagger_ruthless_stroke', 'ws_dagger_shadowstitch', 'ws_dagger_shark_bite', 'ws_dagger_viper_bite', 'ws_dagger_wasp_sting' } },
+    { label = 'Weapon Skills - Great Axe', family = 'weapon', tokens = { 'ws_great_axe_armor_break', 'ws_great_axe_disaster', 'ws_great_axe_fell_cleave', 'ws_great_axe_full_break', 'ws_great_axe_iron_tempest', 'ws_great_axe_keen_edge', 'ws_great_axe_kings_justice', 'ws_great_axe_metatron_torment', 'ws_great_axe_raging_rush', 'ws_great_axe_shield_break', 'ws_great_axe_steel_cyclone', 'ws_great_axe_sturmwind', 'ws_great_axe_ukkos_fury', 'ws_great_axe_upheaval', 'ws_great_axe_weapon_break' } },
+    { label = 'Weapon Skills - Great Katana', family = 'weapon', tokens = { 'ws_great_katana_tachi_ageha', 'ws_great_katana_tachi_enpi', 'ws_great_katana_tachi_fudo', 'ws_great_katana_tachi_gekko', 'ws_great_katana_tachi_goten', 'ws_great_katana_tachi_hobaku', 'ws_great_katana_tachi_jinpu', 'ws_great_katana_tachi_kagero', 'ws_great_katana_tachi_kaiten', 'ws_great_katana_tachi_kasha', 'ws_great_katana_tachi_koki', 'ws_great_katana_tachi_mumei', 'ws_great_katana_tachi_rana', 'ws_great_katana_tachi_shoha', 'ws_great_katana_tachi_yukikaze' } },
+    { label = 'Weapon Skills - Great Sword', family = 'weapon', tokens = { 'ws_great_sword_crescent_moon', 'ws_great_sword_dimidiation', 'ws_great_sword_fimbulvetr', 'ws_great_sword_freezebite', 'ws_great_sword_frostbite', 'ws_great_sword_ground_strike', 'ws_great_sword_hard_slash', 'ws_great_sword_herculean_slash', 'ws_great_sword_power_slash', 'ws_great_sword_resolution', 'ws_great_sword_scourge', 'ws_great_sword_shockwave', 'ws_great_sword_sickle_moon', 'ws_great_sword_spinning_slash', 'ws_great_sword_torcleaver' } },
+    { label = 'Weapon Skills - Hand-to-Hand', family = 'weapon', tokens = { 'ws_hand_to_hand_ascetics_fury', 'ws_hand_to_hand_asuran_fists', 'ws_hand_to_hand_backhand_blow', 'ws_hand_to_hand_combo', 'ws_hand_to_hand_dragon_kick', 'ws_hand_to_hand_final_heaven', 'ws_hand_to_hand_howling_fist', 'ws_hand_to_hand_maru_kala', 'ws_hand_to_hand_one_inch_punch', 'ws_hand_to_hand_raging_fists', 'ws_hand_to_hand_shijin_spiral', 'ws_hand_to_hand_shoulder_tackle', 'ws_hand_to_hand_spinning_attack', 'ws_hand_to_hand_stringing_pummel', 'ws_hand_to_hand_tornado_kick', 'ws_hand_to_hand_victory_smite' } },
+    { label = 'Weapon Skills - Katana', family = 'weapon', tokens = { 'ws_katana_blade_chi', 'ws_katana_blade_ei', 'ws_katana_blade_hi', 'ws_katana_blade_jin', 'ws_katana_blade_kamu', 'ws_katana_blade_ku', 'ws_katana_blade_metsu', 'ws_katana_blade_retsu', 'ws_katana_blade_rin', 'ws_katana_blade_shun', 'ws_katana_blade_teki', 'ws_katana_blade_ten', 'ws_katana_blade_to', 'ws_katana_blade_yu', 'ws_katana_zesho_meppo' } },
+    { label = 'Weapon Skills - Marksmanship', family = 'weapon', tokens = { 'ws_marksmanship_blast_shot', 'ws_marksmanship_coronach', 'ws_marksmanship_detonator', 'ws_marksmanship_heavy_shot', 'ws_marksmanship_hot_shot', 'ws_marksmanship_last_stand', 'ws_marksmanship_leaden_salute', 'ws_marksmanship_numbing_shot', 'ws_marksmanship_slug_shot', 'ws_marksmanship_sniper_shot', 'ws_marksmanship_split_shot', 'ws_marksmanship_terminus', 'ws_marksmanship_trueflight', 'ws_marksmanship_wildfire' } },
+    { label = 'Weapon Skills - Polearm', family = 'weapon', tokens = { 'ws_polearm_camlanns_torment', 'ws_polearm_diarmuid', 'ws_polearm_double_thrust', 'ws_polearm_drakesbane', 'ws_polearm_geirskogul', 'ws_polearm_impulse_drive', 'ws_polearm_leg_sweep', 'ws_polearm_penta_thrust', 'ws_polearm_raiden_thrust', 'ws_polearm_skewer', 'ws_polearm_sonic_thrust', 'ws_polearm_stardiver', 'ws_polearm_thunder_thrust', 'ws_polearm_vorpal_thrust', 'ws_polearm_wheeling_thrust' } },
+    { label = 'Weapon Skills - Scythe', family = 'weapon', tokens = { 'ws_scythe_catastrophe', 'ws_scythe_cross_reaper', 'ws_scythe_dark_harvest', 'ws_scythe_entropy', 'ws_scythe_guillotine', 'ws_scythe_infernal_scythe', 'ws_scythe_insurgency', 'ws_scythe_nightmare_scythe', 'ws_scythe_origin', 'ws_scythe_quietus', 'ws_scythe_shadow_of_death', 'ws_scythe_slice', 'ws_scythe_spinning_scythe', 'ws_scythe_spiral_hell', 'ws_scythe_vorpal_scythe' } },
+    { label = 'Weapon Skills - Staff', family = 'weapon', tokens = { 'ws_staff_cataclysm', 'ws_staff_earth_crusher', 'ws_staff_full_swing', 'ws_staff_garland_of_bliss', 'ws_staff_gate_of_tartarus', 'ws_staff_heavy_swing', 'ws_staff_myrkr', 'ws_staff_omniscience', 'ws_staff_oshala', 'ws_staff_retribution', 'ws_staff_rock_crusher', 'ws_staff_shattersoul', 'ws_staff_shell_crusher', 'ws_staff_spirit_taker', 'ws_staff_starburst', 'ws_staff_sunburst', 'ws_staff_vidohunir' } },
+    { label = 'Weapon Skills - Sword', family = 'weapon', tokens = { 'ws_sword_atonement', 'ws_sword_burning_blade', 'ws_sword_chant_du_cygne', 'ws_sword_circle_blade', 'ws_sword_death_blossom', 'ws_sword_expiacion', 'ws_sword_fast_blade', 'ws_sword_flat_blade', 'ws_sword_imperator', 'ws_sword_knights_of_round', 'ws_sword_red_lotus_blade', 'ws_sword_requiescat', 'ws_sword_sanguine_blade', 'ws_sword_savage_blade', 'ws_sword_seraph_blade', 'ws_sword_shining_blade', 'ws_sword_spirits_within', 'ws_sword_swift_blade', 'ws_sword_vorpal_blade' } },
+    { label = 'Utility Art', family = 'item', tokens = { 'item_bag', 'maps', 'mount_chocobo', 'raptor_mount', 'song_harp', 'target_mark', 'warp_ring', 'moogle' } },
 };
 
 local function register_icon_asset(token, family)
@@ -486,6 +509,11 @@ local ICON_TOKEN_ASSET_OVERRIDES = {
     rest = 'item_bag',
     holy = 'holy_star',
     buff = 'protect_1',
+    signet = 'signet',
+    sigil = 'sigil',
+    sanction = 'sanction',
+    ionis = 'ionis',
+    server = 'signet',
     status = 'status_1',
     raise = 'whm_raise',
     stealth = 'whm_sneak',
@@ -511,6 +539,8 @@ local ICON_TOKEN_ASSET_OVERRIDES = {
     ranged = 'ranged_bow',
     item = 'item_bag',
     mount = 'mount_chocobo',
+    raptor = 'raptor_mount',
+    map = 'maps',
     target = 'target_mark',
     assist = 'target_mark',
     check = 'target_mark',
@@ -838,6 +868,7 @@ local state = {
         ability_search_buffer = T{ '' },
         pet_search_buffer = T{ '' },
         mount_search_buffer = T{ '' },
+        server_search_buffer = T{ '' },
         message = nil,
         message_color = UI_COLORS.success,
     },
@@ -909,6 +940,9 @@ function MACRO.normalize_mode(value)
     end
     if (mode == 'mount') then
         return 'mount';
+    end
+    if (mode == 'server' or mode == 'servercommand' or mode == 'server-command' or mode == 'catseye' or mode == 'catseyecommand' or mode == 'catseye-command' or mode == 'bang') then
+        return 'server';
     end
     if (mode == 'weaponskill' or mode == 'weapon-skill' or mode == 'ws') then
         return 'weaponskill';
@@ -3943,6 +3977,7 @@ COMMAND_MODE.ORDER = {
     'spell',
     'item',
     'mount',
+    'server',
     'weaponskill',
     'ability',
     'pet',
@@ -3956,6 +3991,7 @@ COMMAND_MODE.DEFS = {
     spell       = { label = 'Spell', action_label = 'Spell', empty_label = 'No usable learned spells found.' },
     item        = { label = 'Item', action_label = 'Item', empty_label = 'No inventory items found.' },
     mount       = { label = 'Mount', action_label = 'Mount', empty_label = 'No mount names found.' },
+    server      = { label = 'Server Command', action_label = 'Server Command', empty_label = 'No server commands configured.' },
     weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
     ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
     pet         = { label = 'Pet Command', action_label = 'Pet Command', empty_label = 'No usable pet commands found.' },
@@ -4022,6 +4058,30 @@ COMMAND_MODE.ITEM_SOURCE_OPTIONS = {
 COMMAND_MODE.ITEM_SOURCE_BY_CONTAINER = {
     [0] = { key = 'inventory', label = 'Inventory' },
     [3] = { key = 'temporary', label = 'Temporary' },
+};
+
+COMMAND_MODE.SERVER_COMMANDS = {
+    {
+        name = 'Signet',
+        command = '!signet',
+        buff = 'Signet',
+        icon = 'signet',
+        zone_dynamic = true,
+    },
+};
+
+COMMAND_MODE.SIGNET_ZONE_COMMANDS = {
+    old_world = { command = '!signet',   buff = 'Signet',   icon = 'signet',   zone_label = 'Old-world / normal leveling' },
+    past      = { command = '!sigil',    buff = 'Sigil',    icon = 'sigil',    zone_label = 'Past [S] / Campaign' },
+    aht_urhgan = { command = '!sanction', buff = 'Sanction', icon = 'sanction', zone_label = 'Aht Urhgan' },
+    adoulin   = { command = '!ionis',    buff = 'Ionis',    icon = 'ionis',    zone_label = 'Adoulin' },
+};
+
+COMMAND_MODE.SIGNET_SERVER_COMMAND_KEYS = {
+    ['!signet'] = true,
+    ['!sigil'] = true,
+    ['!sanction'] = true,
+    ['!ionis'] = true,
 };
 
 COMMAND_MODE.SPELL_TYPE_BY_RESOURCE_TYPE = {
@@ -4135,6 +4195,111 @@ function COMMAND_MODE.player_is_mounted()
     end
 
     return false;
+end
+
+function COMMAND_MODE.current_status_lookup()
+    if (state.command_mode_cache == nil) then
+        state.command_mode_cache = {};
+    end
+
+    local now = os.clock();
+    local cached = state.command_mode_cache.status_lookup;
+    if (cached ~= nil and cached.lookup ~= nil and (now - cached.at) <= 0.25) then
+        return cached.lookup;
+    end
+
+    local lookup = {};
+    local player = safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetPlayer();
+    end, nil);
+    local resources = safe_read(function ()
+        return AshitaCore:GetResourceManager();
+    end, nil);
+    local icons = player ~= nil and safe_read(function ()
+        return player:GetStatusIcons();
+    end, nil) or nil;
+
+    if (icons ~= nil and resources ~= nil) then
+        for slot = 0, 31, 1 do
+            local icon = tonumber(safe_read(function ()
+                return icons[slot + 1];
+            end, nil));
+            if (icon ~= nil and icon > 0 and icon ~= 255) then
+                local name = COMMAND_MODE.clean_name(safe_read(function ()
+                    return resources:GetString('buffs.names', icon);
+                end, '')):lower();
+                if (name ~= '') then
+                    lookup[name] = true;
+                end
+            end
+        end
+    end
+
+    state.command_mode_cache.status_lookup = { at = now, lookup = lookup };
+    return lookup;
+end
+
+function COMMAND_MODE.player_has_status(status_name)
+    status_name = COMMAND_MODE.clean_name(status_name):lower();
+    if (status_name == '') then
+        return false;
+    end
+
+    return COMMAND_MODE.current_status_lookup()[status_name] == true;
+end
+
+function COMMAND_MODE.current_zone_id()
+    return tonumber(safe_read(function ()
+        return AshitaCore:GetMemoryManager():GetParty():GetMemberZone(0);
+    end, nil));
+end
+
+function COMMAND_MODE.signet_zone_command_for_zone(zone_id)
+    zone_id = tonumber(zone_id);
+    if (zone_id == nil) then
+        return COMMAND_MODE.SIGNET_ZONE_COMMANDS.old_world;
+    end
+
+    if (zone_id >= 48 and zone_id < 80) then
+        return COMMAND_MODE.SIGNET_ZONE_COMMANDS.aht_urhgan;
+    end
+    if ((zone_id >= 256 and zone_id < 294) or zone_id == 299) then
+        return COMMAND_MODE.SIGNET_ZONE_COMMANDS.adoulin;
+    end
+    if ((zone_id >= 80 and zone_id < 100)
+        or (zone_id >= 136 and zone_id < 139)
+        or zone_id == 155
+        or zone_id == 156
+        or zone_id == 164
+        or zone_id == 171
+        or zone_id == 175) then
+        return COMMAND_MODE.SIGNET_ZONE_COMMANDS.past;
+    end
+
+    return COMMAND_MODE.SIGNET_ZONE_COMMANDS.old_world;
+end
+
+function COMMAND_MODE.current_signet_zone_command()
+    return COMMAND_MODE.signet_zone_command_for_zone(COMMAND_MODE.current_zone_id());
+end
+
+function COMMAND_MODE.server_runtime_action(action)
+    if (type(action) ~= 'table') then
+        return nil;
+    end
+    if (action.zone_dynamic ~= true) then
+        return action;
+    end
+
+    local zone_command = COMMAND_MODE.current_signet_zone_command();
+    return {
+        name = action.name,
+        command = zone_command.command,
+        buff = zone_command.buff,
+        icon = zone_command.icon or action.icon,
+        zone_label = zone_command.zone_label,
+        zone_dynamic = true,
+    };
 end
 
 function COMMAND_MODE.start_mount_recast_overlay()
@@ -4314,7 +4479,71 @@ function COMMAND_MODE.parse_command(command)
     return prefix:lower(), COMMAND_MODE.clean_name(name), trim_string(remainder or ''), trim_string(rest);
 end
 
+function COMMAND_MODE.server_command_key(command)
+    if (type(command) ~= 'string') then
+        return nil;
+    end
+
+    local text = trim_string(command):lower();
+    local direct = text:match('^(![%w_%-]+)$');
+    if (direct ~= nil) then
+        return direct;
+    end
+
+    local prefix, _, _, raw_rest = COMMAND_MODE.parse_command(command);
+    if (prefix ~= '/say' and prefix ~= '/s') then
+        return nil;
+    end
+
+    return trim_string(raw_rest):lower():match('^(![%w_%-]+)$');
+end
+
+function COMMAND_MODE.server_action_by_key(command_key)
+    if (type(command_key) ~= 'string' or command_key == '') then
+        return nil;
+    end
+
+    command_key = command_key:lower();
+    if (COMMAND_MODE.SIGNET_SERVER_COMMAND_KEYS[command_key] == true) then
+        return COMMAND_MODE.SERVER_COMMANDS[1];
+    end
+
+    for _, action in ipairs(COMMAND_MODE.SERVER_COMMANDS) do
+        if (type(action.command) == 'string' and action.command:lower() == command_key) then
+            return action;
+        end
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.server_action_by_name(name)
+    name = COMMAND_MODE.clean_name(name);
+    if (name == '') then
+        return nil;
+    end
+
+    local key = name:lower();
+    for _, action in ipairs(COMMAND_MODE.SERVER_COMMANDS) do
+        if ((type(action.name) == 'string' and action.name:lower() == key)
+            or (type(action.command) == 'string' and action.command:lower() == key)
+            or COMMAND_MODE.SIGNET_SERVER_COMMAND_KEYS['!' .. key] == true) then
+            return action;
+        end
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.server_action_for_command(command)
+    return COMMAND_MODE.server_action_by_key(COMMAND_MODE.server_command_key(command));
+end
+
 function COMMAND_MODE.mode_from_command(command)
+    if (COMMAND_MODE.server_action_for_command(command) ~= nil) then
+        return 'server';
+    end
+
     local prefix = COMMAND_MODE.parse_command(command);
     if (prefix == '/ma' or prefix == '/magic') then
         return 'spell';
@@ -4382,6 +4611,10 @@ function COMMAND_MODE.command_action_for_mode(mode, command)
     if (mode == 'mount') then
         return name or '', '';
     end
+    if (mode == 'server') then
+        local server_action = COMMAND_MODE.server_action_for_command(command);
+        return server_action ~= nil and server_action.name or '', '';
+    end
     if (mode == 'pet') then
         return name or '', target ~= '' and target or COMMAND_MODE.pet_command_default_target(name);
     end
@@ -4418,6 +4651,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.ability_search_buffer, '');
     buffer_set(editor.pet_search_buffer, '');
     buffer_set(editor.mount_search_buffer, '');
+    buffer_set(editor.server_search_buffer, '');
     if (mode == 'target') then
         editor.target_action = action or '/target';
     end
@@ -4452,6 +4686,10 @@ function COMMAND_MODE.editor_command(mode, editor)
     end
     if (mode == 'mount') then
         return (action ~= '') and ('/mount "%s"'):fmt(action) or '';
+    end
+    if (mode == 'server') then
+        local server_action = COMMAND_MODE.server_action_by_name(action);
+        return (server_action ~= nil) and ('/say %s'):fmt(server_action.command) or '';
     end
     if (mode == 'weaponskill') then
         return (action ~= '') and ('/ws "%s" %s'):fmt(action, target) or '';
@@ -4712,6 +4950,9 @@ function COMMAND_MODE.editor_selection_validation_error(mode, editor)
         end
         if (mode == 'mount') then
             return 'Choose a mount.';
+        end
+        if (mode == 'server') then
+            return 'Choose a server command.';
         end
         if (mode == 'weaponskill') then
             return 'Choose a weapon skill.';
@@ -5090,6 +5331,32 @@ function COMMAND_MODE.pet_command_available_now(name)
     return lookup[name:lower()] == true;
 end
 
+function COMMAND_MODE.server_actions()
+    local list = {};
+    local lookup = {};
+    for _, server_command in ipairs(COMMAND_MODE.SERVER_COMMANDS) do
+        local runtime_command = COMMAND_MODE.server_runtime_action(server_command) or server_command;
+        local command = type(runtime_command.command) == 'string' and runtime_command.command or '';
+        local buff = type(runtime_command.buff) == 'string' and runtime_command.buff or '';
+        local detail = 'current: ' .. command;
+        if (buff ~= '') then
+            detail = detail .. ', buff: ' .. buff;
+        end
+        if (runtime_command.zone_label ~= nil and runtime_command.zone_label ~= '') then
+            detail = detail .. ', ' .. runtime_command.zone_label;
+        end
+
+        COMMAND_MODE.add_action(list, lookup, server_command.name, command, detail, {
+            server_command = command,
+            buff_name = buff,
+            icon = runtime_command.icon or server_command.icon,
+            search_keywords = '!signet !sigil !sanction !ionis',
+        });
+    end
+
+    return COMMAND_MODE.sort_actions(list);
+end
+
 function COMMAND_MODE.mount_actions()
     local list = {};
     local lookup = {};
@@ -5134,6 +5401,8 @@ function COMMAND_MODE.actions(mode)
         items = COMMAND_MODE.pet_command_actions();
     elseif (mode == 'mount') then
         items = COMMAND_MODE.mount_actions();
+    elseif (mode == 'server') then
+        items = COMMAND_MODE.server_actions();
     elseif (mode == 'ranged') then
         items = { { name = 'Ranged Attack' } };
     end
@@ -5172,12 +5441,14 @@ function COMMAND_MODE.ensure_structured_selection(editor, mode)
     end
     if (mode == 'item' or mode == 'mount') then
         editor.command_target = '<me>';
+    elseif (mode == 'server') then
+        editor.command_target = '';
     elseif (mode == 'pet') then
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.pet_command_default_target(editor.command_action);
     else
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
         return;
     end
 
@@ -5313,6 +5584,9 @@ function COMMAND_MODE.action_search_buffer(editor, mode)
     if (mode == 'mount') then
         return editor.mount_search_buffer;
     end
+    if (mode == 'server') then
+        return editor.server_search_buffer;
+    end
 
     return nil;
 end
@@ -5335,6 +5609,9 @@ function COMMAND_MODE.action_search_haystack(action)
         action.name or '',
         action.detail or '',
         action.item_source_label or '',
+        action.server_command or '',
+        action.buff_name or '',
+        action.search_keywords or '',
     }, ' '):lower();
 end
 
@@ -5610,6 +5887,8 @@ function COMMAND_MODE.render_search_filter(editor, mode, actions)
         count_label = 'pet commands';
     elseif (mode == 'mount') then
         count_label = 'mounts';
+    elseif (mode == 'server') then
+        count_label = 'server commands';
     end
     imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('%d / %d %s'):fmt(#filtered, #(actions or {}), count_label));
     return filtered;
@@ -5820,7 +6099,7 @@ function COMMAND_MODE.render_action_selector(editor, mode)
         return;
     end
 
-    if (mode == 'weaponskill' or mode == 'ability' or mode == 'pet' or mode == 'mount') then
+    if (mode == 'weaponskill' or mode == 'ability' or mode == 'pet' or mode == 'mount' or mode == 'server') then
         actions = COMMAND_MODE.render_search_filter(editor, mode, actions);
         if (mode == 'weaponskill') then
             empty_label = 'No weapon skills match the current filter.';
@@ -5828,6 +6107,8 @@ function COMMAND_MODE.render_action_selector(editor, mode)
             empty_label = 'No job abilities match the current filter.';
         elseif (mode == 'pet') then
             empty_label = 'No pet commands match the current filter.';
+        elseif (mode == 'server') then
+            empty_label = 'No server commands match the current filter.';
         else
             empty_label = 'No mounts match the current filter.';
         end
@@ -5919,7 +6200,7 @@ end
 function COMMAND_MODE.render_structured_editor(editor, mode)
     COMMAND_MODE.ensure_structured_selection(editor, mode);
     COMMAND_MODE.render_action_selector(editor, mode);
-    if (mode ~= 'item' and mode ~= 'mount') then
+    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server') then
         COMMAND_MODE.render_target_selector(editor, mode);
     end
 
@@ -5931,6 +6212,9 @@ end
 
 local function allowed_command(command)
     if (type(command) ~= 'string') then return false; end
+    if (COMMAND_MODE.server_action_for_command(command) ~= nil) then
+        return true;
+    end
     local prefix = command:lower():match('^%s*(/%S+)');
     return prefix ~= nil and ALLOWED_PREFIXES[prefix] == true;
 end
@@ -5940,11 +6224,14 @@ local function command_validation_error(command)
         return nil;
     end
 
-    if (not command:match('^%s*/')) then
-        return 'Command must start with an allowed slash command.';
+    if (not command:match('^%s*/') and not command:match('^%s*!')) then
+        return 'Command must start with an allowed slash command or supported server command.';
     end
 
     if (not allowed_command(command)) then
+        if (command:match('^%s*!')) then
+            return 'Unsupported server command.';
+        end
         return 'Unsupported command prefix.';
     end
 
@@ -6862,6 +7149,12 @@ function COMMAND_MODE.commands_for_execution(commands, options)
         return commands;
     end
 
+    local server_action = COMMAND_MODE.server_action_for_command(commands[1]);
+    if (server_action ~= nil) then
+        local runtime_action = COMMAND_MODE.server_runtime_action(server_action);
+        return { ('/say %s'):fmt(runtime_action.command) };
+    end
+
     local prefix = command_prefix_and_name(commands[1]);
     if (prefix == '/mount' and COMMAND_MODE.player_is_mounted()) then
         return { '/dismount' };
@@ -7333,6 +7626,34 @@ local function slot_weaponskill_pulse_info(slot)
     };
 end
 
+local function slot_server_buff_pulse_info(slot)
+    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+        return nil;
+    end
+
+    local server_action = COMMAND_MODE.server_action_for_command(slot.command);
+    local runtime_action = COMMAND_MODE.server_runtime_action(server_action);
+    if (runtime_action == nil or type(runtime_action.buff) ~= 'string' or runtime_action.buff == '') then
+        return nil;
+    end
+    if (COMMAND_MODE.player_has_status(runtime_action.buff)) then
+        return nil;
+    end
+
+    return {
+        style = 'pulse',
+        ready = true,
+        intensity = 0.74,
+        opacity = 0.82,
+        frequency = 82,
+        warm_color = { 0.36, 0.78, 0.42 },
+        border_color = { 0.70, 1.00, 0.56 },
+        inner_color = { 1.00, 0.94, 0.48 },
+        call_color = { 0.52, 1.00, 0.44 },
+        core_color = { 0.24, 0.86, 0.36 },
+    };
+end
+
 local function format_count(value)
     value = math.max(0, math.floor(tonumber(value) or 0));
     if (value >= 1000000) then
@@ -7487,6 +7808,10 @@ local function command_family(slot)
     local command = slot.command:lower();
     local prefix = command:match('^%s*(/%S+)') or '';
 
+    if (COMMAND_MODE.server_action_for_command(slot.command) ~= nil) then
+        return 'server';
+    end
+
     if (prefix == '/ma' or prefix == '/magic') then
         for _, hint in ipairs(WHITE_MAGIC_HINTS) do
             if (command:find(hint, 1, true) ~= nil) then
@@ -7535,11 +7860,18 @@ local function infer_icon_token(slot, family)
 
     local command = slot.command:lower();
     local prefix = command:match('^%s*(/%S+)') or '';
+    local server_action = COMMAND_MODE.server_action_for_command(slot.command);
+
+    if (server_action ~= nil) then
+        local runtime_action = COMMAND_MODE.server_runtime_action(server_action);
+        return (runtime_action ~= nil and runtime_action.icon) or server_action.icon or 'buff';
+    end
 
     if (prefix == '/heal') then return 'rest'; end
     if (prefix == '/target' or prefix == '/attack') then return 'target'; end
     if (prefix == '/assist') then return 'assist'; end
     if (prefix == '/check') then return 'check'; end
+    if (prefix == '/map') then return 'map'; end
     if (prefix == '/item') then return 'item'; end
     if (prefix == '/mount') then return 'mount'; end
     if (prefix == '/ja' or prefix == '/jobability' or prefix == '/pet') then return 'ability'; end
@@ -8324,6 +8656,11 @@ local function draw_weaponskill_pulse_overlay(draw_list, x, y, slot_size, pulse_
     local speed = math.max(0.25, math.min(2.0, (tonumber(pulse_info.frequency) or 100) / 100.0));
     local pulse = 0.5 + (0.5 * math.sin((now * 2.1 * speed) + (x * 0.017) + (y * 0.011)));
     local ready = pulse_info.ready == true;
+    local warm_color = pulse_info.warm_color or { 1.00, 0.36, 0.06 };
+    local border_color = pulse_info.border_color or { 1.00, 0.56, 0.10 };
+    local inner_color = pulse_info.inner_color or { 1.00, 0.78, 0.28 };
+    local call_color = pulse_info.call_color or { 1.00, 0.24, 0.02 };
+    local core_color = pulse_info.core_color or { 1.00, 0.40, 0.08 };
     local rr = 4.0;
     local x1 = x + 1;
     local y1 = y + 1;
@@ -8337,18 +8674,18 @@ local function draw_weaponskill_pulse_overlay(draw_list, x, y, slot_size, pulse_
     local inset = math.max(3, math.floor(slot_size * 0.08));
     local core_inset = math.max(8, math.floor(slot_size * 0.18));
 
-    draw_list:AddRectFilled({ x1, y1 }, { x2, y2 }, color_u32({ 1.00, 0.36, 0.06, math.min(0.22, warm_alpha) * opacity }), rr);
-    draw_list:AddRect({ x1 + expand, y1 + expand }, { x2 - expand, y2 - expand }, color_u32({ 1.00, 0.56, 0.10, math.min(0.78, border_alpha) * opacity }), rr, ImDrawCornerFlags_All, 1.2 + (power * 2.0));
-    draw_list:AddRect({ x1 + inset, y1 + inset }, { x2 - inset, y2 - inset }, color_u32({ 1.00, 0.78, 0.28, math.min(0.48, inner_alpha) * opacity }), rr - 1, ImDrawCornerFlags_All, 1.0 + (power * 1.2));
-    draw_list:AddRectFilled({ x + core_inset, y + core_inset }, { x + slot_size - core_inset, y + slot_size - core_inset }, color_u32({ 1.00, 0.40, 0.08, math.min(0.16, inner_alpha * 0.56) * opacity }), 2.0);
+    draw_list:AddRectFilled({ x1, y1 }, { x2, y2 }, color_u32({ warm_color[1], warm_color[2], warm_color[3], math.min(0.22, warm_alpha) * opacity }), rr);
+    draw_list:AddRect({ x1 + expand, y1 + expand }, { x2 - expand, y2 - expand }, color_u32({ border_color[1], border_color[2], border_color[3], math.min(0.78, border_alpha) * opacity }), rr, ImDrawCornerFlags_All, 1.2 + (power * 2.0));
+    draw_list:AddRect({ x1 + inset, y1 + inset }, { x2 - inset, y2 - inset }, color_u32({ inner_color[1], inner_color[2], inner_color[3], math.min(0.48, inner_alpha) * opacity }), rr - 1, ImDrawCornerFlags_All, 1.0 + (power * 1.2));
+    draw_list:AddRectFilled({ x + core_inset, y + core_inset }, { x + slot_size - core_inset, y + slot_size - core_inset }, color_u32({ core_color[1], core_color[2], core_color[3], math.min(0.16, inner_alpha * 0.56) * opacity }), 2.0);
 
     if (ready) then
         local call_alpha = math.min(0.76, 0.18 + (power * 0.28) + (pulse * 0.24));
-        draw_list:AddRect({ x1, y1 }, { x2, y2 }, color_u32({ 1.00, 0.24, 0.02, call_alpha * opacity }), rr + 1.0, ImDrawCornerFlags_All, 2.0 + (power * 1.5));
-        draw_list:AddLine({ x1 + 4, y1 + 3 }, { x2 - 4, y1 + 3 }, color_u32({ 1.00, 0.82, 0.30, call_alpha * 0.72 * opacity }), 1.0 + (power * 1.0));
-        draw_list:AddLine({ x1 + 4, y2 - 3 }, { x2 - 4, y2 - 3 }, color_u32({ 1.00, 0.40, 0.04, call_alpha * 0.80 * opacity }), 1.2 + (power * 1.3));
-        draw_list:AddLine({ x1 + 3, y1 + 5 }, { x1 + 3, y2 - 5 }, color_u32({ 1.00, 0.50, 0.08, call_alpha * 0.54 * opacity }), 1.0 + (power * 0.8));
-        draw_list:AddLine({ x2 - 3, y1 + 5 }, { x2 - 3, y2 - 5 }, color_u32({ 1.00, 0.50, 0.08, call_alpha * 0.54 * opacity }), 1.0 + (power * 0.8));
+        draw_list:AddRect({ x1, y1 }, { x2, y2 }, color_u32({ call_color[1], call_color[2], call_color[3], call_alpha * opacity }), rr + 1.0, ImDrawCornerFlags_All, 2.0 + (power * 1.5));
+        draw_list:AddLine({ x1 + 4, y1 + 3 }, { x2 - 4, y1 + 3 }, color_u32({ inner_color[1], inner_color[2], inner_color[3], call_alpha * 0.72 * opacity }), 1.0 + (power * 1.0));
+        draw_list:AddLine({ x1 + 4, y2 - 3 }, { x2 - 4, y2 - 3 }, color_u32({ warm_color[1], warm_color[2], warm_color[3], call_alpha * 0.80 * opacity }), 1.2 + (power * 1.3));
+        draw_list:AddLine({ x1 + 3, y1 + 5 }, { x1 + 3, y2 - 5 }, color_u32({ border_color[1], border_color[2], border_color[3], call_alpha * 0.54 * opacity }), 1.0 + (power * 0.8));
+        draw_list:AddLine({ x2 - 3, y1 + 5 }, { x2 - 3, y2 - 5 }, color_u32({ border_color[1], border_color[2], border_color[3], call_alpha * 0.54 * opacity }), 1.0 + (power * 0.8));
     end
 end
 
@@ -8775,6 +9112,10 @@ function COMMAND_MODE.action_name_for_slot(slot)
     if (mode == 'item') then
         return COMMAND_MODE.item_action_name_for_slot(slot);
     end
+    if (mode == 'server') then
+        local server_action = COMMAND_MODE.server_action_for_command(slot.command);
+        return server_action ~= nil and trim_one_line(server_action.name, LIMITS.macro_label_max) or nil;
+    end
 
     local prefix, name = COMMAND_MODE.parse_command(slot.command);
     if (mode == 'target') then
@@ -8866,6 +9207,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         index = index,
     }) or nil;
     local weaponskill_pulse_info = has_command and command_supported and slot_weaponskill_pulse_info(slot) or nil;
+    local server_buff_pulse_info = has_command and command_supported and slot_server_buff_pulse_info(slot) or nil;
     local available = visual_state == nil or visual_state.available ~= false;
     local draw_icon_color = available and icon_color or { icon_color[1] * 0.52, icon_color[2] * 0.52, icon_color[3] * 0.52, icon_color[4] or 1.00 };
     local nudge = pressed and 1 or 0;
@@ -8930,6 +9272,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     if (has_command and command_supported and weaponskill_pulse_info ~= nil) then
         draw_weaponskill_pulse_overlay(draw_list, rx, ry, slot_size, weaponskill_pulse_info);
+    end
+
+    if (has_command and command_supported and server_buff_pulse_info ~= nil) then
+        draw_weaponskill_pulse_overlay(draw_list, rx, ry, slot_size, server_buff_pulse_info);
     end
 
     if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
