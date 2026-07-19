@@ -481,6 +481,12 @@ Command mode options are:
   action-style commands default to `<t>`.
 - `Ranged Attack`: choose the ranged attack action and target; generates `/ra`.
 - `Target / Assist`: choose target, assist, attack, or check plus a target.
+  Target selectors expose the relevant FFXI target pronouns for each structured
+  mode. Spells, job abilities, and target/assist buttons include the broad
+  pronoun set: `<t>`, `<bt>`, `<ht>`, `<ft>`, `<st>`, `<stpc>`, `<stpt>`,
+  `<stal>`, `<stnpc>`, `<lastst>`, `<me>`, `<pet>`, `<scan>`, and `<r>`.
+  Weapon skill and ranged buttons use combat-oriented targets, while pet
+  commands include combat targets plus `<me>` and `<pet>`.
 
 Structured modes still save normal command text in `button_overrides.lua`, with
 small mode-specific metadata only when needed, such as `Config Toggle`'s two
