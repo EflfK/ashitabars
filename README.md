@@ -468,6 +468,10 @@ Command mode options are:
   `/config set <id> <value>` command: value B when the current value is value A,
   otherwise value A. For example, key `145` with values `0` and `1` toggles
   between `/config set 145 0` and `/config set 145 1`.
+- `Trusts Addon`: choose an existing FancyTrusts action. Saved buttons generate
+  `/trusts` to open the FancyTrusts window or `/trusts p1` through `/trusts p5`
+  to summon one of the FancyTrusts presets. These buttons do not show a target
+  selector and do not implement any trust-summoning sequence inside AshitaBars.
 - `Weapon Skill`: search known weapon skills, choose one, and select a target;
   generates `/ws`.
 - `Job Ability`: search known job abilities, choose one, and select a target;
@@ -609,9 +613,11 @@ block_native_macro_modifiers = false,
 ```
 
 Allowed command prefixes are intentionally narrow. Player action commands such
-as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, and `/map` are
-accepted. `/config get <id>` and `/config set <id> <value>` are accepted for
-attended client configuration buttons.
+as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, `/targetnpc`,
+`/targetbnpc`, and `/map` are accepted. `/config get <id>` and
+`/config set <id> <value>` are accepted for attended client configuration
+buttons. `/trusts` and `/trusts p1` through `/trusts p5` are accepted for
+attended FancyTrusts buttons.
 Chat commands such as `/say` and `/s` are accepted for attended chat/server
 command use. Supported bare CatsEye support commands such as `!signet`,
 `!sigil`, `!sanction`, and `!ionis` are also accepted and are queued as the
