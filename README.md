@@ -478,7 +478,8 @@ Command mode options are:
   the current main/sub job. Search the live pet command list, choose a command,
   and select a target; generates `/pet`. Control-style commands such as Heel,
   Stay, Leave, Release, Retreat, Retrieve, and Deactivate default to `<me>`;
-  action-style commands default to `<t>`.
+  action-style commands default to `<t>`. Fight buttons expose an optional
+  `Flash While Pet Is Idle` reminder in the button editor.
 - `Ranged Attack`: choose the ranged attack action and target; generates `/ra`.
 - `Target / Assist`: choose target, assist, attack, or check plus a target.
   Target selectors expose the relevant FFXI target pronouns for each structured
@@ -561,6 +562,10 @@ the configured command.
 Server-command buff pulses are also display-only. AshitaBars checks the current
 zone and local active status icon names, then pulses the `Signet` server command
 button only when the zone-appropriate support buff is missing.
+
+Pet Fight idle flashing is display-only. When enabled on a `/pet "Fight"` button,
+AshitaBars pulses that button while local read-only pet state shows you have a
+pet that is not currently attacking.
 
 Built-in icon tokens include `cure`, `holy`, `buff`, `status`, `debuff`,
 `raise`, `stealth`, `white_magic`, `black_magic`, `fire`, `ice`, `wind`,
