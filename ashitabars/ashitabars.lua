@@ -59,9 +59,9 @@ local KEY_WAS_DOWN_MASK = bit.lshift(0x4000, 16);
 local DIGIT_LABELS      = { '1', '2', '3', '4', '5', '6', '7', '8', '9', '0' };
 local ROWS              = {
     { id = 'base', label = 'Main', keyPrefix = ''  },
-    { id = 'ctrl', label = 'Ctrl', keyPrefix = 'C' },
-    { id = 'alt',  label = 'Alt',  keyPrefix = 'A' },
-    { id = 'shift', label = 'Shift', keyPrefix = 'S' },
+    { id = 'ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'base', modifier = 'ctrl' },
+    { id = 'alt',  label = 'Alt',  keyPrefix = 'A', parent = 'base', modifier = 'alt' },
+    { id = 'shift', label = 'Shift', keyPrefix = 'S', parent = 'base', modifier = 'shift' },
 };
 local CLICK_ROW         = { id = 'click', label = 'Click', keyPrefix = '', showHotkeys = false };
 local BUTTON_ROWS       = {
@@ -73,6 +73,18 @@ local BUTTON_ROWS       = {
     { id = 'click2', label = 'Click 2', keyPrefix = '', showHotkeys = false },
     { id = 'click3', label = 'Click 3', keyPrefix = '', showHotkeys = false },
     { id = 'click4', label = 'Click 4', keyPrefix = '', showHotkeys = false },
+    { id = 'click_ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'click', modifier = 'ctrl', showHotkeys = false },
+    { id = 'click_alt', label = 'Alt', keyPrefix = 'A', parent = 'click', modifier = 'alt', showHotkeys = false },
+    { id = 'click_shift', label = 'Shift', keyPrefix = 'S', parent = 'click', modifier = 'shift', showHotkeys = false },
+    { id = 'click2_ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'click2', modifier = 'ctrl', showHotkeys = false },
+    { id = 'click2_alt', label = 'Alt', keyPrefix = 'A', parent = 'click2', modifier = 'alt', showHotkeys = false },
+    { id = 'click2_shift', label = 'Shift', keyPrefix = 'S', parent = 'click2', modifier = 'shift', showHotkeys = false },
+    { id = 'click3_ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'click3', modifier = 'ctrl', showHotkeys = false },
+    { id = 'click3_alt', label = 'Alt', keyPrefix = 'A', parent = 'click3', modifier = 'alt', showHotkeys = false },
+    { id = 'click3_shift', label = 'Shift', keyPrefix = 'S', parent = 'click3', modifier = 'shift', showHotkeys = false },
+    { id = 'click4_ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'click4', modifier = 'ctrl', showHotkeys = false },
+    { id = 'click4_alt', label = 'Alt', keyPrefix = 'A', parent = 'click4', modifier = 'alt', showHotkeys = false },
+    { id = 'click4_shift', label = 'Shift', keyPrefix = 'S', parent = 'click4', modifier = 'shift', showHotkeys = false },
 };
 local ROW_BY_ID         = {};
 for _, row in ipairs(BUTTON_ROWS) do
@@ -581,6 +593,12 @@ MACRO.ICON_PICKER_FAMILY_FILTERS = {
 local KEYBIND = {
     BAR_KEYS = { 'main', 'extra1', 'extra2', 'extra3', 'extra4' },
     EXTRA_ROWS = { CLICK_ROW },
+    MODIFIER_ROWS = { 'ctrl', 'alt', 'shift' },
+    MODIFIER_PREFIXES = {
+        ctrl = 'Ctrl',
+        alt = 'Alt',
+        shift = 'Shift',
+    },
     EVENT_LABELS = {
         [0x09] = 'Tab',
         [0x0D] = 'Enter',
@@ -665,9 +683,6 @@ local DEFAULT_CONFIG = {
             buttons_per_row = 10,
             keybinds = {
                 base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
-                ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
-                alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
-                shift = { [1] = 'Shift+1', [2] = 'Shift+2', [3] = 'Shift+3', [4] = 'Shift+4', [5] = 'Shift+5', [6] = 'Shift+6', [7] = 'Shift+7', [8] = 'Shift+8', [9] = 'Shift+9', [10] = 'Shift+0' },
             },
             slot_size = 64,
             button_gap = 6,
@@ -1208,9 +1223,41 @@ function BAR.profile_candidates(scope, main_key, sub_key)
     return candidates;
 end
 
+function BAR.group_modifier(group)
+    local row = ROW_BY_ID[group];
+    return row ~= nil and row.modifier or nil;
+end
+
+function BAR.parent_group(group)
+    local row = ROW_BY_ID[group];
+    if (row ~= nil and row.parent ~= nil) then
+        return row.parent;
+    end
+
+    return group;
+end
+
+function BAR.modifier_row_id(parent_group, modifier)
+    if (modifier ~= 'ctrl' and modifier ~= 'alt' and modifier ~= 'shift') then
+        return nil;
+    end
+
+    if (parent_group == 'base') then
+        return modifier;
+    end
+
+    local row_id = tostring(parent_group or '') .. '_' .. modifier;
+    return ROW_BY_ID[row_id] ~= nil and row_id or nil;
+end
+
+function BAR.row_supports_modifiers(group)
+    return BAR.modifier_row_id(group, 'ctrl') ~= nil;
+end
+
 function BAR.key_for_group(group)
+    local parent_group = BAR.parent_group(group);
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
-        if (BAR.extra_row_id(bar_key) == group) then
+        if (BAR.extra_row_id(bar_key) == parent_group) then
             return bar_key;
         end
     end
@@ -2482,7 +2529,7 @@ function KEYBIND.rows_for_bar(bar_key)
         return { ROW_BY_ID[BAR.extra_row_id(bar_key)] or CLICK_ROW };
     end
 
-    return ROWS;
+    return { ROW_BY_ID.base };
 end
 
 function KEYBIND.bar_label(bar_key)
@@ -2647,6 +2694,70 @@ function KEYBIND.display_label(combo)
     return table.concat(parts, '+');
 end
 
+function KEYBIND.combo_key(combo)
+    local normalized = KEYBIND.normalize(combo);
+    if (normalized == nil) then
+        return nil;
+    end
+
+    local key = nil;
+    for token in normalized:gmatch('[^+]+') do
+        if (token ~= 'Ctrl' and token ~= 'Alt' and token ~= 'Shift') then
+            key = token;
+        end
+    end
+
+    return key;
+end
+
+function KEYBIND.normalize_for_storage(bar_key, row_id, combo)
+    local normalized = KEYBIND.normalize(combo);
+    if (normalized == nil) then
+        return nil;
+    end
+
+    if (BAR.row_supports_modifiers(row_id)) then
+        return KEYBIND.combo_key(normalized);
+    end
+
+    return normalized;
+end
+
+function KEYBIND.modifier_id(row_id)
+    local row = ROW_BY_ID[row_id];
+    if (row ~= nil and row.modifier ~= nil) then
+        return row.modifier;
+    end
+    if (KEYBIND.MODIFIER_PREFIXES[row_id] ~= nil) then
+        return row_id;
+    end
+    return nil;
+end
+
+function KEYBIND.combo_with_modifier(base_combo, row_id)
+    local modifier = KEYBIND.modifier_id(row_id);
+    local prefix = modifier ~= nil and KEYBIND.MODIFIER_PREFIXES[modifier] or nil;
+    if (prefix == nil) then
+        return nil;
+    end
+
+    local key = KEYBIND.combo_key(base_combo);
+    if (key == nil) then
+        return nil;
+    end
+
+    return KEYBIND.normalize(('%s+%s'):fmt(prefix, key));
+end
+
+function KEYBIND.row_is_configurable_for_bar(bar_key, row_id)
+    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+        if (row.id == row_id) then
+            return true;
+        end
+    end
+    return false;
+end
+
 function KEYBIND.empty_bar_keybinds(bar_key)
     local result = {};
     for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
@@ -2668,7 +2779,7 @@ function KEYBIND.overlay_bar_keybinds(target, source, bar_key)
             end
             for index = 1, LIMITS.button_count_max do
                 if (row_source[index] ~= nil) then
-                    target[row.id][index] = KEYBIND.normalize(row_source[index]) or '';
+                    target[row.id][index] = KEYBIND.normalize_for_storage(bar_key, row.id, row_source[index]) or '';
                 end
             end
         end
@@ -2706,6 +2817,16 @@ end
 
 function KEYBIND.slot_combo(bar_key, row_id, index)
     local keybinds = KEYBIND.effective_bar_keybinds(bar_key);
+    local modifier = KEYBIND.modifier_id(row_id);
+    local parent_row_id = BAR.parent_group(row_id);
+    if (modifier ~= nil and parent_row_id ~= nil and parent_row_id ~= row_id) then
+        local base_row = keybinds[parent_row_id];
+        if (type(base_row) ~= 'table' or not BAR.modifier_slot_enabled(row_id, index)) then
+            return nil;
+        end
+        return KEYBIND.combo_with_modifier(base_row[index], row_id);
+    end
+
     local row = keybinds[row_id];
     if (type(row) ~= 'table') then
         return nil;
@@ -2722,7 +2843,7 @@ function KEYBIND.set_slot_override(bar_key, row_id, index, combo)
         return false;
     end
     local numeric_index = tonumber(index);
-    if (not valid_row_id(row_id) or numeric_index == nil or numeric_index < 1 or numeric_index > LIMITS.button_count_max) then
+    if (not KEYBIND.row_is_configurable_for_bar(bar_key, row_id) or numeric_index == nil or numeric_index < 1 or numeric_index > LIMITS.button_count_max) then
         return false;
     end
     index = math.floor(numeric_index);
@@ -2737,7 +2858,7 @@ function KEYBIND.set_slot_override(bar_key, row_id, index, combo)
         state.keybind_overrides[bar_key][row_id] = {};
     end
 
-    state.keybind_overrides[bar_key][row_id][index] = KEYBIND.normalize(combo) or '';
+    state.keybind_overrides[bar_key][row_id][index] = KEYBIND.normalize_for_storage(bar_key, row_id, combo) or '';
     return true;
 end
 
@@ -2781,6 +2902,30 @@ function KEYBIND.binding_map()
     local map = {};
     local conflicts = {};
 
+    local function add_binding(combo, bar_key, row_id, index)
+        local normalized = KEYBIND.normalize(combo);
+        local enabled = KEYBIND.slot_enabled_for_binding == nil or KEYBIND.slot_enabled_for_binding(bar_key, row_id, index);
+        if (normalized == nil or not enabled) then
+            return;
+        end
+
+        local entry = {
+            combo = normalized,
+            bar_key = bar_key,
+            group = row_id,
+            index = index,
+            name = KEYBIND.slot_name(bar_key, row_id, index),
+        };
+        if (map[normalized] == nil) then
+            map[normalized] = entry;
+        else
+            if (conflicts[normalized] == nil) then
+                conflicts[normalized] = { map[normalized] };
+            end
+            table.insert(conflicts[normalized], entry);
+        end
+    end
+
     for _, bar_key in ipairs(KEYBIND.BAR_KEYS) do
         local keybinds = KEYBIND.effective_bar_keybinds(bar_key);
         for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
@@ -2788,22 +2933,13 @@ function KEYBIND.binding_map()
             if (type(row_values) == 'table') then
                 for index = 1, LIMITS.button_count_max do
                     local combo = KEYBIND.normalize(row_values[index]);
-                    local enabled = KEYBIND.slot_enabled_for_binding == nil or KEYBIND.slot_enabled_for_binding(bar_key, row.id, index);
-                    if (combo ~= nil and enabled) then
-                        local entry = {
-                            combo = combo,
-                            bar_key = bar_key,
-                            group = row.id,
-                            index = index,
-                            name = KEYBIND.slot_name(bar_key, row.id, index),
-                        };
-                        if (map[combo] == nil) then
-                            map[combo] = entry;
-                        else
-                            if (conflicts[combo] == nil) then
-                                conflicts[combo] = { map[combo] };
+                    if (combo ~= nil) then
+                        add_binding(combo, bar_key, row.id, index);
+                        if (BAR.row_supports_modifiers(row.id)) then
+                            for _, modifier_id in ipairs(KEYBIND.MODIFIER_ROWS) do
+                                local modifier_row_id = BAR.modifier_row_id(row.id, modifier_id);
+                                add_binding(KEYBIND.combo_with_modifier(combo, modifier_row_id), bar_key, modifier_row_id, index);
                             end
-                            table.insert(conflicts[combo], entry);
                         end
                     end
                 end
@@ -2897,7 +3033,8 @@ function KEYBIND.handle_capture_event(e)
 
     KEYBIND.set_slot_override(capture.bar_key, capture.row_id, capture.index, combo);
     state.keybind_capture = nil;
-    state.keybind_message = ('Bound %s to %s. Save to persist.'):fmt(KEYBIND.slot_name(capture.bar_key, capture.row_id, capture.index), combo);
+    local stored_combo = KEYBIND.slot_combo(capture.bar_key, capture.row_id, capture.index) or combo;
+    state.keybind_message = ('Bound %s to %s. Save to persist.'):fmt(KEYBIND.slot_name(capture.bar_key, capture.row_id, capture.index), stored_combo);
     state.keybind_message_color = UI_COLORS.success;
     return true;
 end
@@ -2905,9 +3042,15 @@ end
 function KEYBIND.render_config_section(bar_key)
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Keybinds');
-    imgui.Text('Click a key, then press the new key. Backspace clears, Esc cancels.');
+    local rows = KEYBIND.rows_for_bar(bar_key);
+    local parent_row = rows[1];
+    if (parent_row ~= nil and BAR.row_supports_modifiers(parent_row.id)) then
+        imgui.Text('Set the base key. Ctrl/Alt/Shift variants are implied by enabled modifier tabs.');
+    else
+        imgui.Text('Click a key, then press the new key. Backspace clears, Esc cancels.');
+    end
 
-    for _, row in ipairs(KEYBIND.rows_for_bar(bar_key)) do
+    for _, row in ipairs(rows) do
         imgui.TextColored(UI_COLORS.config_header, KEYBIND.row_label(row.id));
         local visible_count = BAR.button_count(bar_key);
         local columns = BAR.buttons_per_row(bar_key);
@@ -3995,27 +4138,29 @@ function MACRO.slot_has_action(slot)
 end
 
 function BAR.modifier_slot_enabled(group, index)
-    if (group ~= 'ctrl' and group ~= 'alt' and group ~= 'shift') then
+    if (BAR.group_modifier(group) == nil) then
         return true;
     end
 
     return MACRO.slot_has_action(get_slot(group, index));
 end
 
-function BAR.visual_row_for_index(index)
+function BAR.visual_row_for_index(parent_group, index)
+    parent_group = parent_group or 'base';
     local active = active_group();
-    if ((active == 'ctrl' or active == 'alt' or active == 'shift') and BAR.modifier_slot_enabled(active, index)) then
-        return ROW_BY_ID[active] or ROW_BY_ID.base;
+    local modifier_row_id = BAR.modifier_row_id(parent_group, active);
+    if (modifier_row_id ~= nil and BAR.modifier_slot_enabled(modifier_row_id, index)) then
+        return ROW_BY_ID[modifier_row_id] or ROW_BY_ID[parent_group] or ROW_BY_ID.base;
     end
 
-    return ROW_BY_ID.base;
+    return ROW_BY_ID[parent_group] or ROW_BY_ID.base;
 end
 
 function KEYBIND.slot_enabled_for_binding(bar_key, row_id, index)
     if (tonumber(index) == nil or tonumber(index) > BAR.button_count(bar_key)) then
         return false;
     end
-    if (row_id == 'ctrl' or row_id == 'alt' or row_id == 'shift') then
+    if (BAR.group_modifier(row_id) ~= nil) then
         return BAR.modifier_slot_enabled(row_id, index);
     end
 
@@ -7186,8 +7331,19 @@ function MACRO.editor_page_label(editor)
         return 'Button';
     end
 
-    local row = ROW_BY_ID[editor.group or 'base'];
-    local row_label = row ~= nil and row.label or tostring(editor.group or 'Button');
+    local function row_label_for(group)
+        local row = ROW_BY_ID[group or 'base'];
+        return row ~= nil and row.label or tostring(group or 'Button');
+    end
+
+    local row_label = row_label_for(editor.group);
+    if (MACRO.editor_is_main_parent(editor)) then
+        if (editor.group == editor.parent_group) then
+            row_label = editor.bar_key == 'main' and 'Button' or BAR.extra_label(editor.bar_key);
+        else
+            row_label = ('%s %s'):fmt(editor.bar_key == 'main' and 'Button' or BAR.extra_label(editor.bar_key), row_label_for(editor.group));
+        end
+    end
     return ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, BAR.slot_index_label(editor.index or 1));
 end
 
@@ -7292,20 +7448,20 @@ end
 
 function MACRO.apply_editor_modifier_toggles()
     local editor = state.macro_editor;
-    if (type(editor) ~= 'table' or editor.parent_group ~= 'base' or editor.group ~= 'base') then
+    if (type(editor) ~= 'table' or not MACRO.editor_is_main_parent(editor) or editor.group ~= editor.parent_group) then
         return true;
     end
 
     if (editor.modifier_ctrl_enabled[1] == false) then
-        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, 'ctrl', editor.index);
+        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, BAR.modifier_row_id(editor.parent_group, 'ctrl'), editor.index);
         if (not ok) then return false, err; end
     end
     if (editor.modifier_alt_enabled[1] == false) then
-        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, 'alt', editor.index);
+        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, BAR.modifier_row_id(editor.parent_group, 'alt'), editor.index);
         if (not ok) then return false, err; end
     end
     if (editor.modifier_shift_enabled[1] == false) then
-        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, 'shift', editor.index);
+        local ok, err = MACRO.set_empty_slot_override(editor.profile_key, BAR.modifier_row_id(editor.parent_group, 'shift'), editor.index);
         if (not ok) then return false, err; end
     end
 
@@ -7322,15 +7478,11 @@ local function editor_row_label(group)
 end
 
 function MACRO.editor_parent_group(group)
-    if (group == 'base' or group == 'ctrl' or group == 'alt' or group == 'shift') then
-        return 'base';
-    end
-
-    return group;
+    return BAR.parent_group(group);
 end
 
 function MACRO.editor_is_main_parent(editor)
-    return type(editor) == 'table' and editor.parent_group == 'base';
+    return type(editor) == 'table' and BAR.row_supports_modifiers(editor.parent_group);
 end
 
 function MACRO.initialize_editor_modifier_state(editor, profile, profile_key, index, preserve)
@@ -7345,9 +7497,9 @@ function MACRO.initialize_editor_modifier_state(editor, profile, profile_key, in
         return;
     end
 
-    editor.modifier_ctrl_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, 'ctrl', index));
-    editor.modifier_alt_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, 'alt', index));
-    editor.modifier_shift_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, 'shift', index));
+    editor.modifier_ctrl_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, BAR.modifier_row_id(editor.parent_group, 'ctrl'), index));
+    editor.modifier_alt_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, BAR.modifier_row_id(editor.parent_group, 'alt'), index));
+    editor.modifier_shift_enabled[1] = MACRO.slot_has_action(MACRO.get_slot_without_editor_preview(profile, profile_key, BAR.modifier_row_id(editor.parent_group, 'shift'), index));
 end
 
 local function open_macro_editor(row, index, preserve_modifier_state)
@@ -9856,7 +10008,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     if (edit_clicked) then
-        local editor_row = (row.id == 'ctrl' or row.id == 'alt' or row.id == 'shift') and ROW_BY_ID.base or row;
+        local editor_row = BAR.group_modifier(row.id) ~= nil and (ROW_BY_ID[BAR.parent_group(row.id)] or row) or row;
         open_macro_editor(editor_row, index);
         return false;
     end
@@ -9941,9 +10093,10 @@ local function render_row(row, active, transition_alpha, show_row_label, capture
         local effective_row = row;
         local effective_active = active;
         local effective_transition_alpha = transition_alpha;
-        if (row.id == 'base') then
-            effective_row = BAR.visual_row_for_index(index);
-            effective_active = active_group() == effective_row.id;
+        if (BAR.row_supports_modifiers(row.id)) then
+            effective_row = BAR.visual_row_for_index(row.id, index);
+            local effective_modifier = BAR.group_modifier(effective_row.id);
+            effective_active = effective_modifier ~= nil and active_group() == effective_modifier or active;
             effective_transition_alpha = 0;
         end
 
@@ -10528,10 +10681,10 @@ function MACRO.render_editor_variant_tabs(editor)
             end
         end
 
-        variant_tab('Main', 'base', true);
-        variant_tab('Ctrl', 'ctrl', editor.modifier_ctrl_enabled[1] == true);
-        variant_tab('Alt', 'alt', editor.modifier_alt_enabled[1] == true);
-        variant_tab('Shift', 'shift', editor.modifier_shift_enabled[1] == true);
+        variant_tab('Main', editor.parent_group, true);
+        variant_tab('Ctrl', BAR.modifier_row_id(editor.parent_group, 'ctrl'), editor.modifier_ctrl_enabled[1] == true);
+        variant_tab('Alt', BAR.modifier_row_id(editor.parent_group, 'alt'), editor.modifier_alt_enabled[1] == true);
+        variant_tab('Shift', BAR.modifier_row_id(editor.parent_group, 'shift'), editor.modifier_shift_enabled[1] == true);
         imgui.EndTabBar();
     end
 
@@ -10539,7 +10692,7 @@ function MACRO.render_editor_variant_tabs(editor)
         return true;
     end
 
-    if (editor.group == 'base') then
+    if (editor.group == editor.parent_group) then
         imgui.TextColored(UI_COLORS.config_header, 'Modifiers');
         imgui.Checkbox('Ctrl##ashitabars_button_enable_ctrl', editor.modifier_ctrl_enabled);
         imgui.SameLine(0, 12);
@@ -10560,7 +10713,7 @@ local function render_macro_editor_window()
         return;
     end
 
-    local row_label = MACRO.editor_is_main_parent(editor) and 'Button' or editor_row_label(editor.group);
+    local row_label = MACRO.editor_is_main_parent(editor) and (editor.bar_key == 'main' and 'Button' or BAR.extra_label(editor.bar_key)) or editor_row_label(editor.group);
     local digit = BAR.slot_index_label(editor.index or 1);
     local title = ('AshitaBars Button Editor###AshitaBarsButtonEditor');
     imgui.SetNextWindowSize({ 560, 0 }, ImGuiCond_FirstUseEver);
@@ -10577,7 +10730,7 @@ local function render_macro_editor_window()
         editor.icon_picker_anchor_y = editor_y;
 
         imgui.TextColored(UI_COLORS.config_header, ('%s %s %s'):fmt(editor.profile_key or 'DEFAULT', row_label, digit));
-        if (MACRO.editor_is_main_parent(editor) and editor.group ~= 'base') then
+        if (MACRO.editor_is_main_parent(editor) and editor.group ~= editor.parent_group) then
             imgui.SameLine(0, 8);
             imgui.Text(('%s variant'):fmt(editor_row_label(editor.group)));
         end

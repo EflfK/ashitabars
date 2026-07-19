@@ -11,10 +11,10 @@ or another text input is open.
 
 - Shows configurable action-bar visuals:
   - The main bar defaults to ten parent buttons and can show 1-20 buttons.
-  - Ctrl, Alt, and Shift are optional per-button variants edited from the parent
-    button, not separate visible rows.
-- Defaults to `1-0`, `Ctrl+1-0`, `Alt+1-0`, and `Shift+1-0`, with per-button
-  keybinds configurable in game.
+  - Main and extra bar buttons can expose Ctrl, Alt, and Shift variants edited
+    from the parent button, not separate visible rows.
+- Defaults to `1-0`; Ctrl/Alt/Shift versions are implied per button when that
+  button's modifier page is enabled.
 - Captures configured keys only while FFXI chat/input is closed.
 - Passes keys through while chat/input is open.
 - Clears native DirectInput `Ctrl`/`Alt` macro-palette state only while an
@@ -126,9 +126,6 @@ settings = {
         buttons_per_row = 10, -- 1-button_count.
         keybinds = {
             base = { [1] = '1', [2] = '2', [3] = '3', [4] = '4', [5] = '5', [6] = '6', [7] = '7', [8] = '8', [9] = '9', [10] = '0' },
-            ctrl = { [1] = 'Ctrl+1', [2] = 'Ctrl+2', [3] = 'Ctrl+3', [4] = 'Ctrl+4', [5] = 'Ctrl+5', [6] = 'Ctrl+6', [7] = 'Ctrl+7', [8] = 'Ctrl+8', [9] = 'Ctrl+9', [10] = 'Ctrl+0' },
-            alt = { [1] = 'Alt+1', [2] = 'Alt+2', [3] = 'Alt+3', [4] = 'Alt+4', [5] = 'Alt+5', [6] = 'Alt+6', [7] = 'Alt+7', [8] = 'Alt+8', [9] = 'Alt+9', [10] = 'Alt+0' },
-            shift = { [1] = 'Shift+1', [2] = 'Shift+2', [3] = 'Shift+3', [4] = 'Shift+4', [5] = 'Shift+5', [6] = 'Shift+6', [7] = 'Shift+7', [8] = 'Shift+8', [9] = 'Shift+9', [10] = 'Shift+0' },
         },
         slot_size = 64,
         button_gap = 6,
@@ -209,14 +206,14 @@ Stacked mode has been removed. Existing configs that still set
 `main_bar.display_mode` or top-level `display_mode` are tolerated, but the main
 bar now renders one configurable parent-button set with optional wrapping.
 
-`main_bar.keybinds` controls the default parent and modifier key combinations.
-Ctrl/Alt/Shift keybinds only run when that specific button's modifier variant
-is enabled in the button editor. Modifier combinations such as `Ctrl+Shift+1`
-are not separate button layers. `extra_bar_1` through `extra_bar_4` are
-click-focused extra bars. Their `keybinds` tables are optional; leave the
-matching `click* = {}` row empty to keep an extra bar click-only. Configured duplicate
-keybinds are allowed but warned about in the config window and `/ashitabars
-status`; the first matching enabled button runs.
+`main_bar.keybinds.base` controls main-bar parent keys. Each extra bar has a
+matching parent keybind row, such as `extra_bar_1.keybinds.click`.
+Ctrl/Alt/Shift keybinds are implied from those parent keys and only run when
+that specific button's modifier variant is enabled in the button editor.
+Modifier combinations such as `Ctrl+Shift+1` are not separate button layers.
+Leave an extra bar's matching `click* = {}` row empty to keep that bar
+click-only. Configured duplicate keybinds are allowed but warned about in the
+config window and `/ashitabars status`; the first matching enabled button runs.
 
 Each bar has its own `profile_scope`:
 
@@ -226,9 +223,10 @@ Each bar has its own `profile_scope`:
 - `job_sub`: use the current main+subjob key, such as `BST_WHM`, falling back
   to the main job and then `DEFAULT` for configured slots.
 
-`extra_bar_1` through `extra_bar_4` configure four click-focused bars. Each
-uses the same `button_count` and `buttons_per_row` layout controls as the main
-bar and stores an independent position with its own `window_x` / `window_y`.
+`extra_bar_1` through `extra_bar_4` configure four independently positioned
+bars. Each uses the same `button_count` and `buttons_per_row` layout controls
+as the main bar and stores an independent position with its own `window_x` /
+`window_y`.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
 and one tab for each visible extra bar. The General tab exposes global visual
@@ -402,11 +400,11 @@ The editor can save a label, command mode, command data, and an optional icon
 chosen from a built-in visual picker grouped by category. Each picker option
 stores its own button art token, so individual buttons can mix different button
 art.
-Main-bar buttons open on a `Main` tab. That tab has Ctrl, Alt, and Shift
-checkboxes; checking one exposes a matching modifier tab for that button. Each
-modifier tab has its own command mode, command data, label, shared-button
-reference, and icon, but does not define further modifiers. Unchecked modifier
-variants do not run or block their keybinds.
+Bar buttons open on a `Main` tab. That tab has Ctrl, Alt, and Shift checkboxes;
+checking one exposes a matching modifier tab for that button. Each modifier tab
+has its own command mode, command data, label, shared-button reference, and
+icon, but does not define further modifiers. Unchecked modifier variants do not
+run or block their implied keybinds.
 Each editor page has `Copy` and `Paste` buttons. Copy captures the current page
 contents as a local button snapshot. Paste applies that snapshot to whichever
 page is currently active, so copying from Ctrl and pasting on Alt copies the
@@ -603,10 +601,11 @@ click-bar position, recast/count/availability settings, keybind summary/conflict
 count, and weapon-skill TP threshold alongside input, job, subjob, per-bar
 profile scope/resolution, and modifier-blocking state.
 
-Modifier blocking is scoped to AshitaBars configured Ctrl/Alt digit hotkeys so
-native shortcuts such as `Ctrl+E` and `Ctrl+I` can continue to work unless you
-explicitly bind them. If modifier blocking still conflicts with another hotkey,
-disable it:
+Modifier blocking is scoped to AshitaBars implied Ctrl/Alt digit hotkeys whose
+modifier pages are enabled, so native shortcuts such as `Ctrl+E` and `Ctrl+I`
+can continue to work unless you explicitly bind `E` or `I` as any bar's parent
+keys with matching modifier pages. If modifier blocking still conflicts with
+another hotkey, disable it:
 
 ```lua
 block_native_macro_modifiers = false,
