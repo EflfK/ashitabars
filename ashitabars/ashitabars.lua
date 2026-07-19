@@ -385,12 +385,13 @@ local ICON_ALIASES = {
     darkness = 'dark',
     ability = 'ability',
     ja = 'ability',
+    attack = 'attack_sword',
     song = 'song',
     bard = 'song',
     summon = 'summon',
-    trust = 'summon',
-    trusts = 'summon',
-    fancytrusts = 'summon',
+    trust = 'trusts_summon',
+    trusts = 'trusts_summon',
+    fancytrusts = 'trusts_summon',
     avatar = 'summon',
     pet = 'pet',
     fight = 'fight',
@@ -410,6 +411,9 @@ local ICON_ALIASES = {
     assist = 'assist',
     check = 'check',
     chat = 'chat',
+    camera = 'camera',
+    ashitabars = 'ashitabars_config',
+    ashitaframes = 'ashitaframes_config',
     echo = 'test',
     test = 'test',
     command = 'command',
@@ -480,12 +484,15 @@ local ICON_DEFS = {
 local ICON_ASSET_CATEGORIES = {
     { label = 'White Mage', family = 'white_magic', tokens = { 'whm_aquaveil', 'whm_banish', 'whm_banish_2', 'whm_banishga', 'whm_baraera', 'whm_barblindra', 'whm_barblizzara', 'whm_barfira', 'whm_barparalyzra', 'whm_barpoisonra', 'whm_barsilencera', 'whm_barsleepra', 'whm_barstonra', 'whm_barthundra', 'whm_barwatera', 'whm_blindna', 'whm_blink', 'whm_curaga', 'whm_cure', 'whm_cure_2', 'whm_cure_3', 'whm_cursna', 'whm_deodorize', 'whm_dia', 'whm_diaga', 'whm_invisible', 'whm_paralyna', 'whm_paralyze', 'whm_poisona', 'whm_protect', 'whm_protect_2', 'whm_protectra', 'whm_protectra_2', 'whm_raise', 'whm_regen', 'whm_reraise', 'whm_shell', 'whm_shellra', 'whm_silena', 'whm_silence', 'whm_slow', 'whm_sneak', 'whm_stoneskin' } },
     { label = 'Beastmaster', family = 'ability', tokens = { 'bst_bestial_loyalty', 'bst_call_beast', 'bst_charm', 'bst_familiar', 'bst_feral_howl', 'bst_fight', 'bst_gauge', 'bst_heel', 'bst_killer_instinct', 'bst_leave', 'bst_ready', 'bst_reward', 'bst_run_wild', 'bst_sic', 'bst_snarl', 'bst_spur', 'bst_stay', 'bst_tame', 'bst_unleash' } },
+    { label = 'Trusts', family = 'ability', tokens = { 'trusts_summon' } },
     { label = 'Cure', family = 'white_magic', tokens = { 'cure_1', 'cure_2', 'cure_3', 'cure_4' } },
     { label = 'Support', family = 'white_magic', tokens = { 'protect_1', 'protect_2', 'protect_3', 'protect_4', 'raise_1', 'raise_2', 'raise_3', 'raise_4', 'shell_1', 'shell_2', 'shell_3', 'shell_4', 'status_1', 'status_2', 'status_3', 'status_4', 'stealth_1', 'stealth_2', 'stealth_3', 'stealth_4', 'signet', 'sigil', 'sanction', 'ionis' } },
     { label = 'Enfeebling', family = 'black_magic', tokens = { 'debuff_1', 'debuff_2', 'debuff_3', 'debuff_4' } },
     { label = 'Elements', family = 'black_magic', tokens = { 'dark_1', 'dark_2', 'dark_3', 'dark_4', 'earth_1', 'earth_2', 'earth_3', 'earth_4', 'fire_1', 'fire_2', 'fire_3', 'fire_4', 'ice_1', 'ice_2', 'ice_3', 'ice_4', 'light_1', 'light_2', 'light_3', 'light_4', 'lightning_1', 'lightning_2', 'lightning_3', 'lightning_4', 'water_1', 'water_2', 'water_3', 'water_4', 'wind_1', 'wind_2', 'wind_3', 'wind_4' } },
     { label = 'Magic Art', family = 'black_magic', tokens = { 'aether_orb', 'crystal_compass', 'dark_vortex', 'earth_rocks', 'fire_flame', 'holy_ascent', 'holy_star', 'ice_crystal', 'lightning_bolt', 'pink_crystal', 'void_burst', 'water_drop', 'wind_gale' } },
     { label = 'Combat Art', family = 'weapon', tokens = { 'aegis_shield', 'pet_paw', 'ranged_bow', 'shadow_hood', 'summon_avatar', 'weapon_crest', 'weapon_swords' } },
+    { label = 'Attack Art', family = 'weapon', tokens = { 'attack_archery', 'attack_axe', 'attack_club', 'attack_dagger', 'attack_great_axe', 'attack_great_katana', 'attack_great_sword', 'attack_hand_to_hand', 'attack_katana', 'attack_marksmanship', 'attack_polearm', 'attack_scythe', 'attack_staff', 'attack_sword', 'attack_throwing' } },
+    { label = 'Command Art', family = 'command', tokens = { 'ashitabars_config', 'ashitaframes_config', 'camera' } },
     { label = 'Weapon Skills - Archery', family = 'weapon', tokens = { 'ws_archery_apex_arrow', 'ws_archery_arching_arrow', 'ws_archery_blast_arrow', 'ws_archery_dulling_arrow', 'ws_archery_empyreal_arrow', 'ws_archery_flaming_arrow', 'ws_archery_jishnus_radiance', 'ws_archery_namas_arrow', 'ws_archery_piercing_arrow', 'ws_archery_refulgent_arrow', 'ws_archery_sarv', 'ws_archery_sidewinder' } },
     { label = 'Weapon Skills - Automaton', family = 'weapon', tokens = { 'ws_automaton_arcuballista', 'ws_automaton_armor_piercer', 'ws_automaton_armor_shatterer', 'ws_automaton_bone_crusher', 'ws_automaton_cannibal_blade', 'ws_automaton_chimera_ripper', 'ws_automaton_daze', 'ws_automaton_knockout', 'ws_automaton_magic_mortar', 'ws_automaton_slapstick', 'ws_automaton_string_clipper', 'ws_automaton_string_shredder' } },
     { label = 'Weapon Skills - Axe', family = 'weapon', tokens = { 'ws_axe_avalanche_axe', 'ws_axe_blitz', 'ws_axe_bora_axe', 'ws_axe_calamity', 'ws_axe_cloudsplitter', 'ws_axe_decimation', 'ws_axe_gale_axe', 'ws_axe_mistral_axe', 'ws_axe_onslaught', 'ws_axe_primal_rend', 'ws_axe_raging_axe', 'ws_axe_rampage', 'ws_axe_ruinator', 'ws_axe_smash_axe', 'ws_axe_spinning_axe' } },
@@ -551,8 +558,12 @@ local ICON_TOKEN_ASSET_OVERRIDES = {
     dark = 'dark_1',
     debuff = 'debuff_1',
     ability = 'aegis_shield',
+    attack = 'attack_sword',
     song = 'song_harp',
     summon = 'summon_avatar',
+    trust = 'trusts_summon',
+    trusts = 'trusts_summon',
+    fancytrusts = 'trusts_summon',
     pet = 'pet_paw',
     fight = 'bst_fight',
     charm = 'bst_charm',
@@ -567,6 +578,9 @@ local ICON_TOKEN_ASSET_OVERRIDES = {
     assist = 'target_mark',
     check = 'target_mark',
     chat = 'crystal_compass',
+    camera = 'camera',
+    ashitabars = 'ashitabars_config',
+    ashitaframes = 'ashitaframes_config',
     test = 'crystal_compass',
     command = 'crystal_compass',
 };
@@ -8508,8 +8522,11 @@ local function command_family(slot)
     if (prefix == '/trusts') then
         return 'ability';
     end
-    if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
+    if (prefix == '/target' or prefix == '/assist' or prefix == '/check') then
         return 'target';
+    end
+    if (prefix == '/attack') then
+        return 'weapon';
     end
     if (prefix == '/echo' or prefix == '/p' or prefix == '/party' or prefix == '/l' or prefix == '/linkshell' or prefix == '/say' or prefix == '/tell') then
         return 'chat';
@@ -8543,7 +8560,10 @@ local function infer_icon_token(slot, family)
     end
 
     if (prefix == '/heal') then return 'rest'; end
-    if (prefix == '/target' or prefix == '/targetnpc' or prefix == '/targetbnpc' or prefix == '/attack') then return 'target'; end
+    if (prefix == '/ashitabars') then return 'ashitabars_config'; end
+    if (prefix == '/ashitaframes') then return 'ashitaframes_config'; end
+    if (prefix == '/target' or prefix == '/targetnpc' or prefix == '/targetbnpc') then return 'target'; end
+    if (prefix == '/attack') then return 'attack_sword'; end
     if (prefix == '/assist') then return 'assist'; end
     if (prefix == '/check') then return 'check'; end
     if (prefix == '/map') then return 'map'; end

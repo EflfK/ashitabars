@@ -570,7 +570,9 @@ assets under `ashitabars/assets/icons/` and are stored by token name, such as
 `asset_fire_flame`, `asset_ice_crystal`, `asset_weapon_swords`,
 `asset_item_bag`, `asset_mount_chocobo`, `asset_raptor_mount`, `asset_signet`,
 `asset_sigil`, `asset_sanction`, `asset_ionis`, `asset_moogle`, and
-`asset_maps`, `asset_target_mark`, `asset_ws_axe_raging_axe`, and
+`asset_maps`, `asset_target_mark`, `asset_trusts_summon`,
+`asset_ashitabars_config`, `asset_ashitaframes_config`, `asset_camera`,
+`asset_attack_sword`, `asset_ws_axe_raging_axe`, and
 `asset_ws_sword_savage_blade`.
 Item buttons use the resolved in-game item icon automatically, while mount
 buttons can use any selected built-in, sigil, or image-backed icon token.
