@@ -864,6 +864,8 @@ local state = {
     icon_asset_texture_cache = {},
     icon_asset_texture_handles = {},
     command_mode_cache = {},
+    pet_target_server_id = nil,
+    pet_target_seen_at = nil,
     macro_editor = {
         visible = T{ false },
         bar_key = nil,
@@ -898,6 +900,7 @@ local state = {
         weaponskill_effect_intensity = T{ 70 },
         weaponskill_effect_opacity = T{ 100 },
         weaponskill_effect_frequency = T{ 100 },
+        pet_fight_idle_flash = T{ true },
         spell_type_filter = 'all',
         spell_element_filter = 'all',
         spell_search_buffer = T{ '' },
@@ -3176,6 +3179,9 @@ function SHARED.slot_parts(slot)
     if (slot.weaponskill_effect_frequency ~= nil) then
         table.insert(parts, ('weaponskill_effect_frequency = %d'):fmt(slot.weaponskill_effect_frequency));
     end
+    if (slot.pet_fight_idle_flash ~= nil) then
+        table.insert(parts, ('pet_fight_idle_flash = %s'):fmt(slot.pet_fight_idle_flash ~= false and 'true' or 'false'));
+    end
     if (slot.config_key ~= nil) then
         table.insert(parts, ('config_key = %d'):fmt(slot.config_key));
     end
@@ -3679,6 +3685,9 @@ local function sanitize_slot_override(slot, allow_shared)
     if (weaponskill_effect_frequency ~= nil) then
         sanitized.weaponskill_effect_frequency = weaponskill_effect_frequency;
     end
+    if (slot.pet_fight_idle_flash ~= nil and COMMAND_MODE.command_is_pet_fight(slot.command)) then
+        sanitized.pet_fight_idle_flash = slot.pet_fight_idle_flash ~= false;
+    end
     local config_key = COMMAND_MODE.normalize_config_id(slot.config_key);
     local config_value_a = COMMAND_MODE.normalize_config_value(slot.config_value_a);
     local config_value_b = COMMAND_MODE.normalize_config_value(slot.config_value_b);
@@ -3692,7 +3701,7 @@ local function sanitize_slot_override(slot, allow_shared)
         sanitized.config_value_b = config_value_b;
     end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.pet_fight_idle_flash == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil) then
         return nil;
     end
 
@@ -3969,6 +3978,9 @@ local function apply_slot_override(base_slot, override)
     if (override.weaponskill_effect_frequency ~= nil) then
         slot.weaponskill_effect_frequency = override.weaponskill_effect_frequency;
     end
+    if (override.pet_fight_idle_flash ~= nil) then
+        slot.pet_fight_idle_flash = override.pet_fight_idle_flash ~= false;
+    end
     if (override.config_key ~= nil) then
         slot.config_key = override.config_key;
     end
@@ -4045,6 +4057,11 @@ function MACRO.normalize_slot_runtime(slot)
     normalized.weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(normalized.weaponskill_effect_intensity) or 70;
     normalized.weaponskill_effect_opacity = MACRO.normalize_weaponskill_effect_opacity(normalized.weaponskill_effect_opacity) or 100;
     normalized.weaponskill_effect_frequency = MACRO.normalize_weaponskill_effect_frequency(normalized.weaponskill_effect_frequency) or 100;
+    if (COMMAND_MODE.command_is_pet_fight(normalized.command)) then
+        normalized.pet_fight_idle_flash = normalized.pet_fight_idle_flash ~= false;
+    else
+        normalized.pet_fight_idle_flash = nil;
+    end
     normalized.config_key = COMMAND_MODE.normalize_config_id(normalized.config_key);
     normalized.config_value_a = COMMAND_MODE.normalize_config_value(normalized.config_value_a);
     normalized.config_value_b = COMMAND_MODE.normalize_config_value(normalized.config_value_b);
@@ -4113,6 +4130,7 @@ local function apply_editor_preview(slot, profile_key, group, index)
     preview_slot.weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(editor.weaponskill_effect_intensity[1]) or 70;
     preview_slot.weaponskill_effect_opacity = MACRO.normalize_weaponskill_effect_opacity(editor.weaponskill_effect_opacity[1]) or 100;
     preview_slot.weaponskill_effect_frequency = MACRO.normalize_weaponskill_effect_frequency(editor.weaponskill_effect_frequency[1]) or 100;
+    MACRO.apply_pet_fight_idle_flash_to_slot(preview_slot, MACRO.pet_fight_idle_flash_value(editor));
     return preview_slot;
 end
 
@@ -4788,6 +4806,16 @@ function COMMAND_MODE.parse_command(command)
     return prefix:lower(), COMMAND_MODE.clean_name(name), trim_string(remainder or ''), trim_string(rest);
 end
 
+function COMMAND_MODE.pet_command_name_is_fight(name)
+    local key = COMMAND_MODE.clean_name(name):lower():gsub('[%s%-%_]+', '');
+    return key == 'fight';
+end
+
+function COMMAND_MODE.command_is_pet_fight(command)
+    local prefix, name = COMMAND_MODE.parse_command(command);
+    return prefix == '/pet' and COMMAND_MODE.pet_command_name_is_fight(name);
+end
+
 function COMMAND_MODE.config_number(value)
     if (type(value) == 'number') then
         if (value ~= value) then
@@ -5187,6 +5215,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     editor.command_target = target or COMMAND_MODE.default_target(mode);
     editor.run_as_script[1] = mode == 'multi' and slot ~= nil and slot.script == true;
     editor.use_action_name_label[1] = COMMAND_MODE.is_structured_mode(mode) and (slot == nil or slot.use_action_name_label ~= false) or false;
+    MACRO.load_editor_pet_fight_idle_flash(editor, slot);
     editor.spell_type_filter = 'all';
     editor.spell_element_filter = 'all';
     buffer_set(editor.spell_search_buffer, '');
@@ -5906,6 +5935,125 @@ function COMMAND_MODE.pet_command_available_now(name)
     return lookup[name:lower()] == true;
 end
 
+function COMMAND_MODE.current_pet_state()
+    local player_entity = safe_read(function () return GetPlayerEntity(); end, nil);
+    if (player_entity == nil) then
+        state.pet_target_server_id = nil;
+        state.pet_target_seen_at = nil;
+        return nil;
+    end
+
+    local pet_index = tonumber(safe_read(function () return player_entity.PetTargetIndex; end, 0)) or 0;
+    if (pet_index <= 0) then
+        state.pet_target_server_id = nil;
+        state.pet_target_seen_at = nil;
+        return nil;
+    end
+
+    local pet_entity = safe_read(function () return GetEntity(pet_index); end, nil);
+    if (pet_entity == nil) then
+        return nil;
+    end
+
+    local entity_manager = safe_read(function () return AshitaCore:GetMemoryManager():GetEntity(); end, nil);
+    local pet_status = tonumber(safe_read(function () return entity_manager:GetStatus(pet_index); end, nil))
+        or tonumber(safe_read(function () return pet_entity.Status; end, nil));
+    return {
+        index = pet_index,
+        server_id = tonumber(safe_read(function () return pet_entity.ServerId; end, nil)),
+        status = pet_status,
+        hp_percent = tonumber(safe_read(function () return pet_entity.HPPercent; end, nil)),
+    };
+end
+
+function COMMAND_MODE.entity_for_server_id(server_id)
+    server_id = tonumber(server_id);
+    if (server_id == nil or server_id == 0) then
+        return nil;
+    end
+
+    for index = 0, 2303, 1 do
+        local entity = safe_read(function () return GetEntity(index); end, nil);
+        if (entity ~= nil and tonumber(safe_read(function () return entity.ServerId; end, nil)) == server_id) then
+            return entity, index;
+        end
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.pet_target_is_active()
+    local entity = COMMAND_MODE.entity_for_server_id(state.pet_target_server_id);
+    local actor_pointer = entity ~= nil and safe_read(function () return entity.ActorPointer; end, nil) or nil;
+    if (entity == nil or actor_pointer == nil or actor_pointer == 0) then
+        state.pet_target_server_id = nil;
+        state.pet_target_seen_at = nil;
+        return false;
+    end
+
+    local hp_percent = tonumber(safe_read(function () return entity.HPPercent; end, nil));
+    if (hp_percent ~= nil and hp_percent <= 0) then
+        state.pet_target_server_id = nil;
+        state.pet_target_seen_at = nil;
+        return false;
+    end
+
+    return true;
+end
+
+function COMMAND_MODE.pet_is_attacking()
+    local pet = COMMAND_MODE.current_pet_state();
+    if (pet == nil) then
+        return nil;
+    end
+    if (pet.hp_percent ~= nil and pet.hp_percent <= 0) then
+        return false;
+    end
+    if (pet.status ~= nil) then
+        return pet.status == 1;
+    end
+
+    return COMMAND_MODE.pet_target_is_active();
+end
+
+function COMMAND_MODE.observe_pet_target_packet(e)
+    if (e == nil or e.data_modified == nil) then
+        return;
+    end
+
+    local player_entity = safe_read(function () return GetPlayerEntity(); end, nil);
+    if (player_entity == nil) then
+        state.pet_target_server_id = nil;
+        state.pet_target_seen_at = nil;
+        return;
+    end
+
+    if (e.id == 0x0028) then
+        local pet = COMMAND_MODE.current_pet_state();
+        if (pet == nil or pet.server_id == nil) then
+            return;
+        end
+
+        local actor_id = tonumber(safe_read(function () return struct.unpack('I', e.data_modified, 0x05 + 0x01); end, nil));
+        if (actor_id ~= pet.server_id) then
+            return;
+        end
+
+        state.pet_target_server_id = tonumber(safe_read(function () return ashita.bits.unpack_be(e.data_modified:totable(), 0x96, 0x20); end, nil));
+        state.pet_target_seen_at = os.clock();
+        return;
+    end
+
+    if (e.id == 0x0068) then
+        local owner_id = tonumber(safe_read(function () return struct.unpack('I', e.data_modified, 0x08 + 0x01); end, nil));
+        local player_id = tonumber(safe_read(function () return player_entity.ServerId; end, nil));
+        if (owner_id ~= nil and player_id ~= nil and owner_id == player_id) then
+            state.pet_target_server_id = tonumber(safe_read(function () return struct.unpack('I', e.data_modified, 0x14 + 0x01); end, nil));
+            state.pet_target_seen_at = os.clock();
+        end
+    end
+end
+
 function COMMAND_MODE.server_actions()
     local list = {};
     local lookup = {};
@@ -6521,9 +6669,13 @@ function COMMAND_MODE.select_editor_action(editor, mode, action)
         return;
     end
 
+    local was_pet_fight = MACRO.editor_is_pet_fight(editor);
     editor.command_action = action.name;
     if (MACRO.normalize_mode(mode) == 'pet') then
         editor.command_target = COMMAND_MODE.pet_command_default_target(action.name);
+        if (not was_pet_fight and COMMAND_MODE.pet_command_name_is_fight(action.name) and editor.pet_fight_idle_flash ~= nil) then
+            editor.pet_fight_idle_flash[1] = true;
+        end
     end
     if (COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false) then
         COMMAND_MODE.apply_editor_action_label(editor, mode);
@@ -7049,7 +7201,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b, pet_fight_idle_flash)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > LIMITS.button_count_max) then
         return false, 'Invalid button selection.';
@@ -7092,6 +7244,7 @@ local function set_slot_override(profile_key, group, index, label, command, icon
         if (effect_frequency ~= nil) then
             slot.weaponskill_effect_frequency = effect_frequency;
         end
+        MACRO.apply_pet_fight_idle_flash_to_slot(slot, pet_fight_idle_flash);
         slot.macro_mode = MACRO.normalize_mode(macro_mode);
         if (COMMAND_MODE.is_structured_mode(slot.macro_mode)) then
             slot.use_action_name_label = use_action_name_label ~= false;
@@ -7173,6 +7326,7 @@ function SHARED.editor_slot(require_command)
         end
     end
     MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
+    MACRO.apply_pet_fight_idle_flash_to_slot(slot, MACRO.pet_fight_idle_flash_value(editor));
 
     return slot, nil, mode, command, commands;
 end
@@ -7305,6 +7459,25 @@ function MACRO.command_is_weaponskill(command)
     return prefix == '/ws' or prefix == '/weaponskill';
 end
 
+function MACRO.command_is_pet_fight(command)
+    return COMMAND_MODE.command_is_pet_fight(command);
+end
+
+function MACRO.editor_is_pet_fight(editor)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table') then
+        return false;
+    end
+
+    local mode = MACRO.normalize_mode(editor.macro_mode);
+    if (mode == 'pet') then
+        return COMMAND_MODE.pet_command_name_is_fight(editor.command_action);
+    end
+
+    local _, command = MACRO.editor_commands();
+    return MACRO.command_is_pet_fight(command);
+end
+
 function MACRO.editor_is_weaponskill(editor)
     editor = editor or state.macro_editor;
     if (type(editor) ~= 'table') then
@@ -7354,6 +7527,36 @@ function MACRO.apply_weaponskill_effect_to_slot(slot, style, intensity, opacity,
     if (frequency ~= nil) then
         slot.weaponskill_effect_frequency = frequency;
     end
+end
+
+function MACRO.pet_fight_idle_flash_value(editor)
+    editor = editor or state.macro_editor;
+    if (type(editor) ~= 'table' or not MACRO.editor_is_pet_fight(editor)) then
+        return nil;
+    end
+
+    return editor.pet_fight_idle_flash == nil or editor.pet_fight_idle_flash[1] ~= false;
+end
+
+function MACRO.apply_pet_fight_idle_flash_to_slot(slot, enabled)
+    if (type(slot) ~= 'table') then
+        return;
+    end
+    if (not MACRO.command_is_pet_fight(slot.command)) then
+        slot.pet_fight_idle_flash = nil;
+        return;
+    end
+
+    slot.pet_fight_idle_flash = enabled ~= false;
+end
+
+function MACRO.load_editor_pet_fight_idle_flash(editor, slot)
+    if (type(editor) ~= 'table' or editor.pet_fight_idle_flash == nil) then
+        return;
+    end
+
+    slot = type(slot) == 'table' and slot or {};
+    editor.pet_fight_idle_flash[1] = slot.pet_fight_idle_flash ~= false;
 end
 
 function MACRO.apply_config_toggle_to_slot(slot, id, value_a, value_b)
@@ -7447,6 +7650,7 @@ function MACRO.editor_snapshot_slot(editor)
         end
     end
     MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
+    MACRO.apply_pet_fight_idle_flash_to_slot(slot, MACRO.pet_fight_idle_flash_value(editor));
 
     return slot, nil;
 end
@@ -7471,6 +7675,7 @@ function MACRO.load_slot_into_editor(editor, slot, source)
     buffer_set(editor.icon_buffer, display_slot.icon or '');
     COMMAND_MODE.load_editor_slot(editor, display_slot);
     MACRO.load_editor_weaponskill_effect(editor, display_slot);
+    MACRO.load_editor_pet_fight_idle_flash(editor, display_slot);
     if (editor.icon_picker_visible ~= nil) then
         editor.icon_picker_visible[1] = false;
     end
@@ -7658,11 +7863,12 @@ local function save_macro_editor(clear_slot)
     end
 
     local weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency = MACRO.editor_weaponskill_effect_values(editor);
+    local pet_fight_idle_flash = MACRO.pet_fight_idle_flash_value(editor);
     local config_key, config_value_a, config_value_b = nil, nil, nil;
     if (mode == 'configtoggle' and not clear_slot) then
         config_key, config_value_a, config_value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
     end
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b);
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b, pet_fight_idle_flash);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = UI_COLORS.error;
@@ -8385,6 +8591,31 @@ local function slot_server_buff_pulse_info(slot)
         inner_color = { 1.00, 0.94, 0.48 },
         call_color = { 0.52, 1.00, 0.44 },
         core_color = { 0.24, 0.86, 0.36 },
+    };
+end
+
+function MACRO.pet_fight_idle_flash_info(slot)
+    if (slot == nil or slot.pet_fight_idle_flash == false or not COMMAND_MODE.command_is_pet_fight(slot.command)) then
+        return nil;
+    end
+    if (COMMAND_MODE.pet_command_available_now('Fight') == false) then
+        return nil;
+    end
+    if (COMMAND_MODE.pet_is_attacking() ~= false) then
+        return nil;
+    end
+
+    return {
+        style = 'pulse',
+        ready = true,
+        intensity = 0.78,
+        opacity = 0.88,
+        frequency = 92,
+        warm_color = { 0.72, 0.34, 0.08 },
+        border_color = { 1.00, 0.66, 0.18 },
+        inner_color = { 1.00, 0.90, 0.36 },
+        call_color = { 1.00, 0.44, 0.08 },
+        core_color = { 0.88, 0.20, 0.04 },
     };
 end
 
@@ -9964,6 +10195,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     }) or nil;
     local weaponskill_pulse_info = has_command and command_supported and slot_weaponskill_pulse_info(slot) or nil;
     local server_buff_pulse_info = has_command and command_supported and slot_server_buff_pulse_info(slot) or nil;
+    local pet_fight_idle_flash_info = has_command and command_supported and MACRO.pet_fight_idle_flash_info(slot) or nil;
     local available = visual_state == nil or visual_state.available ~= false;
     local draw_icon_color = available and icon_color or { icon_color[1] * 0.52, icon_color[2] * 0.52, icon_color[3] * 0.52, icon_color[4] or 1.00 };
     local nudge = pressed and 1 or 0;
@@ -10032,6 +10264,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     if (has_command and command_supported and server_buff_pulse_info ~= nil) then
         draw_weaponskill_pulse_overlay(draw_list, rx, ry, slot_size, server_buff_pulse_info);
+    end
+
+    if (has_command and command_supported and pet_fight_idle_flash_info ~= nil) then
+        draw_weaponskill_pulse_overlay(draw_list, rx, ry, slot_size, pet_fight_idle_flash_info);
     end
 
     if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
@@ -10587,6 +10823,16 @@ function MACRO.render_weaponskill_effect_editor(editor)
     imgui.PopItemWidth();
 end
 
+function MACRO.render_pet_fight_idle_flash_editor(editor)
+    if (not MACRO.editor_is_pet_fight(editor)) then
+        return;
+    end
+
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Pet Fight Reminder');
+    imgui.Checkbox('Flash While Pet Is Idle##ashitabars_button_pet_fight_idle_flash', editor.pet_fight_idle_flash);
+end
+
 function MACRO.render_editor_clipboard_controls(editor)
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Page Clipboard');
@@ -10686,6 +10932,7 @@ function MACRO.render_editor_active_form(editor)
         editor.icon_picker_visible[1] = false;
     end
     MACRO.render_weaponskill_effect_editor(editor);
+    MACRO.render_pet_fight_idle_flash_editor(editor);
 
     local validation_error = MACRO.editor_validation_error();
     if (validation_error ~= nil) then
@@ -11063,6 +11310,10 @@ ashita.events.register('key', 'key_cb', function (e)
     if (execute_slot(binding.group, binding.index, 'key')) then
         e.blocked = true;
     end
+end);
+
+ashita.events.register('packet_in', 'packet_in_cb', function (e)
+    COMMAND_MODE.observe_pet_target_packet(e);
 end);
 
 ashita.events.register('d3d_present', 'present_cb', function ()
