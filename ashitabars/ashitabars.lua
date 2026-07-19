@@ -122,11 +122,14 @@ local ALLOWED_PREFIXES = T{
     ['/lac'] = true,
     ['/heal'] = true,
     ['/target'] = true,
+    ['/targetnpc'] = true,
+    ['/targetbnpc'] = true,
     ['/assist'] = true,
     ['/attack'] = true,
     ['/check'] = true,
     ['/map'] = true,
     ['/config'] = true,
+    ['/trusts'] = true,
     ['/echo'] = true,
     ['/p'] = true,
     ['/party'] = true,
@@ -371,6 +374,9 @@ local ICON_ALIASES = {
     song = 'song',
     bard = 'song',
     summon = 'summon',
+    trust = 'summon',
+    trusts = 'summon',
+    fancytrusts = 'summon',
     avatar = 'summon',
     pet = 'pet',
     fight = 'fight',
@@ -871,6 +877,7 @@ local state = {
         pet_search_buffer = T{ '' },
         mount_search_buffer = T{ '' },
         server_search_buffer = T{ '' },
+        trusts_search_buffer = T{ '' },
         config_key_buffer = T{ '' },
         config_value_a_buffer = T{ '0' },
         config_value_b_buffer = T{ '1' },
@@ -951,6 +958,9 @@ function MACRO.normalize_mode(value)
     end
     if (mode == 'configtoggle' or mode == 'config-toggle' or mode == 'toggleconfig' or mode == 'toggle-config' or mode == 'config') then
         return 'configtoggle';
+    end
+    if (mode == 'trusts' or mode == 'trust' or mode == 'trustaddon' or mode == 'trust-addon' or mode == 'fancytrusts' or mode == 'fancy-trusts') then
+        return 'trusts';
     end
     if (mode == 'weaponskill' or mode == 'weapon-skill' or mode == 'ws') then
         return 'weaponskill';
@@ -4020,6 +4030,7 @@ COMMAND_MODE.ORDER = {
     'mount',
     'server',
     'configtoggle',
+    'trusts',
     'weaponskill',
     'ability',
     'pet',
@@ -4035,6 +4046,7 @@ COMMAND_MODE.DEFS = {
     mount       = { label = 'Mount', action_label = 'Mount', empty_label = 'No mount names found.' },
     server      = { label = 'Server Command', action_label = 'Server Command', empty_label = 'No server commands configured.' },
     configtoggle = { label = 'Config Toggle' },
+    trusts      = { label = 'Trusts Addon', action_label = 'Trusts Action', empty_label = 'No FancyTrusts actions configured.' },
     weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
     ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
     pet         = { label = 'Pet Command', action_label = 'Pet Command', empty_label = 'No usable pet commands found.' },
@@ -4125,6 +4137,51 @@ COMMAND_MODE.SIGNET_SERVER_COMMAND_KEYS = {
     ['!sigil'] = true,
     ['!sanction'] = true,
     ['!ionis'] = true,
+};
+
+COMMAND_MODE.TRUSTS_ACTIONS = {
+    {
+        name = 'Open Trusts Window',
+        command = '/trusts',
+        detail = 'FancyTrusts UI',
+        icon = 'summon',
+        search_keywords = 'fancytrusts trusts ui window open',
+    },
+    {
+        name = 'Summon Preset 1',
+        command = '/trusts p1',
+        detail = 'FancyTrusts preset p1',
+        icon = 'summon',
+        search_keywords = 'fancytrusts trusts summon preset p1 1',
+    },
+    {
+        name = 'Summon Preset 2',
+        command = '/trusts p2',
+        detail = 'FancyTrusts preset p2',
+        icon = 'summon',
+        search_keywords = 'fancytrusts trusts summon preset p2 2',
+    },
+    {
+        name = 'Summon Preset 3',
+        command = '/trusts p3',
+        detail = 'FancyTrusts preset p3',
+        icon = 'summon',
+        search_keywords = 'fancytrusts trusts summon preset p3 3',
+    },
+    {
+        name = 'Summon Preset 4',
+        command = '/trusts p4',
+        detail = 'FancyTrusts preset p4',
+        icon = 'summon',
+        search_keywords = 'fancytrusts trusts summon preset p4 4',
+    },
+    {
+        name = 'Summon Preset 5',
+        command = '/trusts p5',
+        detail = 'FancyTrusts preset p5',
+        icon = 'summon',
+        search_keywords = 'fancytrusts trusts summon preset p5 5',
+    },
 };
 
 COMMAND_MODE.SPELL_TYPE_BY_RESOURCE_TYPE = {
@@ -4742,9 +4799,71 @@ function COMMAND_MODE.server_action_for_command(command)
     return COMMAND_MODE.server_action_by_key(COMMAND_MODE.server_command_key(command));
 end
 
+function COMMAND_MODE.trusts_command_key(command)
+    if (type(command) ~= 'string') then
+        return nil;
+    end
+
+    local prefix, _, _, raw_rest = COMMAND_MODE.parse_command(command);
+    if (prefix ~= '/trusts') then
+        return nil;
+    end
+
+    local rest = trim_string(raw_rest):lower();
+    if (rest == '') then
+        return '/trusts';
+    end
+
+    local preset = rest:match('^p([1-5])$');
+    if (preset ~= nil) then
+        return '/trusts p' .. preset;
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.trusts_action_by_key(command_key)
+    if (type(command_key) ~= 'string' or command_key == '') then
+        return nil;
+    end
+
+    command_key = command_key:lower();
+    for _, action in ipairs(COMMAND_MODE.TRUSTS_ACTIONS) do
+        if (type(action.command) == 'string' and action.command:lower() == command_key) then
+            return action;
+        end
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.trusts_action_by_name(name)
+    name = COMMAND_MODE.clean_name(name);
+    if (name == '') then
+        return nil;
+    end
+
+    local key = name:lower();
+    for _, action in ipairs(COMMAND_MODE.TRUSTS_ACTIONS) do
+        if ((type(action.name) == 'string' and action.name:lower() == key)
+            or (type(action.command) == 'string' and action.command:lower() == key)) then
+            return action;
+        end
+    end
+
+    return nil;
+end
+
+function COMMAND_MODE.trusts_action_for_command(command)
+    return COMMAND_MODE.trusts_action_by_key(COMMAND_MODE.trusts_command_key(command));
+end
+
 function COMMAND_MODE.mode_from_command(command)
     if (COMMAND_MODE.server_action_for_command(command) ~= nil) then
         return 'server';
+    end
+    if (COMMAND_MODE.trusts_action_for_command(command) ~= nil) then
+        return 'trusts';
     end
 
     local prefix = COMMAND_MODE.parse_command(command);
@@ -4775,7 +4894,7 @@ function COMMAND_MODE.mode_from_command(command)
     if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then
         return 'ranged';
     end
-    if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
+    if (prefix == '/target' or prefix == '/targetnpc' or prefix == '/targetbnpc' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
         return 'target';
     end
 
@@ -4824,6 +4943,10 @@ function COMMAND_MODE.command_action_for_mode(mode, command)
         local server_action = COMMAND_MODE.server_action_for_command(command);
         return server_action ~= nil and server_action.name or '', '';
     end
+    if (mode == 'trusts') then
+        local trusts_action = COMMAND_MODE.trusts_action_for_command(command);
+        return trusts_action ~= nil and trusts_action.name or '', '';
+    end
     if (mode == 'configtoggle') then
         local parsed = COMMAND_MODE.parse_config_command(command);
         return parsed ~= nil and parsed.id ~= nil and tostring(parsed.id) or '', '';
@@ -4865,6 +4988,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.pet_search_buffer, '');
     buffer_set(editor.mount_search_buffer, '');
     buffer_set(editor.server_search_buffer, '');
+    buffer_set(editor.trusts_search_buffer, '');
     local config_key, config_value_a, config_value_b = COMMAND_MODE.config_toggle_values_from_slot(slot);
     if (mode == 'configtoggle') then
         buffer_set(editor.config_key_buffer, config_key ~= nil and tostring(config_key) or action or '');
@@ -4913,6 +5037,10 @@ function COMMAND_MODE.editor_command(mode, editor)
     if (mode == 'server') then
         local server_action = COMMAND_MODE.server_action_by_name(action);
         return (server_action ~= nil) and ('/say %s'):fmt(server_action.command) or '';
+    end
+    if (mode == 'trusts') then
+        local trusts_action = COMMAND_MODE.trusts_action_by_name(action);
+        return (trusts_action ~= nil) and trusts_action.command or '';
     end
     if (mode == 'configtoggle') then
         local id = COMMAND_MODE.normalize_config_id(editor.config_key_buffer[1]);
@@ -5188,6 +5316,9 @@ function COMMAND_MODE.editor_selection_validation_error(mode, editor)
         end
         if (mode == 'server') then
             return 'Choose a server command.';
+        end
+        if (mode == 'trusts') then
+            return 'Choose a trusts addon action.';
         end
         if (mode == 'weaponskill') then
             return 'Choose a weapon skill.';
@@ -5592,6 +5723,20 @@ function COMMAND_MODE.server_actions()
     return COMMAND_MODE.sort_actions(list);
 end
 
+function COMMAND_MODE.trusts_actions()
+    local list = {};
+    local lookup = {};
+    for _, trusts_action in ipairs(COMMAND_MODE.TRUSTS_ACTIONS) do
+        COMMAND_MODE.add_action(list, lookup, trusts_action.name, trusts_action.command, trusts_action.detail, {
+            trusts_command = trusts_action.command,
+            icon = trusts_action.icon,
+            search_keywords = trusts_action.search_keywords,
+        });
+    end
+
+    return COMMAND_MODE.sort_actions(list);
+end
+
 function COMMAND_MODE.mount_actions()
     local list = {};
     local lookup = {};
@@ -5638,6 +5783,8 @@ function COMMAND_MODE.actions(mode)
         items = COMMAND_MODE.mount_actions();
     elseif (mode == 'server') then
         items = COMMAND_MODE.server_actions();
+    elseif (mode == 'trusts') then
+        items = COMMAND_MODE.trusts_actions();
     elseif (mode == 'ranged') then
         items = { { name = 'Ranged Attack' } };
     end
@@ -5676,14 +5823,14 @@ function COMMAND_MODE.ensure_structured_selection(editor, mode)
     end
     if (mode == 'item' or mode == 'mount') then
         editor.command_target = '<me>';
-    elseif (mode == 'server' or mode == 'configtoggle') then
+    elseif (mode == 'server' or mode == 'trusts' or mode == 'configtoggle') then
         editor.command_target = '';
     elseif (mode == 'pet') then
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.pet_command_default_target(editor.command_action);
     else
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'configtoggle' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'trusts' or mode == 'configtoggle' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
         return;
     end
 
@@ -5828,6 +5975,9 @@ function COMMAND_MODE.action_search_buffer(editor, mode)
     if (mode == 'server') then
         return editor.server_search_buffer;
     end
+    if (mode == 'trusts') then
+        return editor.trusts_search_buffer;
+    end
 
     return nil;
 end
@@ -5851,6 +6001,7 @@ function COMMAND_MODE.action_search_haystack(action)
         action.detail or '',
         action.item_source_label or '',
         action.server_command or '',
+        action.trusts_command or '',
         action.buff_name or '',
         action.search_keywords or '',
     }, ' '):lower();
@@ -6130,6 +6281,8 @@ function COMMAND_MODE.render_search_filter(editor, mode, actions)
         count_label = 'mounts';
     elseif (mode == 'server') then
         count_label = 'server commands';
+    elseif (mode == 'trusts') then
+        count_label = 'trusts actions';
     end
     imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, ('%d / %d %s'):fmt(#filtered, #(actions or {}), count_label));
     return filtered;
@@ -6340,7 +6493,7 @@ function COMMAND_MODE.render_action_selector(editor, mode)
         return;
     end
 
-    if (mode == 'weaponskill' or mode == 'ability' or mode == 'pet' or mode == 'mount' or mode == 'server') then
+    if (mode == 'weaponskill' or mode == 'ability' or mode == 'pet' or mode == 'mount' or mode == 'server' or mode == 'trusts') then
         actions = COMMAND_MODE.render_search_filter(editor, mode, actions);
         if (mode == 'weaponskill') then
             empty_label = 'No weapon skills match the current filter.';
@@ -6350,6 +6503,8 @@ function COMMAND_MODE.render_action_selector(editor, mode)
             empty_label = 'No pet commands match the current filter.';
         elseif (mode == 'server') then
             empty_label = 'No server commands match the current filter.';
+        elseif (mode == 'trusts') then
+            empty_label = 'No trusts addon actions match the current filter.';
         else
             empty_label = 'No mounts match the current filter.';
         end
@@ -6478,7 +6633,7 @@ function COMMAND_MODE.render_structured_editor(editor, mode)
     else
         COMMAND_MODE.render_action_selector(editor, mode);
     end
-    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server' and mode ~= 'configtoggle') then
+    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server' and mode ~= 'trusts' and mode ~= 'configtoggle') then
         COMMAND_MODE.render_target_selector(editor, mode);
     end
 
@@ -6519,6 +6674,9 @@ local function command_validation_error(command)
         if (parsed == nil or parsed.error ~= nil) then
             return parsed ~= nil and parsed.error or 'Invalid config command.';
         end
+    end
+    if (prefix == '/trusts' and COMMAND_MODE.trusts_action_for_command(command) == nil) then
+        return 'Invalid trusts addon command. Use /trusts or /trusts p1 through /trusts p5.';
     end
 
     return nil;
@@ -8193,6 +8351,9 @@ local function command_family(slot)
     if (prefix == '/mount') then
         return 'mount';
     end
+    if (prefix == '/trusts') then
+        return 'ability';
+    end
     if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
         return 'target';
     end
@@ -8228,12 +8389,13 @@ local function infer_icon_token(slot, family)
     end
 
     if (prefix == '/heal') then return 'rest'; end
-    if (prefix == '/target' or prefix == '/attack') then return 'target'; end
+    if (prefix == '/target' or prefix == '/targetnpc' or prefix == '/targetbnpc' or prefix == '/attack') then return 'target'; end
     if (prefix == '/assist') then return 'assist'; end
     if (prefix == '/check') then return 'check'; end
     if (prefix == '/map') then return 'map'; end
     if (prefix == '/item') then return 'item'; end
     if (prefix == '/mount') then return 'mount'; end
+    if (prefix == '/trusts') then return 'summon'; end
     if (prefix == '/ja' or prefix == '/jobability' or prefix == '/pet') then return 'ability'; end
     if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then return 'ranged'; end
     if (prefix == '/ws' or prefix == '/weaponskill') then return 'weapon'; end
@@ -9475,6 +9637,10 @@ function COMMAND_MODE.action_name_for_slot(slot)
     if (mode == 'server') then
         local server_action = COMMAND_MODE.server_action_for_command(slot.command);
         return server_action ~= nil and trim_one_line(server_action.name, LIMITS.macro_label_max) or nil;
+    end
+    if (mode == 'trusts') then
+        local trusts_action = COMMAND_MODE.trusts_action_for_command(slot.command);
+        return trusts_action ~= nil and trim_one_line(trusts_action.name, LIMITS.macro_label_max) or nil;
     end
     if (mode == 'configtoggle') then
         local id = COMMAND_MODE.normalize_config_id(slot.config_key);
