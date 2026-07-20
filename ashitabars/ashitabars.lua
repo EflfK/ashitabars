@@ -144,6 +144,7 @@ local ALLOWED_PREFIXES = T{
     ['/trusts'] = true,
     ['/ashitabars'] = true,
     ['/ashitaframes'] = true,
+    ['/ashitaguide'] = true,
     ['/echo'] = true,
     ['/p'] = true,
     ['/party'] = true,
@@ -7038,6 +7039,9 @@ local function command_validation_error(command)
     end
     if (prefix == '/trusts' and COMMAND_MODE.trusts_action_for_command(command) == nil) then
         return 'Invalid trusts addon command. Use /trusts or /trusts p1 through /trusts p5.';
+    end
+    if (prefix == '/ashitaguide' and command:lower():match('^%s*/ashitaguide%s+config%s*$') == nil) then
+        return 'Invalid AshitaGuide command. Use /ashitaguide config.';
     end
 
     return nil;

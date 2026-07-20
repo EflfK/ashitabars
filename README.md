@@ -632,9 +632,10 @@ as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, `/targetnpc`,
 `/targetbnpc`, and `/map` are accepted. `/config get <id>` and
 `/config set <id> <value>` are accepted for attended client configuration
 buttons. `/trusts` and `/trusts p1` through `/trusts p5` are accepted for
-attended FancyTrusts buttons. `/ashitabars` and `/ashitaframes` are accepted
-for attended addon UI buttons, such as `/ashitabars config` or
-`/ashitaframes config`.
+attended FancyTrusts buttons. `/ashitabars`, `/ashitaframes`, and
+`/ashitaguide config` are accepted for attended addon UI buttons, such as
+`/ashitabars config` or `/ashitaframes config`. Other `/ashitaguide`
+subcommands remain rejected.
 Chat commands such as `/say` and `/s` are accepted for attended chat/server
 command use. Supported bare CatsEye support commands such as `!signet`,
 `!sigil`, `!sanction`, and `!ionis` are also accepted and are queued as the
