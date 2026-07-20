@@ -8635,6 +8635,37 @@ local function format_count(value)
     return tostring(value);
 end
 
+local function resource_progress(current, required)
+    current = math.max(0, math.floor(tonumber(current) or 0));
+    required = math.max(0, math.floor(tonumber(required) or 0));
+    if (required <= 0) then
+        return nil;
+    end
+
+    local percent = math.floor(((current / required) * 100) + 0.5);
+    return current, required, math.max(0, percent);
+end
+
+local function apply_resource_shortage(state_info, kind, label, current, required)
+    local normalized_current, normalized_required, percent = resource_progress(current, required);
+    if (normalized_current == nil) then
+        return false;
+    end
+
+    state_info.kind = kind;
+    state_info.available = false;
+    state_info.resource_label = label;
+    state_info.resource_current = normalized_current;
+    state_info.resource_required = normalized_required;
+    state_info.resource_percent = percent;
+    state_info.resource_value_label = ('%d/%d'):fmt(normalized_current, normalized_required);
+    state_info.resource_percent_label = ('%d%%'):fmt(percent);
+    state_info.resource_line = ('%s %s'):fmt(label, state_info.resource_value_label);
+    state_info.reason = ('%s %s %s'):fmt(label, state_info.resource_value_label, state_info.resource_percent_label);
+    state_info.reason_label = state_info.reason;
+    return true;
+end
+
 local function slot_visual_state(slot)
     if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
         return nil;
@@ -8671,19 +8702,13 @@ local function slot_visual_state(slot)
         local cost = source ~= nil and tonumber(source.mp_cost) or nil;
         local mp = current_mp();
         if (show_availability and cost ~= nil and cost > 0 and mp ~= nil and mp < cost) then
-            state_info.kind = 'spell';
-            state_info.available = false;
-            state_info.reason = ('MP %d/%d'):fmt(mp, cost);
-            state_info.reason_label = 'MP';
+            apply_resource_shortage(state_info, 'spell', 'MP', mp, cost);
         end
     elseif (prefix == '/ws' or prefix == '/weaponskill') then
         local threshold = tonumber(slot.tp_threshold) or setting_number('weaponskill_tp_threshold', 1000);
         local tp = current_tp();
         if (show_availability and threshold ~= nil and threshold > 0 and tp ~= nil and tp < threshold) then
-            state_info.kind = 'weaponskill';
-            state_info.available = false;
-            state_info.reason = ('TP %d/%d'):fmt(tp, threshold);
-            state_info.reason_label = 'TP';
+            apply_resource_shortage(state_info, 'weaponskill', 'TP', tp, threshold);
         end
     elseif (prefix == '/pet') then
         local available = COMMAND_MODE.pet_command_available_now(action_name);
@@ -9605,11 +9630,38 @@ local function draw_availability_overlay(draw_list, x1, y1, x2, y2, visual_state
     end
 
     local theme = current_theme();
+    local width = x2 - x1;
+    local height = y2 - y1;
     draw_list:AddRectFilled({ x1, y1 }, { x2, y2 }, color_u32(theme.unavailable_overlay or { 0.00, 0.00, 0.00, 0.58 }), 2.0);
     draw_list:AddLine({ x1 + 3, y2 - 3 }, { x2 - 3, y1 + 3 }, color_u32(theme.unavailable_line or { 1.00, 0.28, 0.18, 0.66 }), 2.0);
 
+    if (visual_state.resource_line ~= nil and visual_state.resource_percent_label ~= nil) then
+        local color = theme.unavailable_text or { 1.00, 0.42, 0.32, 1.00 };
+        local line1 = fit_text(visual_state.resource_line, width - 6);
+        if (line1 == '' and visual_state.resource_value_label ~= nil) then
+            line1 = fit_text(visual_state.resource_value_label, width - 6);
+        end
+        local line2 = fit_text(visual_state.resource_percent_label, width - 6);
+        if (line1 == '') then
+            draw_centered_text(draw_list, x1 + (width * 0.5), y1 + (height * 0.48), color, line2);
+            return;
+        end
+        if (line2 == '' or height < 34) then
+            draw_centered_text(draw_list, x1 + (width * 0.5), y1 + (height * 0.48), color, line1);
+            return;
+        end
+
+        local _, text_height = imgui.CalcTextSize(line1);
+        text_height = tonumber(text_height) or 12;
+        local center_x = x1 + (width * 0.5);
+        local center_y = y1 + (height * 0.48);
+        draw_centered_text(draw_list, center_x, center_y - (text_height * 0.55), color, line1);
+        draw_centered_text(draw_list, center_x, center_y + (text_height * 0.65), color, line2);
+        return;
+    end
+
     if (show_reason and visual_state.reason_label ~= nil) then
-        draw_centered_text(draw_list, x1 + ((x2 - x1) * 0.5), y1 + ((y2 - y1) * 0.48), theme.unavailable_text or { 1.00, 0.42, 0.32, 1.00 }, visual_state.reason_label);
+        draw_centered_text(draw_list, x1 + (width * 0.5), y1 + (height * 0.48), theme.unavailable_text or { 1.00, 0.42, 0.32, 1.00 }, visual_state.reason_label);
     end
 end
 
@@ -10270,16 +10322,16 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         draw_weaponskill_pulse_overlay(draw_list, rx, ry, slot_size, pet_fight_idle_flash_info);
     end
 
-    if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
-        draw_availability_overlay(draw_list, ix1, iy1, ix2, iy2, visual_state, recast_info == nil);
-    end
-
     if (has_command and command_supported and recast_info ~= nil) then
         draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, recast_info);
     end
 
     if (has_command and command_supported and macro_run_info ~= nil) then
         draw_recast_overlay(draw_list, ix1, iy1, ix2, iy2, macro_run_info);
+    end
+
+    if (has_command and command_supported and visual_state ~= nil and visual_state.available == false) then
+        draw_availability_overlay(draw_list, ix1, iy1, ix2, iy2, visual_state, recast_info == nil);
     end
 
     if (setting_enabled('show_hotkeys', true)) then

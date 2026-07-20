@@ -542,6 +542,9 @@ action is currently short on a basic resource:
 - `/ws` and `/weaponskill` slots dim when current TP is lower than
   `weaponskill_tp_threshold`, defaulting to `1000`.
 
+Spell and weapon-skill shortages also show compact progress text on the slot,
+such as `MP 18/24` with `75%`, or `TP 742/1000` with `74%`.
+
 This dimming is display-only. It does not block the keypress, pick alternate
 actions, or change the configured command. Set `show_availability = false`
 globally, or `availability = false` on an individual slot, to hide the dimming.
