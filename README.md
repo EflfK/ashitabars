@@ -44,8 +44,10 @@ This addon can send real FFXI slash commands when configured to do so. Keep it
 to one intentional keypress or click producing one configured action: either
 one command line, one structured command that generates a normal slash command,
 or one static multi-line macro. Static per-job profiles are fine; do not add
-timers, loops, reactive combat-state action choice, packet injection,
-unattended behavior, or detection-evasion behavior. The in-game button editor
+timers, loops, reactive gameplay-action choice, packet injection, unattended
+behavior, or detection-evasion behavior. Purely local UI choices, such as
+selecting XiCamera's normal or battle distance for one attended adjustment,
+do not send a gameplay action to the server. The in-game button editor
 follows the same boundary: each saved macro is a fixed list of allowed slash
 command lines and only runs from the attended button press. `/wait` is allowed
 inside saved multi-line macros, matching normal FFXI macro behavior. Common
@@ -480,12 +482,18 @@ Command mode options are:
   button always draws its label and current value. Horizontal steppers use
   left/right halves; vertical steppers use bottom/top halves. Left-click the
   desired half, right-click anywhere on the button to decrease, or use the
-  mouse wheel. A normal assigned hotkey increases; `Shift+hotkey` decreases
+  mouse wheel. Bind the button to `Wheel` by scrolling during keybind capture
+  to adjust it anywhere on the game view without hovering the button; wheel up
+  increases and wheel down decreases. A normal assigned hotkey increases;
+  `Shift+hotkey` decreases
   when that button does not have an enabled Shift variant.
   The editor first filters by category so it only displays relevant fields:
-  - `XiCamera` offers `Normal Camera Max Distance` and
-    `Battle Camera Max Distance` settings. It hides config-key and command-
-    template fields and supplies the correct `/cam` command automatically.
+  - `XiCamera` offers `Active Camera Mode`, `Normal Camera Max Distance`, and
+    `Battle Camera Max Distance` settings. Active Camera Mode uses the battle
+    distance while the player is engaged and normal distance otherwise, while
+    tracking an independent current value for each mode. The button prefixes
+    its value with `N` or `B` to show the current mode. It hides config-key and
+    command-template fields and supplies the correct `/cam` command automatically.
   - `Client Config` reads the actual client config value and supports
     either a numeric min/max/step or an ordered list of named integer options.
     It sends one attended `/config set <id> <value>` command per input.

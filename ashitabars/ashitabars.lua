@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.27.0';
+addon.version   = '0.28.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -667,6 +667,9 @@ local KEYBIND = {
         spacebar = 'Space',
         tab = 'Tab',
         up = 'Up',
+        wheel = 'Wheel',
+        mousewheel = 'Wheel',
+        scroll = 'Wheel',
     },
 };
 
@@ -924,7 +927,7 @@ local state = {
         config_value_b_buffer = T{ '1' },
         stepper_source = 'command',
         stepper_category = 'xicamera',
-        stepper_preset = 'xicamera_normal',
+        stepper_preset = 'xicamera_active',
         stepper_value_kind = 'number',
         stepper_orientation = 'horizontal',
         stepper_command_template_buffer = T{ '/cam d {value}' },
@@ -3049,7 +3052,7 @@ function KEYBIND.start_capture(bar_key, row_id, index)
         row_id = row_id,
         index = index,
     };
-    state.keybind_message = ('Press a key for %s. Backspace clears, Esc cancels.'):fmt(KEYBIND.slot_name(bar_key, row_id, index));
+    state.keybind_message = ('Press a key or scroll for %s. Backspace clears, Esc cancels.'):fmt(KEYBIND.slot_name(bar_key, row_id, index));
     state.keybind_message_color = UI_COLORS.config_header;
 end
 
@@ -3293,6 +3296,20 @@ local function button_overrides_file_path()
     end
 
     return dir .. 'button_overrides.lua';
+end
+
+function KEYBIND.handle_wheel_capture()
+    local capture = state.keybind_capture;
+    if (type(capture) ~= 'table') then
+        return false;
+    end
+
+    KEYBIND.set_slot_override(capture.bar_key, capture.row_id, capture.index, 'Wheel');
+    state.keybind_capture = nil;
+    local stored_combo = KEYBIND.slot_combo(capture.bar_key, capture.row_id, capture.index) or 'Wheel';
+    state.keybind_message = ('Bound %s to %s. Save to persist.'):fmt(KEYBIND.slot_name(capture.bar_key, capture.row_id, capture.index), stored_combo);
+    state.keybind_message_color = UI_COLORS.success;
+    return true;
 end
 
 function COMMAND_MODE.value_stepper_state_file_path()
@@ -5171,8 +5188,27 @@ end
 
 function COMMAND_MODE.normalize_stepper_preset(value)
     value = type(value) == 'string' and value:lower():gsub('[%s_%-]+', '') or '';
+    if (value == 'xicameraactive' or value == 'active' or value == 'activecamera' or value == 'cameramode') then return 'xicamera_active'; end
     if (value == 'xicamerabattle' or value == 'battle' or value == 'battlecamera') then return 'xicamera_battle'; end
     return 'xicamera_normal';
+end
+
+function COMMAND_MODE.xicamera_battle_active()
+    local party = safe_read(function () return AshitaCore:GetMemoryManager():GetParty(); end, nil);
+    local entity = safe_read(function () return AshitaCore:GetMemoryManager():GetEntity(); end, nil);
+    local player_index = party ~= nil and tonumber(safe_read(function () return party:GetMemberTargetIndex(0); end, 0)) or 0;
+    if (entity == nil or player_index == nil or player_index <= 0) then
+        return false;
+    end
+    return tonumber(safe_read(function () return entity:GetStatus(player_index); end, 0)) == 1;
+end
+
+function COMMAND_MODE.effective_xicamera_preset(definition)
+    local preset = type(definition) == 'table' and COMMAND_MODE.normalize_stepper_preset(definition.preset) or 'xicamera_normal';
+    if (preset == 'xicamera_active') then
+        return COMMAND_MODE.xicamera_battle_active() and 'xicamera_battle' or 'xicamera_normal';
+    end
+    return preset;
 end
 
 function COMMAND_MODE.normalize_stepper_value_kind(value)
@@ -5258,7 +5294,7 @@ function COMMAND_MODE.stepper_from_editor(editor)
     local value_kind = category == 'xicamera' and 'number' or COMMAND_MODE.normalize_stepper_value_kind(editor.stepper_value_kind);
     local command_template = trim_one_line(editor.stepper_command_template_buffer and editor.stepper_command_template_buffer[1] or '', LIMITS.stepper_template_max);
     if (category == 'xicamera') then
-        command_template = preset == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
+        command_template = COMMAND_MODE.effective_xicamera_preset({ preset = preset }) == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
     end
     return {
         category = category,
@@ -5310,7 +5346,7 @@ function COMMAND_MODE.stepper_from_slot(slot)
         or ((template:match('^/cam%s+[bB]%s+') or template:lower():match('^/cam%s+battle%s+')) and 'xicamera_battle' or 'xicamera_normal');
     if (category == 'xicamera') then
         source = 'command';
-        template = preset == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
+        template = COMMAND_MODE.effective_xicamera_preset({ preset = preset }) == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
     elseif (category == 'clientconfig') then
         source = 'config';
     end
@@ -5422,14 +5458,24 @@ end
 
 function COMMAND_MODE.stepper_state_key(slot, context)
     local shared_name = SHARED.normalize_name(type(slot) == 'table' and slot.shared or nil);
+    local suffix = '';
+    local definition = type(context) == 'table' and context.stepper_definition or nil;
+    if (definition == nil and type(slot) == 'table' and slot.stepper_source ~= nil) then
+        definition = COMMAND_MODE.stepper_from_slot(slot);
+    end
+    if (type(definition) == 'table' and definition.category == 'xicamera' and definition.preset == 'xicamera_active') then
+        local effective_preset = type(context) == 'table' and context.stepper_camera_preset or nil;
+        effective_preset = effective_preset or COMMAND_MODE.effective_xicamera_preset(definition);
+        suffix = effective_preset == 'xicamera_battle' and ':battle' or ':normal';
+    end
     if (shared_name ~= nil) then
-        return 'shared:' .. shared_name;
+        return 'shared:' .. shared_name .. suffix;
     end
     context = type(context) == 'table' and context or {};
     local profile_key = normalize_profile_key(context.profile_key) or 'DEFAULT';
     local group = valid_row_id(context.group) and context.group or 'base';
     local index = tonumber(context.index) or 1;
-    return ('slot:%s:%s:%d'):fmt(profile_key, group, index);
+    return ('slot:%s:%s:%d%s'):fmt(profile_key, group, index, suffix);
 end
 
 function COMMAND_MODE.stepper_current_value(slot, context, definition)
@@ -5445,6 +5491,8 @@ function COMMAND_MODE.stepper_current_value(slot, context, definition)
         local direct = trim_one_line(tostring(definition.value or ''), 64);
         return direct ~= '' and direct or nil, direct ~= '' and nil or 'Current stepper value is unavailable.';
     end
+    context = type(context) == 'table' and context or {};
+    context.stepper_definition = definition;
     local key = COMMAND_MODE.stepper_state_key(slot, context);
     local stored = type(state.value_stepper_state) == 'table' and state.value_stepper_state[key] or nil;
     local value = trim_one_line(tostring(stored ~= nil and stored or definition.value or ''), 64);
@@ -6834,7 +6882,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     end
     if (mode == 'valuestepper') then
         editor.stepper_category = 'xicamera';
-        editor.stepper_preset = 'xicamera_normal';
+        editor.stepper_preset = 'xicamera_active';
         editor.stepper_source = 'command';
         editor.stepper_value_kind = 'number';
         editor.stepper_orientation = 'horizontal';
@@ -7597,8 +7645,8 @@ function COMMAND_MODE.render_value_stepper_editor(editor)
         or (category == 'clientconfig' and 'Client Config' or 'Custom Command');
     if (imgui.BeginCombo('Category##ashitabars_stepper_category', category_label, ImGuiComboFlags_None)) then
         if (imgui.Selectable('XiCamera', category == 'xicamera')) then
-            editor.stepper_category = 'xicamera'; editor.stepper_preset = 'xicamera_normal'; editor.stepper_value_kind = 'number'; editor.stepper_source = 'command';
-            buffer_set(editor.label_buffer, 'Normal Cam'); buffer_set(editor.stepper_command_template_buffer, '/cam d {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
+            editor.stepper_category = 'xicamera'; editor.stepper_preset = 'xicamera_active'; editor.stepper_value_kind = 'number'; editor.stepper_source = 'command';
+            buffer_set(editor.label_buffer, 'Camera'); buffer_set(editor.stepper_command_template_buffer, '/cam d {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
         end
         if (imgui.Selectable('Client Config', category == 'clientconfig')) then
             editor.stepper_category = 'clientconfig'; editor.stepper_source = 'config';
@@ -7612,8 +7660,13 @@ function COMMAND_MODE.render_value_stepper_editor(editor)
 
     if (category == 'xicamera') then
         local preset = COMMAND_MODE.normalize_stepper_preset(editor.stepper_preset);
-        local preset_label = preset == 'xicamera_battle' and 'Battle Camera Max Distance' or 'Normal Camera Max Distance';
+        local preset_label = preset == 'xicamera_active' and 'Active Camera Mode'
+            or (preset == 'xicamera_battle' and 'Battle Camera Max Distance' or 'Normal Camera Max Distance');
         if (imgui.BeginCombo('Setting##ashitabars_stepper_xicamera_setting', preset_label, ImGuiComboFlags_None)) then
+            if (imgui.Selectable('Active Camera Mode', preset == 'xicamera_active')) then
+                editor.stepper_preset = 'xicamera_active'; editor.stepper_source = 'command'; editor.stepper_value_kind = 'number';
+                buffer_set(editor.label_buffer, 'Camera'); buffer_set(editor.stepper_command_template_buffer, '/cam d {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
+            end
             if (imgui.Selectable('Normal Camera Max Distance', preset == 'xicamera_normal')) then
                 editor.stepper_preset = 'xicamera_normal'; editor.stepper_source = 'command'; editor.stepper_value_kind = 'number';
                 buffer_set(editor.label_buffer, 'Normal Cam'); buffer_set(editor.stepper_command_template_buffer, '/cam d {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
@@ -7623,6 +7676,9 @@ function COMMAND_MODE.render_value_stepper_editor(editor)
                 buffer_set(editor.label_buffer, 'Battle Cam'); buffer_set(editor.stepper_command_template_buffer, '/cam b {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
             end
             imgui.EndCombo();
+        end
+        if (preset == 'xicamera_active') then
+            imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Adjusts battle distance while engaged and normal distance otherwise; each mode tracks its own value.');
         end
     end
 
@@ -7674,7 +7730,7 @@ function COMMAND_MODE.render_value_stepper_editor(editor)
     end
     imgui.PushItemWidth(110); imgui.InputText('Display Suffix##ashitabars_stepper_suffix', editor.stepper_suffix_buffer, LIMITS.stepper_suffix_max); imgui.PopItemWidth();
     imgui.Checkbox('Wrap At Ends##ashitabars_stepper_wrap', editor.stepper_wrap);
-    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Click a side, right-click to decrease, or use the mouse wheel. Hotkey increases; Shift+hotkey decreases when no Shift page is assigned.');
+    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Click a side, right-click to decrease, or use the mouse wheel. Bind Wheel to adjust without hovering. Hotkey increases; Shift+hotkey decreases when no Shift page is assigned.');
 
     local definition = COMMAND_MODE.stepper_from_editor(editor);
     if (COMMAND_MODE.stepper_validation_error(definition) == nil) then
@@ -8964,12 +9020,20 @@ end
 
 function COMMAND_MODE.reset_stepper_runtime_value(slot, context, definition)
     definition = definition or COMMAND_MODE.stepper_from_slot(slot);
-    local key = COMMAND_MODE.stepper_state_key(slot, context);
-    if (definition.source == 'command' and definition.value ~= '') then
-        state.value_stepper_state[key] = tostring(definition.value);
-    else
-        state.value_stepper_state[key] = nil;
+    context = type(context) == 'table' and context or {};
+    context.stepper_definition = definition;
+    local presets = (definition.category == 'xicamera' and definition.preset == 'xicamera_active')
+        and { 'xicamera_normal', 'xicamera_battle' } or { false };
+    for _, preset in ipairs(presets) do
+        context.stepper_camera_preset = preset or nil;
+        local key = COMMAND_MODE.stepper_state_key(slot, context);
+        if (definition.source == 'command' and definition.value ~= '') then
+            state.value_stepper_state[key] = tostring(definition.value);
+        else
+            state.value_stepper_state[key] = nil;
+        end
     end
+    context.stepper_camera_preset = nil;
     local ok, err = COMMAND_MODE.save_value_stepper_state();
     if (not ok) then
         log_warn(('Value Stepper state was not saved: %s'):fmt(tostring(err)));
@@ -11131,14 +11195,18 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     if (is_value_stepper) then
         local bar_key = BAR.key_for_group(row.id);
         local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
-        stepper_context = { profile_key = editable_profile_key(profile), group = row.id, index = index };
+        stepper_context = { profile_key = editable_profile_key(profile), group = row.id, index = index, stepper_definition = stepper_definition };
         local current = COMMAND_MODE.stepper_current_value(slot, stepper_context, stepper_definition);
         stepper_value = COMMAND_MODE.stepper_value_label(stepper_definition, current);
+        if (stepper_definition.category == 'xicamera' and stepper_definition.preset == 'xicamera_active') then
+            local mode_prefix = COMMAND_MODE.effective_xicamera_preset(stepper_definition) == 'xicamera_battle' and 'B ' or 'N ';
+            stepper_value = mode_prefix .. stepper_value;
+        end
         local feedback_key = COMMAND_MODE.stepper_state_key(slot, stepper_context);
         stepper_feedback = type(state.value_stepper_feedback) == 'table' and state.value_stepper_feedback[feedback_key] or nil;
         if (hovered and not edit_clicked) then
             local right_clicked = safe_read(function () return imgui.IsMouseClicked(1); end, false) == true;
-            local wheel = safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
+            local wheel = state.value_stepper_wheel_handled == true and 0 or safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
             if (right_clicked) then
                 stepper_direction = 'decrease';
             elseif (wheel > 0) then
@@ -12347,8 +12415,35 @@ ashita.events.register('packet_in', 'packet_in_cb', function (e)
     COMMAND_MODE.observe_pet_target_packet(e);
 end);
 
+local function handle_bound_mouse_wheel()
+    state.value_stepper_wheel_handled = false;
+    local wheel = safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
+    if (wheel == 0 or not input_is_closed()) then
+        return;
+    end
+
+    if (type(state.keybind_capture) == 'table') then
+        state.value_stepper_wheel_handled = KEYBIND.handle_wheel_capture();
+        return;
+    end
+
+    local combo = KEYBIND.combo_from_parts('Wheel', key_down(VK.CONTROL), key_down(VK.ALT), key_down(VK.SHIFT));
+    local map = KEYBIND.binding_map();
+    local binding = combo ~= nil and map[combo] or nil;
+    if (binding == nil) then
+        return;
+    end
+
+    local slot = get_slot(binding.group, binding.index);
+    if (COMMAND_MODE.mode_for_slot(slot) ~= 'valuestepper') then
+        return;
+    end
+    state.value_stepper_wheel_handled = execute_slot(binding.group, binding.index, 'mouse wheel', wheel < 0 and 'decrease' or 'increase');
+end
+
 ashita.events.register('d3d_present', 'present_cb', function ()
     sync_bar_frame_visibility();
+    handle_bound_mouse_wheel();
     render_bars();
     render_click_bar();
     render_config_window();
