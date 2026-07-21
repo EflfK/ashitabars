@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.28.0';
+addon.version   = '0.29.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -935,6 +935,14 @@ local state = {
         stepper_max_buffer = T{ '50' },
         stepper_step_buffer = T{ '1' },
         stepper_current_buffer = T{ '10' },
+        stepper_default_min_buffer = T{ '1' },
+        stepper_default_max_buffer = T{ '50' },
+        stepper_default_step_buffer = T{ '1' },
+        stepper_default_current_buffer = T{ '10' },
+        stepper_battle_min_buffer = T{ '1' },
+        stepper_battle_max_buffer = T{ '50' },
+        stepper_battle_step_buffer = T{ '1' },
+        stepper_battle_current_buffer = T{ '10' },
         stepper_suffix_buffer = T{ '' },
         stepper_options_buffer = T{ 'Low = 1\nMedium = 2\nHigh = 3' },
         stepper_wrap = T{ false },
@@ -3236,6 +3244,14 @@ function SHARED.slot_parts(slot)
         if (slot.stepper_max ~= nil) then table.insert(parts, ('stepper_max = %s'):fmt(COMMAND_MODE.stepper_number_text(slot.stepper_max))); end
         if (slot.stepper_step ~= nil) then table.insert(parts, ('stepper_step = %s'):fmt(COMMAND_MODE.stepper_number_text(slot.stepper_step))); end
         if (slot.stepper_value ~= nil) then table.insert(parts, ('stepper_value = %s'):fmt(lua_string_literal(tostring(slot.stepper_value)))); end
+        for _, camera_mode in ipairs({ 'default', 'battle' }) do
+            for _, field in ipairs({ 'min', 'max', 'step' }) do
+                local key = ('stepper_%s_%s'):fmt(camera_mode, field);
+                if (slot[key] ~= nil) then table.insert(parts, ('%s = %s'):fmt(key, COMMAND_MODE.stepper_number_text(slot[key]))); end
+            end
+            local value_key = ('stepper_%s_value'):fmt(camera_mode);
+            if (slot[value_key] ~= nil) then table.insert(parts, ('%s = %s'):fmt(value_key, lua_string_literal(tostring(slot[value_key])))); end
+        end
         if (slot.stepper_suffix ~= nil and slot.stepper_suffix ~= '') then table.insert(parts, ('stepper_suffix = %s'):fmt(lua_string_literal(slot.stepper_suffix))); end
         if (slot.stepper_wrap == true) then table.insert(parts, 'stepper_wrap = true'); end
         if (type(slot.stepper_options) == 'table' and #slot.stepper_options > 0) then
@@ -3801,6 +3817,14 @@ local function sanitize_slot_override(slot, allow_shared)
             sanitized.stepper_max = stepper.max;
             sanitized.stepper_step = stepper.step;
             sanitized.stepper_value = stepper.value;
+            sanitized.stepper_default_min = stepper.default_min;
+            sanitized.stepper_default_max = stepper.default_max;
+            sanitized.stepper_default_step = stepper.default_step;
+            sanitized.stepper_default_value = stepper.default_value;
+            sanitized.stepper_battle_min = stepper.battle_min;
+            sanitized.stepper_battle_max = stepper.battle_max;
+            sanitized.stepper_battle_step = stepper.battle_step;
+            sanitized.stepper_battle_value = stepper.battle_value;
             sanitized.stepper_suffix = stepper.suffix;
             sanitized.stepper_options = stepper.options;
             sanitized.stepper_wrap = stepper.wrap;
@@ -4154,6 +4178,8 @@ local function apply_slot_override(base_slot, override)
     for _, key in ipairs({
         'stepper_source', 'stepper_category', 'stepper_preset', 'stepper_value_kind', 'stepper_orientation', 'stepper_command_template',
         'stepper_min', 'stepper_max', 'stepper_step', 'stepper_value', 'stepper_suffix',
+        'stepper_default_min', 'stepper_default_max', 'stepper_default_step', 'stepper_default_value',
+        'stepper_battle_min', 'stepper_battle_max', 'stepper_battle_step', 'stepper_battle_value',
         'stepper_options', 'stepper_wrap',
     }) do
         if (override[key] ~= nil) then
@@ -4253,6 +4279,14 @@ function MACRO.normalize_slot_runtime(slot)
         normalized.stepper_max = stepper.max;
         normalized.stepper_step = stepper.step;
         normalized.stepper_value = stepper.value;
+        normalized.stepper_default_min = stepper.default_min;
+        normalized.stepper_default_max = stepper.default_max;
+        normalized.stepper_default_step = stepper.default_step;
+        normalized.stepper_default_value = stepper.default_value;
+        normalized.stepper_battle_min = stepper.battle_min;
+        normalized.stepper_battle_max = stepper.battle_max;
+        normalized.stepper_battle_step = stepper.battle_step;
+        normalized.stepper_battle_value = stepper.battle_value;
         normalized.stepper_suffix = stepper.suffix;
         normalized.stepper_options = stepper.options;
         normalized.stepper_wrap = stepper.wrap;
@@ -5296,6 +5330,26 @@ function COMMAND_MODE.stepper_from_editor(editor)
     if (category == 'xicamera') then
         command_template = COMMAND_MODE.effective_xicamera_preset({ preset = preset }) == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
     end
+    local default_min = COMMAND_MODE.stepper_number(editor.stepper_default_min_buffer and editor.stepper_default_min_buffer[1] or nil);
+    local default_max = COMMAND_MODE.stepper_number(editor.stepper_default_max_buffer and editor.stepper_default_max_buffer[1] or nil);
+    local default_step = COMMAND_MODE.stepper_number(editor.stepper_default_step_buffer and editor.stepper_default_step_buffer[1] or nil);
+    local default_value = trim_one_line(editor.stepper_default_current_buffer and editor.stepper_default_current_buffer[1] or '', 64);
+    local battle_min = COMMAND_MODE.stepper_number(editor.stepper_battle_min_buffer and editor.stepper_battle_min_buffer[1] or nil);
+    local battle_max = COMMAND_MODE.stepper_number(editor.stepper_battle_max_buffer and editor.stepper_battle_max_buffer[1] or nil);
+    local battle_step = COMMAND_MODE.stepper_number(editor.stepper_battle_step_buffer and editor.stepper_battle_step_buffer[1] or nil);
+    local battle_value = trim_one_line(editor.stepper_battle_current_buffer and editor.stepper_battle_current_buffer[1] or '', 64);
+    local min = COMMAND_MODE.stepper_number(editor.stepper_min_buffer and editor.stepper_min_buffer[1] or nil);
+    local max = COMMAND_MODE.stepper_number(editor.stepper_max_buffer and editor.stepper_max_buffer[1] or nil);
+    local step = COMMAND_MODE.stepper_number(editor.stepper_step_buffer and editor.stepper_step_buffer[1] or nil);
+    local value = trim_one_line(editor.stepper_current_buffer and editor.stepper_current_buffer[1] or '', 64);
+    local active_camera = category == 'xicamera' and preset == 'xicamera_active';
+    if (active_camera) then
+        if (COMMAND_MODE.effective_xicamera_preset({ preset = preset }) == 'xicamera_battle') then
+            min, max, step, value = battle_min, battle_max, battle_step, battle_value;
+        else
+            min, max, step, value = default_min, default_max, default_step, default_value;
+        end
+    end
     return {
         category = category,
         preset = preset,
@@ -5304,10 +5358,18 @@ function COMMAND_MODE.stepper_from_editor(editor)
         orientation = COMMAND_MODE.normalize_stepper_orientation(editor.stepper_orientation),
         command_template = command_template,
         config_key = COMMAND_MODE.normalize_config_id(editor.config_key_buffer and editor.config_key_buffer[1] or nil),
-        min = COMMAND_MODE.stepper_number(editor.stepper_min_buffer and editor.stepper_min_buffer[1] or nil),
-        max = COMMAND_MODE.stepper_number(editor.stepper_max_buffer and editor.stepper_max_buffer[1] or nil),
-        step = COMMAND_MODE.stepper_number(editor.stepper_step_buffer and editor.stepper_step_buffer[1] or nil),
-        value = trim_one_line(editor.stepper_current_buffer and editor.stepper_current_buffer[1] or '', 64),
+        min = min,
+        max = max,
+        step = step,
+        value = value,
+        default_min = active_camera and default_min or nil,
+        default_max = active_camera and default_max or nil,
+        default_step = active_camera and default_step or nil,
+        default_value = active_camera and default_value or nil,
+        battle_min = active_camera and battle_min or nil,
+        battle_max = active_camera and battle_max or nil,
+        battle_step = active_camera and battle_step or nil,
+        battle_value = active_camera and battle_value or nil,
         suffix = trim_one_line(editor.stepper_suffix_buffer and editor.stepper_suffix_buffer[1] or '', LIMITS.stepper_suffix_max),
         options = COMMAND_MODE.parse_stepper_options(editor.stepper_options_buffer and editor.stepper_options_buffer[1] or ''),
         wrap = editor.stepper_wrap ~= nil and editor.stepper_wrap[1] == true,
@@ -5350,6 +5412,26 @@ function COMMAND_MODE.stepper_from_slot(slot)
     elseif (category == 'clientconfig') then
         source = 'config';
     end
+    local min = COMMAND_MODE.stepper_number(slot.stepper_min);
+    local max = COMMAND_MODE.stepper_number(slot.stepper_max);
+    local step = COMMAND_MODE.stepper_number(slot.stepper_step);
+    local value = trim_one_line(tostring(slot.stepper_value or ''), 64);
+    local default_min = COMMAND_MODE.stepper_number(slot.stepper_default_min) or min;
+    local default_max = COMMAND_MODE.stepper_number(slot.stepper_default_max) or max;
+    local default_step = COMMAND_MODE.stepper_number(slot.stepper_default_step) or step;
+    local default_value = trim_one_line(tostring(slot.stepper_default_value ~= nil and slot.stepper_default_value or value), 64);
+    local battle_min = COMMAND_MODE.stepper_number(slot.stepper_battle_min) or min;
+    local battle_max = COMMAND_MODE.stepper_number(slot.stepper_battle_max) or max;
+    local battle_step = COMMAND_MODE.stepper_number(slot.stepper_battle_step) or step;
+    local battle_value = trim_one_line(tostring(slot.stepper_battle_value ~= nil and slot.stepper_battle_value or value), 64);
+    local active_camera = category == 'xicamera' and preset == 'xicamera_active';
+    if (active_camera) then
+        if (COMMAND_MODE.effective_xicamera_preset({ preset = preset }) == 'xicamera_battle') then
+            min, max, step, value = battle_min, battle_max, battle_step, battle_value;
+        else
+            min, max, step, value = default_min, default_max, default_step, default_value;
+        end
+    end
     return {
         category = category,
         preset = preset,
@@ -5358,10 +5440,18 @@ function COMMAND_MODE.stepper_from_slot(slot)
         orientation = COMMAND_MODE.normalize_stepper_orientation(slot.stepper_orientation),
         command_template = template,
         config_key = COMMAND_MODE.normalize_config_id(slot.config_key),
-        min = COMMAND_MODE.stepper_number(slot.stepper_min),
-        max = COMMAND_MODE.stepper_number(slot.stepper_max),
-        step = COMMAND_MODE.stepper_number(slot.stepper_step),
-        value = trim_one_line(tostring(slot.stepper_value or ''), 64),
+        min = min,
+        max = max,
+        step = step,
+        value = value,
+        default_min = active_camera and default_min or nil,
+        default_max = active_camera and default_max or nil,
+        default_step = active_camera and default_step or nil,
+        default_value = active_camera and default_value or nil,
+        battle_min = active_camera and battle_min or nil,
+        battle_max = active_camera and battle_max or nil,
+        battle_step = active_camera and battle_step or nil,
+        battle_value = active_camera and battle_value or nil,
         suffix = trim_one_line(slot.stepper_suffix, LIMITS.stepper_suffix_max),
         options = options,
         wrap = slot.stepper_wrap == true,
@@ -5370,6 +5460,29 @@ end
 
 function COMMAND_MODE.stepper_validation_error(definition)
     definition = type(definition) == 'table' and definition or {};
+    if (definition.category == 'xicamera' and definition.preset == 'xicamera_active') then
+        for _, mode in ipairs({
+            { label = 'Default camera', min = definition.default_min, max = definition.default_max, step = definition.default_step, value = definition.default_value },
+            { label = 'Battle camera', min = definition.battle_min, max = definition.battle_max, step = definition.battle_step, value = definition.battle_value },
+        }) do
+            if (mode.min == nil or mode.max == nil or mode.step == nil) then
+                return mode.label .. ' requires numeric minimum, maximum, and step values.';
+            end
+            if (mode.max < mode.min) then
+                return mode.label .. ' maximum must be greater than or equal to its minimum.';
+            end
+            if (mode.step <= 0) then
+                return mode.label .. ' step must be greater than zero.';
+            end
+            local current = COMMAND_MODE.stepper_number(mode.value);
+            if (current == nil) then
+                return mode.label .. ' requires a numeric current/starting value.';
+            end
+            if (current < mode.min or current > mode.max) then
+                return mode.label .. ' current value must be within its range.';
+            end
+        end
+    end
     if (definition.source == 'config' and definition.config_key == nil) then
         return 'Enter a config key from 1 to 207.';
     end
@@ -5841,6 +5954,14 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.stepper_max_buffer, stepper.max ~= nil and COMMAND_MODE.stepper_number_text(stepper.max) or '50');
     buffer_set(editor.stepper_step_buffer, stepper.step ~= nil and COMMAND_MODE.stepper_number_text(stepper.step) or '1');
     buffer_set(editor.stepper_current_buffer, stepper.value ~= '' and stepper.value or '10');
+    buffer_set(editor.stepper_default_min_buffer, COMMAND_MODE.stepper_number_text(stepper.default_min or stepper.min or 1));
+    buffer_set(editor.stepper_default_max_buffer, COMMAND_MODE.stepper_number_text(stepper.default_max or stepper.max or 50));
+    buffer_set(editor.stepper_default_step_buffer, COMMAND_MODE.stepper_number_text(stepper.default_step or stepper.step or 1));
+    buffer_set(editor.stepper_default_current_buffer, (stepper.default_value ~= nil and stepper.default_value ~= '') and stepper.default_value or (stepper.value ~= '' and stepper.value or '10'));
+    buffer_set(editor.stepper_battle_min_buffer, COMMAND_MODE.stepper_number_text(stepper.battle_min or stepper.min or 1));
+    buffer_set(editor.stepper_battle_max_buffer, COMMAND_MODE.stepper_number_text(stepper.battle_max or stepper.max or 50));
+    buffer_set(editor.stepper_battle_step_buffer, COMMAND_MODE.stepper_number_text(stepper.battle_step or stepper.step or 1));
+    buffer_set(editor.stepper_battle_current_buffer, (stepper.battle_value ~= nil and stepper.battle_value ~= '') and stepper.battle_value or (stepper.value ~= '' and stepper.value or '10'));
     buffer_set(editor.stepper_suffix_buffer, stepper.suffix or '');
     buffer_set(editor.stepper_options_buffer, #stepper.options > 0 and COMMAND_MODE.stepper_options_to_text(stepper.options) or 'Low = 1\nMedium = 2\nHigh = 3');
     editor.stepper_wrap[1] = stepper.wrap == true;
@@ -6891,6 +7012,14 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
         buffer_set(editor.stepper_max_buffer, '50');
         buffer_set(editor.stepper_step_buffer, '1');
         buffer_set(editor.stepper_current_buffer, '10');
+        buffer_set(editor.stepper_default_min_buffer, '1');
+        buffer_set(editor.stepper_default_max_buffer, '50');
+        buffer_set(editor.stepper_default_step_buffer, '1');
+        buffer_set(editor.stepper_default_current_buffer, '10');
+        buffer_set(editor.stepper_battle_min_buffer, '1');
+        buffer_set(editor.stepper_battle_max_buffer, '50');
+        buffer_set(editor.stepper_battle_step_buffer, '1');
+        buffer_set(editor.stepper_battle_current_buffer, '10');
         buffer_set(editor.stepper_suffix_buffer, '');
         buffer_set(editor.stepper_options_buffer, 'Low = 1\nMedium = 2\nHigh = 3');
         editor.stepper_wrap[1] = false;
@@ -7712,7 +7841,19 @@ function COMMAND_MODE.render_value_stepper_editor(editor)
     end
 
     local effective_kind = category == 'xicamera' and 'number' or editor.stepper_value_kind;
-    if (effective_kind == 'number') then
+    if (category == 'xicamera' and COMMAND_MODE.normalize_stepper_preset(editor.stepper_preset) == 'xicamera_active') then
+        local function render_camera_values(label, id, current_buffer, min_buffer, max_buffer, step_buffer)
+            imgui.TextColored(UI_COLORS.config_header, label);
+            imgui.PushItemWidth(82);
+            imgui.InputText(('Current##ashitabars_stepper_%s_current'):fmt(id), current_buffer, 64); imgui.SameLine(0, 8);
+            imgui.InputText(('Min##ashitabars_stepper_%s_min'):fmt(id), min_buffer, 24); imgui.SameLine(0, 8);
+            imgui.InputText(('Max##ashitabars_stepper_%s_max'):fmt(id), max_buffer, 24); imgui.SameLine(0, 8);
+            imgui.InputText(('Step##ashitabars_stepper_%s_step'):fmt(id), step_buffer, 24);
+            imgui.PopItemWidth();
+        end
+        render_camera_values('Default Camera', 'default', editor.stepper_default_current_buffer, editor.stepper_default_min_buffer, editor.stepper_default_max_buffer, editor.stepper_default_step_buffer);
+        render_camera_values('Battle Camera', 'battle', editor.stepper_battle_current_buffer, editor.stepper_battle_min_buffer, editor.stepper_battle_max_buffer, editor.stepper_battle_step_buffer);
+    elseif (effective_kind == 'number') then
         imgui.PushItemWidth(82);
         imgui.InputText('Min##ashitabars_stepper_min', editor.stepper_min_buffer, 24); imgui.SameLine(0, 8);
         imgui.InputText('Max##ashitabars_stepper_max', editor.stepper_max_buffer, 24); imgui.SameLine(0, 8);
@@ -7820,6 +7961,15 @@ function COMMAND_MODE.stepper_commands_validation_error(definition)
         for _, option in ipairs(definition.options) do
             table.insert(candidates, COMMAND_MODE.stepper_command_for_value(definition, option.value, option));
         end
+    elseif (definition.category == 'xicamera' and definition.preset == 'xicamera_active') then
+        local default_definition = copy_slot(definition);
+        default_definition.command_template = '/cam d {value}';
+        local battle_definition = copy_slot(definition);
+        battle_definition.command_template = '/cam b {value}';
+        table.insert(candidates, COMMAND_MODE.stepper_command_for_value(default_definition, COMMAND_MODE.stepper_number_text(definition.default_min)));
+        table.insert(candidates, COMMAND_MODE.stepper_command_for_value(default_definition, COMMAND_MODE.stepper_number_text(definition.default_max)));
+        table.insert(candidates, COMMAND_MODE.stepper_command_for_value(battle_definition, COMMAND_MODE.stepper_number_text(definition.battle_min)));
+        table.insert(candidates, COMMAND_MODE.stepper_command_for_value(battle_definition, COMMAND_MODE.stepper_number_text(definition.battle_max)));
     else
         table.insert(candidates, COMMAND_MODE.stepper_command_for_value(definition, COMMAND_MODE.stepper_number_text(definition.min)));
         table.insert(candidates, COMMAND_MODE.stepper_command_for_value(definition, COMMAND_MODE.stepper_number_text(definition.max)));
@@ -8415,6 +8565,14 @@ function MACRO.apply_value_stepper_to_slot(slot, definition)
     slot.stepper_max = definition.max;
     slot.stepper_step = definition.step;
     slot.stepper_value = definition.value;
+    slot.stepper_default_min = definition.default_min;
+    slot.stepper_default_max = definition.default_max;
+    slot.stepper_default_step = definition.default_step;
+    slot.stepper_default_value = definition.default_value;
+    slot.stepper_battle_min = definition.battle_min;
+    slot.stepper_battle_max = definition.battle_max;
+    slot.stepper_battle_step = definition.battle_step;
+    slot.stepper_battle_value = definition.battle_value;
     slot.stepper_suffix = definition.suffix;
     slot.stepper_options = copy_slot(definition.options);
     slot.stepper_wrap = definition.wrap == true;
@@ -9027,8 +9185,11 @@ function COMMAND_MODE.reset_stepper_runtime_value(slot, context, definition)
     for _, preset in ipairs(presets) do
         context.stepper_camera_preset = preset or nil;
         local key = COMMAND_MODE.stepper_state_key(slot, context);
-        if (definition.source == 'command' and definition.value ~= '') then
-            state.value_stepper_state[key] = tostring(definition.value);
+        local starting_value = definition.value;
+        if (preset == 'xicamera_normal') then starting_value = definition.default_value; end
+        if (preset == 'xicamera_battle') then starting_value = definition.battle_value; end
+        if (definition.source == 'command' and starting_value ~= nil and starting_value ~= '') then
+            state.value_stepper_state[key] = tostring(starting_value);
         else
             state.value_stepper_state[key] = nil;
         end

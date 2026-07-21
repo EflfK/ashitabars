@@ -491,9 +491,10 @@ Command mode options are:
   - `XiCamera` offers `Active Camera Mode`, `Normal Camera Max Distance`, and
     `Battle Camera Max Distance` settings. Active Camera Mode uses the battle
     distance while the player is engaged and normal distance otherwise, while
-    tracking an independent current value for each mode. The button prefixes
-    its value with `N` or `B` to show the current mode. It hides config-key and
-    command-template fields and supplies the correct `/cam` command automatically.
+    giving Default Camera and Battle Camera separate current, minimum, maximum,
+    and step values. The button prefixes its value with `N` or `B` to show the
+    current mode. It hides config-key and command-template fields and supplies
+    the correct `/cam` command automatically.
   - `Client Config` reads the actual client config value and supports
     either a numeric min/max/step or an ordered list of named integer options.
     It sends one attended `/config set <id> <value>` command per input.
