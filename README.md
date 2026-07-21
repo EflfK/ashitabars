@@ -417,6 +417,16 @@ outside the addon folder in:
 Ashita/config/addons/ashitabars/button_overrides.lua
 ```
 
+Command-template Value Steppers persist only their last successfully queued
+display value in:
+
+```txt
+Ashita/config/addons/ashitabars/value_stepper_state.lua
+```
+
+This state is separate from the button definition so stepping a configured or
+shared button does not turn it into a copied profile override.
+
 Saved button edits are overlaid on top of the current bar's resolved profile
 scope and persist across addon reloads and game sessions. `Clear` saves an
 empty button for that slot, while `Reset` removes the saved edit and returns to
@@ -466,6 +476,28 @@ Command mode options are:
   `/config set <id> <value>` command: value B when the current value is value A,
   otherwise value A. For example, key `145` with values `0` and `1` toggles
   between `/config set 145 0` and `/config set 145 1`.
+- `Value Stepper`: turn one button into a two-direction value control. The
+  button always draws its label and current value. Horizontal steppers use
+  left/right halves; vertical steppers use bottom/top halves. Left-click the
+  desired half, right-click anywhere on the button to decrease, or use the
+  mouse wheel. A normal assigned hotkey increases; `Shift+hotkey` decreases
+  when that button does not have an enabled Shift variant.
+  The editor first filters by category so it only displays relevant fields:
+  - `XiCamera` offers `Normal Camera Max Distance` and
+    `Battle Camera Max Distance` settings. It hides config-key and command-
+    template fields and supplies the correct `/cam` command automatically.
+  - `Client Config` reads the actual client config value and supports
+    either a numeric min/max/step or an ordered list of named integer options.
+    It sends one attended `/config set <id> <value>` command per input.
+  - `Custom Command` substitutes the next value into a template
+    containing `{value}`, such as `/cam b {value}`. Numeric controls support
+    min, max, step, suffix, and optional wrapping. Named options use one
+    `Label = value` line each; append `| /command` to give an option its own
+    command, which also covers generic two-command controls.
+  AshitaBars tracks the last successfully queued XiCamera or custom-command
+  value in `value_stepper_state.lua`. Saving a new starting value
+  resynchronizes it. Changes made directly through XiCamera or another addon
+  cannot be observed, while client-config steppers always use live readback.
 - `Trusts Addon`: choose an existing FancyTrusts action. Saved buttons generate
   `/trusts` to open the FancyTrusts window or `/trusts p1` through `/trusts p5`
   to summon one of the FancyTrusts presets. These buttons do not show a target
@@ -491,7 +523,8 @@ Command mode options are:
 
 Structured modes still save normal command text in `button_overrides.lua`, with
 small mode-specific metadata only when needed, such as `Config Toggle`'s two
-stored values. Key execution, validation, icon inference, recast display, item
+stored values and `Value Stepper`'s source, range/options, orientation, and
+command template. Key execution, validation, icon inference, recast display, item
 counts, and availability dimming use the same path as hand-written commands.
 Existing command buttons are parsed back into the matching structured mode when
 possible; unsupported or unusual commands open as `Freeform Command`.
@@ -640,6 +673,9 @@ Chat commands such as `/say` and `/s` are accepted for attended chat/server
 command use. Supported bare CatsEye support commands such as `!signet`,
 `!sigil`, `!sanction`, and `!ionis` are also accepted and are queued as the
 current zone's `/say !command` when pressed.
+Attended XiCamera distance commands `/cam d <value>`, `/cam distance <value>`,
+`/cam b <value>`, and `/cam battle <value>` are accepted for Value Stepper
+camera controls. Other `/cam` subcommands remain rejected.
 Ashita control commands such as `/addon`, `/bind`, `/unbind`, `/exec`, and
 `/alias` are not accepted as slot commands or macro lines. Slots with
 unsupported prefixes draw a red warning corner and are still rejected when

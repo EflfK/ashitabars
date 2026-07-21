@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.26.0';
+addon.version   = '0.27.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -141,6 +141,7 @@ local ALLOWED_PREFIXES = T{
     ['/check'] = true,
     ['/map'] = true,
     ['/config'] = true,
+    ['/cam'] = true,
     ['/trusts'] = true,
     ['/ashitabars'] = true,
     ['/ashitaframes'] = true,
@@ -209,6 +210,9 @@ local LIMITS = {
     macro_label_max = 32,
     macro_command_max = 256,
     macro_commands_text_max = 4096,
+    stepper_options_text_max = 4096,
+    stepper_template_max = 256,
+    stepper_suffix_max = 16,
     macro_icon_max = 32,
     command_list_cache_seconds = 3.0,
     frameless_window_padding = 4,
@@ -865,6 +869,8 @@ local state = {
     icon_asset_texture_cache = {},
     icon_asset_texture_handles = {},
     command_mode_cache = {},
+    value_stepper_state = {},
+    value_stepper_feedback = {},
     pet_target_server_id = nil,
     pet_target_seen_at = nil,
     macro_editor = {
@@ -916,6 +922,19 @@ local state = {
         config_key_buffer = T{ '' },
         config_value_a_buffer = T{ '0' },
         config_value_b_buffer = T{ '1' },
+        stepper_source = 'command',
+        stepper_category = 'xicamera',
+        stepper_preset = 'xicamera_normal',
+        stepper_value_kind = 'number',
+        stepper_orientation = 'horizontal',
+        stepper_command_template_buffer = T{ '/cam d {value}' },
+        stepper_min_buffer = T{ '1' },
+        stepper_max_buffer = T{ '50' },
+        stepper_step_buffer = T{ '1' },
+        stepper_current_buffer = T{ '10' },
+        stepper_suffix_buffer = T{ '' },
+        stepper_options_buffer = T{ 'Low = 1\nMedium = 2\nHigh = 3' },
+        stepper_wrap = T{ false },
         message = nil,
         message_color = UI_COLORS.success,
     },
@@ -993,6 +1012,9 @@ function MACRO.normalize_mode(value)
     end
     if (mode == 'configtoggle' or mode == 'config-toggle' or mode == 'toggleconfig' or mode == 'toggle-config' or mode == 'config') then
         return 'configtoggle';
+    end
+    if (mode == 'valuestepper' or mode == 'value-stepper' or mode == 'stepper' or mode == 'splitcommand' or mode == 'split-command') then
+        return 'valuestepper';
     end
     if (mode == 'trusts' or mode == 'trust' or mode == 'trustaddon' or mode == 'trust-addon' or mode == 'fancytrusts' or mode == 'fancy-trusts') then
         return 'trusts';
@@ -1465,6 +1487,9 @@ local function load_config()
         if (DEFERRED.load_button_overrides ~= nil) then
             DEFERRED.load_button_overrides();
         end
+        if (DEFERRED.load_value_stepper_state ~= nil) then
+            DEFERRED.load_value_stepper_state();
+        end
         return;
     end
 
@@ -1545,6 +1570,9 @@ local function load_config()
     state.command_mode_cache = {};
     if (DEFERRED.load_button_overrides ~= nil) then
         DEFERRED.load_button_overrides();
+    end
+    if (DEFERRED.load_value_stepper_state ~= nil) then
+        DEFERRED.load_value_stepper_state();
     end
 end
 
@@ -3192,6 +3220,36 @@ function SHARED.slot_parts(slot)
     if (slot.config_value_b ~= nil) then
         table.insert(parts, ('config_value_b = %d'):fmt(slot.config_value_b));
     end
+    if (slot.stepper_source ~= nil) then
+        table.insert(parts, ('stepper_source = %s'):fmt(lua_string_literal(slot.stepper_source)));
+        table.insert(parts, ('stepper_category = %s'):fmt(lua_string_literal(slot.stepper_category or 'custom')));
+        if (slot.stepper_preset ~= nil) then table.insert(parts, ('stepper_preset = %s'):fmt(lua_string_literal(slot.stepper_preset))); end
+        table.insert(parts, ('stepper_value_kind = %s'):fmt(lua_string_literal(slot.stepper_value_kind or 'number')));
+        table.insert(parts, ('stepper_orientation = %s'):fmt(lua_string_literal(slot.stepper_orientation or 'horizontal')));
+        if (slot.stepper_command_template ~= nil and slot.stepper_command_template ~= '') then
+            table.insert(parts, ('stepper_command_template = %s'):fmt(lua_string_literal(slot.stepper_command_template)));
+        end
+        if (slot.stepper_min ~= nil) then table.insert(parts, ('stepper_min = %s'):fmt(COMMAND_MODE.stepper_number_text(slot.stepper_min))); end
+        if (slot.stepper_max ~= nil) then table.insert(parts, ('stepper_max = %s'):fmt(COMMAND_MODE.stepper_number_text(slot.stepper_max))); end
+        if (slot.stepper_step ~= nil) then table.insert(parts, ('stepper_step = %s'):fmt(COMMAND_MODE.stepper_number_text(slot.stepper_step))); end
+        if (slot.stepper_value ~= nil) then table.insert(parts, ('stepper_value = %s'):fmt(lua_string_literal(tostring(slot.stepper_value)))); end
+        if (slot.stepper_suffix ~= nil and slot.stepper_suffix ~= '') then table.insert(parts, ('stepper_suffix = %s'):fmt(lua_string_literal(slot.stepper_suffix))); end
+        if (slot.stepper_wrap == true) then table.insert(parts, 'stepper_wrap = true'); end
+        if (type(slot.stepper_options) == 'table' and #slot.stepper_options > 0) then
+            local option_parts = {};
+            for _, option in ipairs(slot.stepper_options) do
+                local fields = {
+                    ('label = %s'):fmt(lua_string_literal(option.label or '')),
+                    ('value = %s'):fmt(lua_string_literal(tostring(option.value or ''))),
+                };
+                if (type(option.command) == 'string' and option.command ~= '') then
+                    table.insert(fields, ('command = %s'):fmt(lua_string_literal(option.command)));
+                end
+                table.insert(option_parts, ('{ %s }'):fmt(table.concat(fields, ', ')));
+            end
+            table.insert(parts, ('stepper_options = { %s }'):fmt(table.concat(option_parts, ', ')));
+        end
+    end
     if (slot.command ~= nil) then
         table.insert(parts, ('command = %s'):fmt(lua_string_literal(slot.command)));
     end
@@ -3235,6 +3293,14 @@ local function button_overrides_file_path()
     end
 
     return dir .. 'button_overrides.lua';
+end
+
+function COMMAND_MODE.value_stepper_state_file_path()
+    local dir = button_overrides_dir();
+    if (dir == nil) then
+        return nil;
+    end
+    return dir .. 'value_stepper_state.lua';
 end
 
 local function visual_settings_file_path()
@@ -3653,12 +3719,15 @@ local function sanitize_slot_override(slot, allow_shared)
         if (sanitized.macro_mode == 'multi' and sanitized.commands ~= nil and sanitized.command == nil) then
             sanitized.command = sanitized.commands[1] or '';
         end
-        if (sanitized.macro_mode ~= 'multi') then
+        if (sanitized.macro_mode ~= 'multi' and not COMMAND_MODE.is_structured_mode(sanitized.macro_mode)) then
             sanitized.macro_mode = nil;
             sanitized.commands = nil;
             sanitized.script = nil;
-        elseif (slot.script == true) then
+        elseif (sanitized.macro_mode == 'multi' and slot.script == true) then
             sanitized.script = true;
+        elseif (sanitized.macro_mode ~= 'multi') then
+            sanitized.commands = nil;
+            sanitized.script = nil;
         end
     end
     if (slot.icon ~= nil) then
@@ -3701,8 +3770,27 @@ local function sanitize_slot_override(slot, allow_shared)
     if (config_value_b ~= nil) then
         sanitized.config_value_b = config_value_b;
     end
+    local stepper = COMMAND_MODE.stepper_from_slot(slot);
+    if (MACRO.normalize_mode(slot.macro_mode) == 'valuestepper' or slot.stepper_source ~= nil) then
+        if (COMMAND_MODE.stepper_validation_error(stepper) == nil) then
+            sanitized.macro_mode = 'valuestepper';
+            sanitized.stepper_source = stepper.source;
+            sanitized.stepper_category = stepper.category;
+            sanitized.stepper_preset = stepper.preset;
+            sanitized.stepper_value_kind = stepper.value_kind;
+            sanitized.stepper_orientation = stepper.orientation;
+            sanitized.stepper_command_template = stepper.command_template;
+            sanitized.stepper_min = stepper.min;
+            sanitized.stepper_max = stepper.max;
+            sanitized.stepper_step = stepper.step;
+            sanitized.stepper_value = stepper.value;
+            sanitized.stepper_suffix = stepper.suffix;
+            sanitized.stepper_options = stepper.options;
+            sanitized.stepper_wrap = stepper.wrap;
+        end
+    end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.pet_fight_idle_flash == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.pet_fight_idle_flash == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil and sanitized.stepper_source == nil) then
         return nil;
     end
 
@@ -3844,6 +3932,61 @@ local function save_button_overrides()
     end
 
     return true, 'Saved button edits to config/addons/ashitabars/button_overrides.lua.';
+end
+
+function COMMAND_MODE.serialize_value_stepper_state()
+    local lines = {
+        '-- Generated by AshitaBars. Tracks values last applied by command-based Value Steppers.',
+        'return {',
+    };
+    for _, key in ipairs(sorted_keys(state.value_stepper_state or {})) do
+        local value = state.value_stepper_state[key];
+        if ((type(value) == 'string' or type(value) == 'number') and tostring(value) ~= '') then
+            table.insert(lines, ('    [%s] = %s,'):fmt(lua_string_literal(key), lua_string_literal(tostring(value))));
+        end
+    end
+    table.insert(lines, '}');
+    table.insert(lines, '');
+    return table.concat(lines, '\n');
+end
+
+DEFERRED.load_value_stepper_state = function ()
+    state.value_stepper_state = {};
+    local path = COMMAND_MODE.value_stepper_state_file_path();
+    if (path == nil or ashita == nil or ashita.fs == nil or not ashita.fs.exists(path)) then
+        return true;
+    end
+    local chunk, load_err = loadfile(path);
+    if (chunk == nil) then
+        log_warn(('Value Stepper state ignored: %s'):fmt(tostring(load_err)));
+        return false;
+    end
+    local ok, values = pcall(chunk);
+    if (not ok or type(values) ~= 'table') then
+        log_warn(('Value Stepper state ignored: %s'):fmt(tostring(values)));
+        return false;
+    end
+    for key, value in pairs(values) do
+        if (type(key) == 'string' and (type(value) == 'string' or type(value) == 'number')) then
+            local normalized = trim_one_line(tostring(value), 64);
+            if (normalized ~= '') then
+                state.value_stepper_state[key] = normalized;
+            end
+        end
+    end
+    return true;
+end
+
+function COMMAND_MODE.save_value_stepper_state()
+    local ok, dir_or_err = ensure_button_overrides_dir();
+    if (not ok) then
+        return false, tostring(dir_or_err);
+    end
+    local write_ok, write_err = write_text_file(dir_or_err .. 'value_stepper_state.lua', COMMAND_MODE.serialize_value_stepper_state());
+    if (not write_ok) then
+        return false, tostring(write_err);
+    end
+    return true, nil;
 end
 
 local function replace_setting(block, key, literal)
@@ -3991,6 +4134,15 @@ local function apply_slot_override(base_slot, override)
     if (override.config_value_b ~= nil) then
         slot.config_value_b = override.config_value_b;
     end
+    for _, key in ipairs({
+        'stepper_source', 'stepper_category', 'stepper_preset', 'stepper_value_kind', 'stepper_orientation', 'stepper_command_template',
+        'stepper_min', 'stepper_max', 'stepper_step', 'stepper_value', 'stepper_suffix',
+        'stepper_options', 'stepper_wrap',
+    }) do
+        if (override[key] ~= nil) then
+            slot[key] = type(override[key]) == 'table' and copy_slot(override[key]) or override[key];
+        end
+    end
 
     if (next(slot) == nil) then
         return nil;
@@ -4042,6 +4194,11 @@ function MACRO.normalize_slot_runtime(slot)
         normalized.commands = commands;
         normalized.command = commands[1] or command;
         normalized.script = normalized.script == true;
+    elseif (COMMAND_MODE.is_structured_mode(mode)) then
+        normalized.macro_mode = mode;
+        normalized.commands = nil;
+        normalized.command = command;
+        normalized.script = nil;
     else
         normalized.macro_mode = 'single';
         normalized.commands = nil;
@@ -4066,6 +4223,23 @@ function MACRO.normalize_slot_runtime(slot)
     normalized.config_key = COMMAND_MODE.normalize_config_id(normalized.config_key);
     normalized.config_value_a = COMMAND_MODE.normalize_config_value(normalized.config_value_a);
     normalized.config_value_b = COMMAND_MODE.normalize_config_value(normalized.config_value_b);
+    if (mode == 'valuestepper' or normalized.stepper_source ~= nil) then
+        local stepper = COMMAND_MODE.stepper_from_slot(normalized);
+        normalized.macro_mode = 'valuestepper';
+        normalized.stepper_source = stepper.source;
+        normalized.stepper_category = stepper.category;
+        normalized.stepper_preset = stepper.preset;
+        normalized.stepper_value_kind = stepper.value_kind;
+        normalized.stepper_orientation = stepper.orientation;
+        normalized.stepper_command_template = stepper.command_template;
+        normalized.stepper_min = stepper.min;
+        normalized.stepper_max = stepper.max;
+        normalized.stepper_step = stepper.step;
+        normalized.stepper_value = stepper.value;
+        normalized.stepper_suffix = stepper.suffix;
+        normalized.stepper_options = stepper.options;
+        normalized.stepper_wrap = stepper.wrap;
+    end
 
     return normalized;
 end
@@ -4126,6 +4300,10 @@ local function apply_editor_preview(slot, profile_key, group, index)
     end
     if (mode ~= 'item') then
         preview_slot.icon = trim_one_line(editor.icon_buffer[1], LIMITS.macro_icon_max);
+    end
+    if (mode == 'valuestepper') then
+        MACRO.apply_value_stepper_to_slot(preview_slot, COMMAND_MODE.stepper_from_editor(editor));
+        preview_slot.label = trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max);
     end
     preview_slot.weaponskill_effect = editor.weaponskill_effect_enabled[1] == false and 'off' or (MACRO.normalize_weaponskill_effect_style(editor.weaponskill_effect) or 'pulse');
     preview_slot.weaponskill_effect_intensity = MACRO.normalize_weaponskill_effect_intensity(editor.weaponskill_effect_intensity[1]) or 70;
@@ -4210,6 +4388,7 @@ COMMAND_MODE.ORDER = {
     'mount',
     'server',
     'configtoggle',
+    'valuestepper',
     'trusts',
     'weaponskill',
     'ability',
@@ -4226,6 +4405,7 @@ COMMAND_MODE.DEFS = {
     mount       = { label = 'Mount', action_label = 'Mount', empty_label = 'No mount names found.' },
     server      = { label = 'Server Command', action_label = 'Server Command', empty_label = 'No server commands configured.' },
     configtoggle = { label = 'Config Toggle' },
+    valuestepper = { label = 'Value Stepper' },
     trusts      = { label = 'Trusts Addon', action_label = 'Trusts Action', empty_label = 'No FancyTrusts actions configured.' },
     weaponskill = { label = 'Weapon Skill', action_label = 'Weapon Skill', empty_label = 'No known weapon skills found.' },
     ability     = { label = 'Job Ability', action_label = 'Job Ability', empty_label = 'No known job abilities found.' },
@@ -4977,6 +5157,360 @@ function COMMAND_MODE.config_toggle_next_command(id, value_a, value_b)
     return ('/config set %d %d'):fmt(id, next_value), nil, current, next_value;
 end
 
+function COMMAND_MODE.normalize_stepper_source(value)
+    value = type(value) == 'string' and value:lower() or '';
+    return value == 'config' and 'config' or 'command';
+end
+
+function COMMAND_MODE.normalize_stepper_category(value)
+    value = type(value) == 'string' and value:lower():gsub('[%s_%-]+', '') or '';
+    if (value == 'xicamera' or value == 'camera') then return 'xicamera'; end
+    if (value == 'clientconfig' or value == 'config') then return 'clientconfig'; end
+    return 'custom';
+end
+
+function COMMAND_MODE.normalize_stepper_preset(value)
+    value = type(value) == 'string' and value:lower():gsub('[%s_%-]+', '') or '';
+    if (value == 'xicamerabattle' or value == 'battle' or value == 'battlecamera') then return 'xicamera_battle'; end
+    return 'xicamera_normal';
+end
+
+function COMMAND_MODE.normalize_stepper_value_kind(value)
+    value = type(value) == 'string' and value:lower() or '';
+    return value == 'options' and 'options' or 'number';
+end
+
+function COMMAND_MODE.normalize_stepper_orientation(value)
+    value = type(value) == 'string' and value:lower() or '';
+    return value == 'vertical' and 'vertical' or 'horizontal';
+end
+
+function COMMAND_MODE.stepper_number(value)
+    local number = tonumber(value);
+    if (number == nil or number ~= number or number == math.huge or number == -math.huge) then
+        return nil;
+    end
+    return number;
+end
+
+function COMMAND_MODE.stepper_number_text(value)
+    value = COMMAND_MODE.stepper_number(value);
+    if (value == nil) then
+        return '';
+    end
+    if (value == math.floor(value)) then
+        return tostring(math.floor(value));
+    end
+    return ('%.6f'):fmt(value):gsub('0+$', ''):gsub('%.$', '');
+end
+
+function COMMAND_MODE.parse_stepper_options(value)
+    local options = {};
+    local text = MACRO.normalize_line_endings(value);
+    if (text ~= '' and text:sub(-1) ~= '\n') then
+        text = text .. '\n';
+    end
+    for line in text:gmatch('([^\n]*)\n') do
+        line = trim_string(line);
+        if (line ~= '') then
+            local definition, command = line:match('^(.-)%s*|%s*([/!].*)$');
+            if (definition == nil) then
+                definition = line;
+                command = '';
+            end
+            local label, option_value = definition:match('^(.-)%s*=%s*(.-)$');
+            label = trim_one_line(label or '', LIMITS.macro_label_max);
+            option_value = trim_one_line(option_value or '', 64);
+            command = MACRO.sanitize_command_line(command or '');
+            table.insert(options, { label = label, value = option_value, command = command });
+        end
+    end
+    return options;
+end
+
+function COMMAND_MODE.stepper_options_to_text(options)
+    local lines = {};
+    if (type(options) ~= 'table') then
+        return '';
+    end
+    for _, option in ipairs(options) do
+        if (type(option) == 'table') then
+            local label = trim_one_line(option.label, LIMITS.macro_label_max);
+            local value = trim_one_line(tostring(option.value or ''), 64);
+            local command = MACRO.sanitize_command_line(option.command);
+            if (label ~= '' or value ~= '') then
+                local line = ('%s = %s'):fmt(label ~= '' and label or value, value);
+                if (command ~= '') then
+                    line = line .. ' | ' .. command;
+                end
+                table.insert(lines, line);
+            end
+        end
+    end
+    return table.concat(lines, '\n');
+end
+
+function COMMAND_MODE.stepper_from_editor(editor)
+    editor = editor or {};
+    local category = COMMAND_MODE.normalize_stepper_category(editor.stepper_category);
+    local preset = COMMAND_MODE.normalize_stepper_preset(editor.stepper_preset);
+    local source = category == 'clientconfig' and 'config' or 'command';
+    local value_kind = category == 'xicamera' and 'number' or COMMAND_MODE.normalize_stepper_value_kind(editor.stepper_value_kind);
+    local command_template = trim_one_line(editor.stepper_command_template_buffer and editor.stepper_command_template_buffer[1] or '', LIMITS.stepper_template_max);
+    if (category == 'xicamera') then
+        command_template = preset == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
+    end
+    return {
+        category = category,
+        preset = preset,
+        source = source,
+        value_kind = value_kind,
+        orientation = COMMAND_MODE.normalize_stepper_orientation(editor.stepper_orientation),
+        command_template = command_template,
+        config_key = COMMAND_MODE.normalize_config_id(editor.config_key_buffer and editor.config_key_buffer[1] or nil),
+        min = COMMAND_MODE.stepper_number(editor.stepper_min_buffer and editor.stepper_min_buffer[1] or nil),
+        max = COMMAND_MODE.stepper_number(editor.stepper_max_buffer and editor.stepper_max_buffer[1] or nil),
+        step = COMMAND_MODE.stepper_number(editor.stepper_step_buffer and editor.stepper_step_buffer[1] or nil),
+        value = trim_one_line(editor.stepper_current_buffer and editor.stepper_current_buffer[1] or '', 64),
+        suffix = trim_one_line(editor.stepper_suffix_buffer and editor.stepper_suffix_buffer[1] or '', LIMITS.stepper_suffix_max),
+        options = COMMAND_MODE.parse_stepper_options(editor.stepper_options_buffer and editor.stepper_options_buffer[1] or ''),
+        wrap = editor.stepper_wrap ~= nil and editor.stepper_wrap[1] == true,
+    };
+end
+
+function COMMAND_MODE.stepper_from_slot(slot)
+    slot = type(slot) == 'table' and slot or {};
+    local options = {};
+    if (type(slot.stepper_options) == 'table') then
+        for _, option in ipairs(slot.stepper_options) do
+            if (type(option) == 'table') then
+                table.insert(options, {
+                    label = trim_one_line(option.label, LIMITS.macro_label_max),
+                    value = trim_one_line(tostring(option.value or ''), 64),
+                    command = MACRO.sanitize_command_line(option.command),
+                });
+            end
+        end
+    end
+    local source = COMMAND_MODE.normalize_stepper_source(slot.stepper_source);
+    local category = slot.stepper_category ~= nil and COMMAND_MODE.normalize_stepper_category(slot.stepper_category) or nil;
+    local template = trim_one_line(slot.stepper_command_template, LIMITS.stepper_template_max);
+    if (category == nil) then
+        if (template:match('^/cam%s+[dD]%s+{value}$') or template:lower():match('^/cam%s+distance%s+{value}$')) then
+            category = 'xicamera';
+        elseif (template:match('^/cam%s+[bB]%s+{value}$') or template:lower():match('^/cam%s+battle%s+{value}$')) then
+            category = 'xicamera';
+        elseif (source == 'config') then
+            category = 'clientconfig';
+        else
+            category = 'custom';
+        end
+    end
+    local preset = slot.stepper_preset ~= nil and COMMAND_MODE.normalize_stepper_preset(slot.stepper_preset)
+        or ((template:match('^/cam%s+[bB]%s+') or template:lower():match('^/cam%s+battle%s+')) and 'xicamera_battle' or 'xicamera_normal');
+    if (category == 'xicamera') then
+        source = 'command';
+        template = preset == 'xicamera_battle' and '/cam b {value}' or '/cam d {value}';
+    elseif (category == 'clientconfig') then
+        source = 'config';
+    end
+    return {
+        category = category,
+        preset = preset,
+        source = source,
+        value_kind = COMMAND_MODE.normalize_stepper_value_kind(slot.stepper_value_kind),
+        orientation = COMMAND_MODE.normalize_stepper_orientation(slot.stepper_orientation),
+        command_template = template,
+        config_key = COMMAND_MODE.normalize_config_id(slot.config_key),
+        min = COMMAND_MODE.stepper_number(slot.stepper_min),
+        max = COMMAND_MODE.stepper_number(slot.stepper_max),
+        step = COMMAND_MODE.stepper_number(slot.stepper_step),
+        value = trim_one_line(tostring(slot.stepper_value or ''), 64),
+        suffix = trim_one_line(slot.stepper_suffix, LIMITS.stepper_suffix_max),
+        options = options,
+        wrap = slot.stepper_wrap == true,
+    };
+end
+
+function COMMAND_MODE.stepper_validation_error(definition)
+    definition = type(definition) == 'table' and definition or {};
+    if (definition.source == 'config' and definition.config_key == nil) then
+        return 'Enter a config key from 1 to 207.';
+    end
+    if (definition.value_kind == 'number') then
+        if (definition.min == nil or definition.max == nil or definition.step == nil) then
+            return 'Enter numeric minimum, maximum, and step values.';
+        end
+        if (definition.max < definition.min) then
+            return 'Maximum must be greater than or equal to minimum.';
+        end
+        if (definition.step <= 0) then
+            return 'Step must be greater than zero.';
+        end
+        if (definition.source == 'config' and (definition.min ~= math.floor(definition.min) or definition.max ~= math.floor(definition.max) or definition.step ~= math.floor(definition.step))) then
+            return 'Client config numeric steppers require integer range and step values.';
+        end
+        local current = COMMAND_MODE.stepper_number(definition.value);
+        if (definition.source == 'command' and current == nil) then
+            return 'Enter the current/starting numeric value.';
+        end
+        if (current ~= nil and (current < definition.min or current > definition.max)) then
+            return 'Current value must be within the numeric range.';
+        end
+    else
+        if (#(definition.options or {}) < 2) then
+            return 'Enter at least two options.';
+        end
+        local seen = {};
+        for index, option in ipairs(definition.options) do
+            if (option.label == '' or option.value == '') then
+                return ('Option %d needs both a label and value.'):fmt(index);
+            end
+            if (seen[option.value] == true) then
+                return ('Option values must be unique: %s.'):fmt(option.value);
+            end
+            seen[option.value] = true;
+            if (definition.source == 'config' and COMMAND_MODE.normalize_config_value(option.value) == nil) then
+                return ('Config option %d needs an integer value.'):fmt(index);
+            end
+        end
+        if (definition.source == 'command' and definition.value == '') then
+            return 'Enter the current/starting option value.';
+        end
+        if (definition.source == 'command' and seen[definition.value] ~= true) then
+            return 'Current option value must match one of the option values.';
+        end
+    end
+    if (definition.source == 'command') then
+        local needs_template = definition.value_kind == 'number';
+        if (definition.value_kind == 'options') then
+            for _, option in ipairs(definition.options) do
+                if (option.command == '') then
+                    needs_template = true;
+                end
+            end
+        end
+        if (needs_template and (definition.command_template == '' or definition.command_template:find('{value}', 1, true) == nil)) then
+            return 'Command template must include {value}.';
+        end
+    end
+    return nil;
+end
+
+function COMMAND_MODE.stepper_option_index(definition, value)
+    value = tostring(value or '');
+    for index, option in ipairs(definition.options or {}) do
+        if (tostring(option.value or '') == value) then
+            return index;
+        end
+    end
+    return nil;
+end
+
+function COMMAND_MODE.stepper_command_for_value(definition, value, option)
+    if (definition.source == 'config') then
+        local config_value = COMMAND_MODE.normalize_config_value(value);
+        return (definition.config_key ~= nil and config_value ~= nil) and ('/config set %d %d'):fmt(definition.config_key, config_value) or nil;
+    end
+    local command = type(option) == 'table' and MACRO.sanitize_command_line(option.command) or '';
+    if (command ~= '') then
+        return command;
+    end
+    local value_text = tostring(value or '');
+    return MACRO.sanitize_command_line((definition.command_template or ''):gsub('{value}', value_text));
+end
+
+function COMMAND_MODE.stepper_state_key(slot, context)
+    local shared_name = SHARED.normalize_name(type(slot) == 'table' and slot.shared or nil);
+    if (shared_name ~= nil) then
+        return 'shared:' .. shared_name;
+    end
+    context = type(context) == 'table' and context or {};
+    local profile_key = normalize_profile_key(context.profile_key) or 'DEFAULT';
+    local group = valid_row_id(context.group) and context.group or 'base';
+    local index = tonumber(context.index) or 1;
+    return ('slot:%s:%s:%d'):fmt(profile_key, group, index);
+end
+
+function COMMAND_MODE.stepper_current_value(slot, context, definition)
+    definition = definition or COMMAND_MODE.stepper_from_slot(slot);
+    if (definition.source == 'config') then
+        local current, err = COMMAND_MODE.current_config_value(definition.config_key);
+        if (current == nil) then
+            return nil, err;
+        end
+        return COMMAND_MODE.stepper_number_text(current), nil;
+    end
+    if (type(context) == 'table' and context.stepper_use_definition_value == true) then
+        local direct = trim_one_line(tostring(definition.value or ''), 64);
+        return direct ~= '' and direct or nil, direct ~= '' and nil or 'Current stepper value is unavailable.';
+    end
+    local key = COMMAND_MODE.stepper_state_key(slot, context);
+    local stored = type(state.value_stepper_state) == 'table' and state.value_stepper_state[key] or nil;
+    local value = trim_one_line(tostring(stored ~= nil and stored or definition.value or ''), 64);
+    return value ~= '' and value or nil, value ~= '' and nil or 'Current stepper value is unavailable.';
+end
+
+function COMMAND_MODE.stepper_value_label(definition, value)
+    if (value == nil) then
+        return '?';
+    end
+    if (definition.value_kind == 'options') then
+        local index = COMMAND_MODE.stepper_option_index(definition, value);
+        local option = index ~= nil and definition.options[index] or nil;
+        return option ~= nil and option.label or tostring(value);
+    end
+    return COMMAND_MODE.stepper_number_text(value) .. (definition.suffix or '');
+end
+
+function COMMAND_MODE.stepper_next_command(slot, context, direction, definition)
+    definition = definition or COMMAND_MODE.stepper_from_slot(slot);
+    local validation_error = COMMAND_MODE.stepper_validation_error(definition);
+    if (validation_error ~= nil) then
+        return nil, validation_error;
+    end
+    direction = direction == 'decrease' and -1 or 1;
+    local current, current_error = COMMAND_MODE.stepper_current_value(slot, context, definition);
+    if (current == nil) then
+        return nil, current_error;
+    end
+    local next_value = nil;
+    local next_option = nil;
+    if (definition.value_kind == 'options') then
+        local current_index = COMMAND_MODE.stepper_option_index(definition, current);
+        if (current_index == nil) then
+            current_index = 1;
+        end
+        local next_index = current_index + direction;
+        if (definition.wrap) then
+            if (next_index < 1) then next_index = #definition.options; end
+            if (next_index > #definition.options) then next_index = 1; end
+        else
+            next_index = math.max(1, math.min(#definition.options, next_index));
+        end
+        next_option = definition.options[next_index];
+        next_value = next_option.value;
+    else
+        local current_number = COMMAND_MODE.stepper_number(current);
+        if (current_number == nil) then
+            return nil, 'Current numeric stepper value is invalid.';
+        end
+        local next_number = current_number + (definition.step * direction);
+        if (definition.wrap) then
+            if (next_number > definition.max) then next_number = definition.min; end
+            if (next_number < definition.min) then next_number = definition.max; end
+        else
+            next_number = math.max(definition.min, math.min(definition.max, next_number));
+        end
+        next_value = COMMAND_MODE.stepper_number_text(next_number);
+    end
+    local command = COMMAND_MODE.stepper_command_for_value(definition, next_value, next_option);
+    if (command == nil or command == '') then
+        return nil, 'Unable to generate the next stepper command.';
+    end
+    return command, nil, current, tostring(next_value);
+end
+
 function COMMAND_MODE.server_command_key(command)
     if (type(command) ~= 'string') then
         return nil;
@@ -5149,12 +5683,16 @@ function COMMAND_MODE.mode_for_slot(slot)
         return 'multi';
     end
 
+    local configured_mode = MACRO.normalize_mode(type(slot) == 'table' and slot.macro_mode or nil);
+    if (configured_mode == 'valuestepper' or (type(slot) == 'table' and slot.stepper_source ~= nil)) then
+        return 'valuestepper';
+    end
+
     local command_mode = COMMAND_MODE.mode_from_command(MACRO.primary_command(slot));
     if (command_mode ~= 'single') then
         return command_mode;
     end
 
-    local configured_mode = MACRO.normalize_mode(type(slot) == 'table' and slot.macro_mode or nil);
     if (COMMAND_MODE.is_structured_mode(configured_mode)) then
         return configured_mode;
     end
@@ -5189,6 +5727,9 @@ function COMMAND_MODE.command_action_for_mode(mode, command)
         local parsed = COMMAND_MODE.parse_config_command(command);
         return parsed ~= nil and parsed.id ~= nil and tostring(parsed.id) or '', '';
     end
+    if (mode == 'valuestepper') then
+        return '', '';
+    end
     if (mode == 'pet') then
         return name or '', target ~= '' and target or COMMAND_MODE.pet_command_default_target(name);
     end
@@ -5215,7 +5756,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     editor.command_action = action or '';
     editor.command_target = target or COMMAND_MODE.default_target(mode);
     editor.run_as_script[1] = mode == 'multi' and slot ~= nil and slot.script == true;
-    editor.use_action_name_label[1] = COMMAND_MODE.is_structured_mode(mode) and (slot == nil or slot.use_action_name_label ~= false) or false;
+    editor.use_action_name_label[1] = COMMAND_MODE.is_structured_mode(mode) and mode ~= 'valuestepper' and (slot == nil or slot.use_action_name_label ~= false) or false;
     MACRO.load_editor_pet_fight_idle_flash(editor, slot);
     editor.spell_type_filter = 'all';
     editor.spell_element_filter = 'all';
@@ -5238,6 +5779,23 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
         buffer_set(editor.config_value_a_buffer, '0');
         buffer_set(editor.config_value_b_buffer, '1');
     end
+    local stepper = COMMAND_MODE.stepper_from_slot(slot);
+    editor.stepper_category = stepper.category;
+    editor.stepper_preset = stepper.preset;
+    editor.stepper_source = stepper.source;
+    editor.stepper_value_kind = stepper.value_kind;
+    editor.stepper_orientation = stepper.orientation;
+    if (mode == 'valuestepper' and stepper.source == 'config') then
+        buffer_set(editor.config_key_buffer, stepper.config_key ~= nil and tostring(stepper.config_key) or '');
+    end
+    buffer_set(editor.stepper_command_template_buffer, stepper.command_template ~= '' and stepper.command_template or '/cam d {value}');
+    buffer_set(editor.stepper_min_buffer, stepper.min ~= nil and COMMAND_MODE.stepper_number_text(stepper.min) or '1');
+    buffer_set(editor.stepper_max_buffer, stepper.max ~= nil and COMMAND_MODE.stepper_number_text(stepper.max) or '50');
+    buffer_set(editor.stepper_step_buffer, stepper.step ~= nil and COMMAND_MODE.stepper_number_text(stepper.step) or '1');
+    buffer_set(editor.stepper_current_buffer, stepper.value ~= '' and stepper.value or '10');
+    buffer_set(editor.stepper_suffix_buffer, stepper.suffix or '');
+    buffer_set(editor.stepper_options_buffer, #stepper.options > 0 and COMMAND_MODE.stepper_options_to_text(stepper.options) or 'Low = 1\nMedium = 2\nHigh = 3');
+    editor.stepper_wrap[1] = stepper.wrap == true;
     if (mode == 'target') then
         editor.target_action = action or '/target';
     end
@@ -5284,6 +5842,20 @@ function COMMAND_MODE.editor_command(mode, editor)
     if (mode == 'configtoggle') then
         local id = COMMAND_MODE.normalize_config_id(editor.config_key_buffer[1]);
         return (id ~= nil) and ('/config get %d'):fmt(id) or '';
+    end
+    if (mode == 'valuestepper') then
+        local definition = COMMAND_MODE.stepper_from_editor(editor);
+        if (COMMAND_MODE.stepper_validation_error(definition) ~= nil) then
+            return '';
+        end
+        local value = definition.value;
+        local option = nil;
+        if (definition.value_kind == 'options') then
+            local option_index = COMMAND_MODE.stepper_option_index(definition, value);
+            option = option_index ~= nil and definition.options[option_index] or definition.options[1];
+            value = option ~= nil and option.value or value;
+        end
+        return COMMAND_MODE.stepper_command_for_value(definition, value, option) or '';
     end
     if (mode == 'weaponskill') then
         return (action ~= '') and ('/ws "%s" %s'):fmt(action, target) or '';
@@ -5524,6 +6096,9 @@ function COMMAND_MODE.editor_action_label(editor, mode)
         local id = COMMAND_MODE.normalize_config_id(editor ~= nil and editor.config_key_buffer[1] or nil);
         return trim_one_line(id ~= nil and ('Config %d'):fmt(id) or 'Config Toggle', LIMITS.macro_label_max);
     end
+    if (mode == 'valuestepper') then
+        return trim_one_line(editor ~= nil and editor.label_buffer[1] or 'Value Stepper', LIMITS.macro_label_max);
+    end
 
     return trim_one_line(editor ~= nil and editor.command_action or '', LIMITS.macro_label_max);
 end
@@ -5542,6 +6117,15 @@ function COMMAND_MODE.editor_selection_validation_error(mode, editor)
     if (mode == 'configtoggle') then
         local id, value_a, value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
         return COMMAND_MODE.config_toggle_validation_error(id, value_a, value_b);
+    end
+    if (mode == 'valuestepper') then
+        local definition = COMMAND_MODE.stepper_from_editor(editor);
+        local metadata_error = COMMAND_MODE.stepper_validation_error(definition);
+        if (metadata_error ~= nil) then return metadata_error; end
+        if (COMMAND_MODE.stepper_commands_validation_error ~= nil) then
+            return COMMAND_MODE.stepper_commands_validation_error(definition);
+        end
+        return nil;
     end
     if (COMMAND_MODE.clean_name(editor ~= nil and editor.command_action or '') == '') then
         if (mode == 'spell') then
@@ -6181,14 +6765,14 @@ function COMMAND_MODE.ensure_structured_selection(editor, mode)
     end
     if (mode == 'item' or mode == 'mount') then
         editor.command_target = '<me>';
-    elseif (mode == 'server' or mode == 'trusts' or mode == 'configtoggle') then
+    elseif (mode == 'server' or mode == 'trusts' or mode == 'configtoggle' or mode == 'valuestepper') then
         editor.command_target = '';
     elseif (mode == 'pet') then
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.pet_command_default_target(editor.command_action);
     else
         editor.command_target = trim_string(editor.command_target) ~= '' and editor.command_target or COMMAND_MODE.default_target(mode);
     end
-    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'trusts' or mode == 'configtoggle' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
+    if (mode == 'spell' or mode == 'item' or mode == 'mount' or mode == 'server' or mode == 'trusts' or mode == 'configtoggle' or mode == 'valuestepper' or mode == 'weaponskill' or mode == 'ability' or mode == 'pet') then
         return;
     end
 
@@ -6231,7 +6815,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
     editor.macro_mode = mode;
     editor.run_as_script[1] = false;
     if (COMMAND_MODE.is_structured_mode(mode)) then
-        editor.use_action_name_label[1] = true;
+        editor.use_action_name_label[1] = mode ~= 'valuestepper';
     end
     if (mode == 'item') then
         buffer_set(editor.icon_buffer, '');
@@ -6247,6 +6831,23 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
         buffer_set(editor.config_key_buffer, parsed ~= nil and parsed.id ~= nil and tostring(parsed.id) or '');
         buffer_set(editor.config_value_a_buffer, '0');
         buffer_set(editor.config_value_b_buffer, '1');
+    end
+    if (mode == 'valuestepper') then
+        editor.stepper_category = 'xicamera';
+        editor.stepper_preset = 'xicamera_normal';
+        editor.stepper_source = 'command';
+        editor.stepper_value_kind = 'number';
+        editor.stepper_orientation = 'horizontal';
+        buffer_set(editor.stepper_command_template_buffer, '/cam d {value}');
+        buffer_set(editor.stepper_min_buffer, '1');
+        buffer_set(editor.stepper_max_buffer, '50');
+        buffer_set(editor.stepper_step_buffer, '1');
+        buffer_set(editor.stepper_current_buffer, '10');
+        buffer_set(editor.stepper_suffix_buffer, '');
+        buffer_set(editor.stepper_options_buffer, 'Low = 1\nMedium = 2\nHigh = 3');
+        editor.stepper_wrap[1] = false;
+        buffer_set(editor.label_buffer, 'Camera');
+        buffer_set(editor.icon_buffer, 'asset_camera');
     end
     if (mode == 'target') then
         editor.target_action = action or '/target';
@@ -6988,14 +7589,111 @@ function COMMAND_MODE.render_config_toggle_editor(editor)
     end
 end
 
+function COMMAND_MODE.render_value_stepper_editor(editor)
+    imgui.TextColored(UI_COLORS.config_header, 'Category');
+    imgui.PushItemWidth(220);
+    local category = COMMAND_MODE.normalize_stepper_category(editor.stepper_category);
+    local category_label = category == 'xicamera' and 'XiCamera'
+        or (category == 'clientconfig' and 'Client Config' or 'Custom Command');
+    if (imgui.BeginCombo('Category##ashitabars_stepper_category', category_label, ImGuiComboFlags_None)) then
+        if (imgui.Selectable('XiCamera', category == 'xicamera')) then
+            editor.stepper_category = 'xicamera'; editor.stepper_preset = 'xicamera_normal'; editor.stepper_value_kind = 'number'; editor.stepper_source = 'command';
+            buffer_set(editor.label_buffer, 'Normal Cam'); buffer_set(editor.stepper_command_template_buffer, '/cam d {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
+        end
+        if (imgui.Selectable('Client Config', category == 'clientconfig')) then
+            editor.stepper_category = 'clientconfig'; editor.stepper_source = 'config';
+        end
+        if (imgui.Selectable('Custom Command', category == 'custom')) then
+            editor.stepper_category = 'custom'; editor.stepper_source = 'command';
+        end
+        imgui.EndCombo();
+    end
+    category = COMMAND_MODE.normalize_stepper_category(editor.stepper_category);
+
+    if (category == 'xicamera') then
+        local preset = COMMAND_MODE.normalize_stepper_preset(editor.stepper_preset);
+        local preset_label = preset == 'xicamera_battle' and 'Battle Camera Max Distance' or 'Normal Camera Max Distance';
+        if (imgui.BeginCombo('Setting##ashitabars_stepper_xicamera_setting', preset_label, ImGuiComboFlags_None)) then
+            if (imgui.Selectable('Normal Camera Max Distance', preset == 'xicamera_normal')) then
+                editor.stepper_preset = 'xicamera_normal'; editor.stepper_source = 'command'; editor.stepper_value_kind = 'number';
+                buffer_set(editor.label_buffer, 'Normal Cam'); buffer_set(editor.stepper_command_template_buffer, '/cam d {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
+            end
+            if (imgui.Selectable('Battle Camera Max Distance', preset == 'xicamera_battle')) then
+                editor.stepper_preset = 'xicamera_battle'; editor.stepper_source = 'command'; editor.stepper_value_kind = 'number';
+                buffer_set(editor.label_buffer, 'Battle Cam'); buffer_set(editor.stepper_command_template_buffer, '/cam b {value}'); buffer_set(editor.icon_buffer, 'asset_camera');
+            end
+            imgui.EndCombo();
+        end
+    end
+
+    if (category ~= 'xicamera') then
+        local kind_label = editor.stepper_value_kind == 'options' and 'Named Options' or 'Numeric';
+        if (imgui.BeginCombo('Values##ashitabars_stepper_kind', kind_label, ImGuiComboFlags_None)) then
+            if (imgui.Selectable('Numeric', editor.stepper_value_kind ~= 'options')) then editor.stepper_value_kind = 'number'; end
+            if (imgui.Selectable('Named Options', editor.stepper_value_kind == 'options')) then
+                editor.stepper_value_kind = 'options';
+                local options = COMMAND_MODE.parse_stepper_options(editor.stepper_options_buffer[1]);
+                if (#options > 0 and COMMAND_MODE.stepper_option_index({ options = options }, editor.stepper_current_buffer[1]) == nil) then
+                    buffer_set(editor.stepper_current_buffer, options[1].value);
+                end
+            end
+            imgui.EndCombo();
+        end
+    end
+    local orientation_label = editor.stepper_orientation == 'vertical' and 'Vertical (up/down)' or 'Horizontal (left/right)';
+    if (imgui.BeginCombo('Split##ashitabars_stepper_orientation', orientation_label, ImGuiComboFlags_None)) then
+        if (imgui.Selectable('Horizontal (left/right)', editor.stepper_orientation ~= 'vertical')) then editor.stepper_orientation = 'horizontal'; end
+        if (imgui.Selectable('Vertical (up/down)', editor.stepper_orientation == 'vertical')) then editor.stepper_orientation = 'vertical'; end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+
+    if (category == 'clientconfig') then
+        imgui.PushItemWidth(110); imgui.InputText('Config Key##ashitabars_stepper_config_key', editor.config_key_buffer, 16); imgui.PopItemWidth();
+    elseif (category == 'custom') then
+        imgui.PushItemWidth(360); imgui.InputText('Command Template##ashitabars_stepper_template', editor.stepper_command_template_buffer, LIMITS.stepper_template_max); imgui.PopItemWidth();
+        imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Use {value}; an option may override it with its own command.');
+    end
+
+    local effective_kind = category == 'xicamera' and 'number' or editor.stepper_value_kind;
+    if (effective_kind == 'number') then
+        imgui.PushItemWidth(82);
+        imgui.InputText('Min##ashitabars_stepper_min', editor.stepper_min_buffer, 24); imgui.SameLine(0, 8);
+        imgui.InputText('Max##ashitabars_stepper_max', editor.stepper_max_buffer, 24); imgui.SameLine(0, 8);
+        imgui.InputText('Step##ashitabars_stepper_step', editor.stepper_step_buffer, 24); imgui.PopItemWidth();
+        if (category ~= 'clientconfig') then
+            imgui.PushItemWidth(110); imgui.InputText('Current / Starting Value##ashitabars_stepper_current_number', editor.stepper_current_buffer, 64); imgui.PopItemWidth();
+        end
+    else
+        imgui.TextColored(UI_COLORS.config_header, 'Options');
+        imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'One per line: Label = value, optionally followed by | /command');
+        MACRO.render_multiline_input('Options##ashitabars_stepper_options', editor.stepper_options_buffer, LIMITS.stepper_options_text_max, { 360, 112 });
+        if (category ~= 'clientconfig') then
+            imgui.PushItemWidth(160); imgui.InputText('Current / Starting Value##ashitabars_stepper_current_option', editor.stepper_current_buffer, 64); imgui.PopItemWidth();
+        end
+    end
+    imgui.PushItemWidth(110); imgui.InputText('Display Suffix##ashitabars_stepper_suffix', editor.stepper_suffix_buffer, LIMITS.stepper_suffix_max); imgui.PopItemWidth();
+    imgui.Checkbox('Wrap At Ends##ashitabars_stepper_wrap', editor.stepper_wrap);
+    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Click a side, right-click to decrease, or use the mouse wheel. Hotkey increases; Shift+hotkey decreases when no Shift page is assigned.');
+
+    local definition = COMMAND_MODE.stepper_from_editor(editor);
+    if (COMMAND_MODE.stepper_validation_error(definition) == nil) then
+        local current = definition.value;
+        if (definition.source == 'config') then current = COMMAND_MODE.current_config_value(definition.config_key); end
+        imgui.Text(('Displayed Value: %s'):fmt(COMMAND_MODE.stepper_value_label(definition, current)));
+    end
+end
+
 function COMMAND_MODE.render_structured_editor(editor, mode)
     COMMAND_MODE.ensure_structured_selection(editor, mode);
     if (mode == 'configtoggle') then
         COMMAND_MODE.render_config_toggle_editor(editor);
+    elseif (mode == 'valuestepper') then
+        COMMAND_MODE.render_value_stepper_editor(editor);
     else
         COMMAND_MODE.render_action_selector(editor, mode);
     end
-    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server' and mode ~= 'trusts' and mode ~= 'configtoggle') then
+    if (mode ~= 'item' and mode ~= 'mount' and mode ~= 'server' and mode ~= 'trusts' and mode ~= 'configtoggle' and mode ~= 'valuestepper') then
         COMMAND_MODE.render_target_selector(editor, mode);
     end
 
@@ -7037,6 +7735,16 @@ local function command_validation_error(command)
             return parsed ~= nil and parsed.error or 'Invalid config command.';
         end
     end
+    if (prefix == '/cam') then
+        local _, action, remainder = COMMAND_MODE.parse_command(command);
+        action = type(action) == 'string' and action:lower() or '';
+        if (action ~= 'd' and action ~= 'distance' and action ~= 'b' and action ~= 'battle') then
+            return 'Invalid XiCamera command. Use /cam d <value> or /cam b <value>.';
+        end
+        if (COMMAND_MODE.stepper_number(trim_string(remainder)) == nil or trim_string(remainder):find('%s') ~= nil) then
+            return 'XiCamera distance must be one numeric value.';
+        end
+    end
     if (prefix == '/trusts' and COMMAND_MODE.trusts_action_for_command(command) == nil) then
         return 'Invalid trusts addon command. Use /trusts or /trusts p1 through /trusts p5.';
     end
@@ -7044,6 +7752,28 @@ local function command_validation_error(command)
         return 'Invalid AshitaGuide command. Use /ashitaguide config.';
     end
 
+    return nil;
+end
+
+function COMMAND_MODE.stepper_commands_validation_error(definition)
+    if (COMMAND_MODE.stepper_validation_error(definition) ~= nil or definition.source ~= 'command') then
+        return nil;
+    end
+    local candidates = {};
+    if (definition.value_kind == 'options') then
+        for _, option in ipairs(definition.options) do
+            table.insert(candidates, COMMAND_MODE.stepper_command_for_value(definition, option.value, option));
+        end
+    else
+        table.insert(candidates, COMMAND_MODE.stepper_command_for_value(definition, COMMAND_MODE.stepper_number_text(definition.min)));
+        table.insert(candidates, COMMAND_MODE.stepper_command_for_value(definition, COMMAND_MODE.stepper_number_text(definition.max)));
+    end
+    for index, command in ipairs(candidates) do
+        local err = command_validation_error(command);
+        if (err ~= nil) then
+            return ('Generated command %d: %s'):fmt(index, err);
+        end
+    end
     return nil;
 end
 
@@ -7133,12 +7863,18 @@ function MACRO.run_editor_commands()
             value_b = config_value_b,
         };
     end
+    if (mode == 'valuestepper') then
+        context.value_stepper = COMMAND_MODE.stepper_from_editor(editor);
+        context.stepper_use_definition_value = true;
+        context.stepper_direction = 'increase';
+    end
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
         return false, queue_message;
     end
     COMMAND_MODE.track_command_execution(commands_to_queue);
+    COMMAND_MODE.commit_stepper_execution(context);
 
     if (mode == 'multi') then
         if (editor.run_as_script[1] == true) then
@@ -7150,7 +7886,7 @@ function MACRO.run_editor_commands()
     return true, 'Validated and ran command.';
 end
 
-local function execute_slot(group, index, source)
+local function execute_slot(group, index, source, direction)
     local bar_key = BAR.key_for_group(group);
     refresh_profile_context(bar_key);
 
@@ -7173,6 +7909,7 @@ local function execute_slot(group, index, source)
         index = index,
         script = MACRO.script_enabled(slot),
         slot = slot,
+        stepper_direction = direction == 'decrease' and 'decrease' or 'increase',
     };
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
@@ -7181,6 +7918,7 @@ local function execute_slot(group, index, source)
         return false;
     end
     COMMAND_MODE.track_command_execution(commands_to_queue);
+    COMMAND_MODE.commit_stepper_execution(context);
 
     return true;
 end
@@ -7205,7 +7943,7 @@ local function prune_button_overrides()
     end
 end
 
-local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b, pet_fight_idle_flash)
+local function set_slot_override(profile_key, group, index, label, command, icon, macro_mode, commands, shared_ref, use_action_name_label, script, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b, pet_fight_idle_flash, value_stepper)
     profile_key = normalize_profile_key(profile_key) or 'DEFAULT';
     if (not valid_row_id(group) or type(index) ~= 'number' or index < 1 or index > LIMITS.button_count_max) then
         return false, 'Invalid button selection.';
@@ -7259,6 +7997,12 @@ local function set_slot_override(profile_key, group, index, label, command, icon
                 return false, err;
             end
         end
+        if (slot.macro_mode == 'valuestepper') then
+            local ok, err = MACRO.apply_value_stepper_to_slot(slot, value_stepper);
+            if (not ok) then
+                return false, err;
+            end
+        end
         if (slot.macro_mode == 'multi') then
             slot.commands = MACRO.commands_from_table(commands);
             if (#slot.commands == 0 and slot.command ~= '') then
@@ -7268,8 +8012,11 @@ local function set_slot_override(profile_key, group, index, label, command, icon
             if (script == true) then
                 slot.script = true;
             end
-        else
+        elseif (not COMMAND_MODE.is_structured_mode(slot.macro_mode)) then
             slot.macro_mode = 'single';
+            slot.commands = nil;
+            slot.script = nil;
+        else
             slot.commands = nil;
             slot.script = nil;
         end
@@ -7329,6 +8076,10 @@ function SHARED.editor_slot(require_command)
             return nil, err;
         end
     end
+    if (mode == 'valuestepper') then
+        local ok, err = MACRO.apply_value_stepper_to_slot(slot, COMMAND_MODE.stepper_from_editor(editor));
+        if (not ok) then return nil, err; end
+    end
     MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
     MACRO.apply_pet_fight_idle_flash_to_slot(slot, MACRO.pet_fight_idle_flash_value(editor));
 
@@ -7385,6 +8136,11 @@ function SHARED.save_editor_shared()
     editor.shared_ref = shared_name;
     editor.source = 'shared: ' .. shared_name;
     buffer_set(editor.shared_name_buffer, shared_name);
+    if (MACRO.normalize_mode(editor.macro_mode) == 'valuestepper') then
+        COMMAND_MODE.reset_stepper_runtime_value({ shared = shared_name }, {
+            profile_key = editor.profile_key, group = editor.group, index = editor.index,
+        }, COMMAND_MODE.stepper_from_editor(editor));
+    end
     log_info(save_message);
     return true, ('Saved shared button: %s'):fmt(shared_name);
 end
@@ -7582,6 +8338,46 @@ function MACRO.apply_config_toggle_to_slot(slot, id, value_a, value_b)
     return true, nil;
 end
 
+function MACRO.apply_value_stepper_to_slot(slot, definition)
+    if (type(slot) ~= 'table') then
+        return false, 'No button selected.';
+    end
+    definition = type(definition) == 'table' and definition or {};
+    local validation_error = COMMAND_MODE.stepper_validation_error(definition);
+    if (validation_error ~= nil) then
+        return false, validation_error;
+    end
+    slot.macro_mode = 'valuestepper';
+    slot.use_action_name_label = false;
+    slot.stepper_source = definition.source;
+    slot.stepper_category = definition.category;
+    slot.stepper_preset = definition.preset;
+    slot.stepper_value_kind = definition.value_kind;
+    slot.stepper_orientation = definition.orientation;
+    slot.stepper_command_template = definition.command_template;
+    slot.stepper_min = definition.min;
+    slot.stepper_max = definition.max;
+    slot.stepper_step = definition.step;
+    slot.stepper_value = definition.value;
+    slot.stepper_suffix = definition.suffix;
+    slot.stepper_options = copy_slot(definition.options);
+    slot.stepper_wrap = definition.wrap == true;
+    slot.config_key = definition.source == 'config' and definition.config_key or nil;
+    local value = definition.value;
+    local option = nil;
+    if (definition.value_kind == 'options') then
+        local option_index = COMMAND_MODE.stepper_option_index(definition, value);
+        option = option_index ~= nil and definition.options[option_index] or definition.options[1];
+        value = option ~= nil and option.value or value;
+    end
+    if (definition.source == 'config') then
+        slot.command = ('/config get %d'):fmt(definition.config_key);
+    else
+        slot.command = COMMAND_MODE.stepper_command_for_value(definition, value, option) or '';
+    end
+    return true, nil;
+end
+
 function MACRO.load_editor_weaponskill_effect(editor, slot)
     if (type(editor) ~= 'table') then
         return;
@@ -7652,6 +8448,10 @@ function MACRO.editor_snapshot_slot(editor)
         if (not ok) then
             return nil, err;
         end
+    end
+    if (mode == 'valuestepper') then
+        local ok, err = MACRO.apply_value_stepper_to_slot(slot, COMMAND_MODE.stepper_from_editor(editor));
+        if (not ok) then return nil, err; end
     end
     MACRO.apply_weaponskill_effect_to_slot(slot, MACRO.editor_weaponskill_effect_values(editor));
     MACRO.apply_pet_fight_idle_flash_to_slot(slot, MACRO.pet_fight_idle_flash_value(editor));
@@ -7843,6 +8643,11 @@ local function save_macro_editor(clear_slot)
 
         editor.source = 'shared: ' .. shared_ref;
         buffer_set(editor.shared_name_buffer, shared_ref);
+        if (MACRO.normalize_mode(editor.macro_mode) == 'valuestepper') then
+            COMMAND_MODE.reset_stepper_runtime_value({ shared = shared_ref }, {
+                profile_key = editor.profile_key, group = editor.group, index = editor.index,
+            }, COMMAND_MODE.stepper_from_editor(editor));
+        end
         editor.message = ('Saved shared: %s'):fmt(shared_ref);
         editor.message_color = UI_COLORS.success;
         log_info(save_message);
@@ -7872,7 +8677,8 @@ local function save_macro_editor(clear_slot)
     if (mode == 'configtoggle' and not clear_slot) then
         config_key, config_value_a, config_value_b = COMMAND_MODE.config_toggle_values_from_editor(editor);
     end
-    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b, pet_fight_idle_flash);
+    local value_stepper = (mode == 'valuestepper' and not clear_slot) and COMMAND_MODE.stepper_from_editor(editor) or nil;
+    local set_ok, set_err = set_slot_override(editor.profile_key, editor.group, editor.index, label, command, icon, mode, commands, nil, use_action_name_label, mode == 'multi' and editor.run_as_script[1] == true, weaponskill_effect, weaponskill_effect_intensity, weaponskill_effect_opacity, weaponskill_effect_frequency, config_key, config_value_a, config_value_b, pet_fight_idle_flash, value_stepper);
     if (not set_ok) then
         editor.message = set_err;
         editor.message_color = UI_COLORS.error;
@@ -7902,6 +8708,11 @@ local function save_macro_editor(clear_slot)
     editor.shared_ref = nil;
     buffer_set(editor.icon_buffer, icon);
     editor.source = 'saved edit';
+    if (mode == 'valuestepper' and not clear_slot) then
+        COMMAND_MODE.reset_stepper_runtime_value(get_slot(editor.group, editor.index), {
+            profile_key = editor.profile_key, group = editor.group, index = editor.index,
+        }, value_stepper);
+    end
     editor.message = clear_slot and 'Cleared.' or 'Saved.';
     editor.message_color = UI_COLORS.success;
     log_info(save_message);
@@ -8071,7 +8882,30 @@ function COMMAND_MODE.commands_for_execution(commands, options)
 
     local config_toggle = type(options) == 'table' and options.config_toggle or nil;
     local slot = type(options) == 'table' and options.slot or nil;
-    if (config_toggle ~= nil or (type(slot) == 'table' and slot.config_key ~= nil)) then
+    local value_stepper = type(options) == 'table' and options.value_stepper or nil;
+    if (value_stepper ~= nil or (type(slot) == 'table' and (slot.stepper_source ~= nil or MACRO.normalize_mode(slot.macro_mode) == 'valuestepper'))) then
+        local definition = value_stepper or COMMAND_MODE.stepper_from_slot(slot);
+        local stepper_slot = slot or {
+            stepper_source = definition.source,
+            stepper_value_kind = definition.value_kind,
+            stepper_value = definition.value,
+        };
+        local command, stepper_error, _, next_value = COMMAND_MODE.stepper_next_command(stepper_slot, options, options.stepper_direction, definition);
+        if (command == nil) then
+            log_warn(('Value Stepper rejected: %s'):fmt(stepper_error or 'Unable to generate command.'));
+            return {};
+        end
+        local generated_error = command_validation_error(command);
+        if (generated_error ~= nil) then
+            log_warn(('Value Stepper rejected: %s'):fmt(generated_error));
+            return {};
+        end
+        options.stepper_pending_value = next_value;
+        options.stepper_pending_slot = stepper_slot;
+        options.stepper_pending_definition = definition;
+        return { command };
+    end
+    if (config_toggle ~= nil or (type(slot) == 'table' and slot.config_value_a ~= nil and slot.config_value_b ~= nil)) then
         local id = config_toggle ~= nil and config_toggle.key or slot.config_key;
         local value_a = config_toggle ~= nil and config_toggle.value_a or slot.config_value_a;
         local value_b = config_toggle ~= nil and config_toggle.value_b or slot.config_value_b;
@@ -8105,6 +8939,41 @@ function COMMAND_MODE.commands_for_execution(commands, options)
     end
 
     return commands;
+end
+
+function COMMAND_MODE.commit_stepper_execution(context)
+    if (type(context) ~= 'table' or context.stepper_pending_value == nil) then
+        return;
+    end
+    local slot = context.stepper_pending_slot or context.slot or {};
+    local definition = context.stepper_pending_definition or COMMAND_MODE.stepper_from_slot(slot);
+    local key = COMMAND_MODE.stepper_state_key(slot, context);
+    state.value_stepper_feedback[key] = {
+        at = os.clock(),
+        direction = context.stepper_direction == 'decrease' and 'decrease' or 'increase',
+    };
+    if (definition.source == 'command') then
+        state.value_stepper_state[key] = tostring(context.stepper_pending_value);
+        local ok, err = COMMAND_MODE.save_value_stepper_state();
+        if (not ok) then
+            log_warn(('Value Stepper state was not saved: %s'):fmt(tostring(err)));
+        end
+    end
+    context.stepper_pending_value = nil;
+end
+
+function COMMAND_MODE.reset_stepper_runtime_value(slot, context, definition)
+    definition = definition or COMMAND_MODE.stepper_from_slot(slot);
+    local key = COMMAND_MODE.stepper_state_key(slot, context);
+    if (definition.source == 'command' and definition.value ~= '') then
+        state.value_stepper_state[key] = tostring(definition.value);
+    else
+        state.value_stepper_state[key] = nil;
+    end
+    local ok, err = COMMAND_MODE.save_value_stepper_state();
+    if (not ok) then
+        log_warn(('Value Stepper state was not saved: %s'):fmt(tostring(err)));
+    end
 end
 
 function COMMAND_MODE.track_command_execution(commands)
@@ -9586,6 +10455,47 @@ local function draw_label_overlay(draw_list, x, y, slot_size, label, color)
     draw_text_shadow(draw_list, text_x, math.floor(text_y + 0.5), theme.label_text or { 0.96, 0.93, 0.84, 1.00 }, fitted);
 end
 
+function COMMAND_MODE.draw_value_stepper_overlay(draw_list, x, y, slot_size, label, value, definition, feedback)
+    local theme = current_theme();
+    local text_color = theme.label_text or { 0.96, 0.93, 0.84, 1.00 };
+    local accent = theme.icon_border or { 1.00, 0.86, 0.54, 1.00 };
+    local vertical = definition.orientation == 'vertical';
+    local feedback_alpha = 0;
+    if (type(feedback) == 'table') then
+        feedback_alpha = math.max(0, 1 - ((os.clock() - (tonumber(feedback.at) or 0)) / 0.22));
+    end
+    if (feedback_alpha > 0) then
+        local x1, y1, x2, y2 = x + 2, y + 2, x + slot_size - 2, y + slot_size - 2;
+        if (vertical) then
+            if (feedback.direction == 'increase') then y2 = y + (slot_size * 0.5); else y1 = y + (slot_size * 0.5); end
+        else
+            if (feedback.direction == 'decrease') then x2 = x + (slot_size * 0.5); else x1 = x + (slot_size * 0.5); end
+        end
+        draw_list:AddRectFilled({ x1, y1 }, { x2, y2 }, color_u32(color_with_alpha(accent, feedback_alpha * 0.18)), 3.0);
+    end
+
+    local label_text = fit_text(label or 'Value', slot_size - (vertical and 12 or 24));
+    local value_text = fit_text(value or '?', slot_size - (vertical and 12 or 24));
+    local label_w, label_h = imgui.CalcTextSize(label_text);
+    local value_w, value_h = imgui.CalcTextSize(value_text);
+    label_w, label_h = tonumber(label_w) or 0, tonumber(label_h) or 0;
+    value_w, value_h = tonumber(value_w) or 0, tonumber(value_h) or 0;
+    local center_y = y + (slot_size * 0.58);
+    draw_text_shadow(draw_list, x + ((slot_size - label_w) * 0.5), center_y - label_h - 1, text_color, label_text);
+    draw_text_shadow(draw_list, x + ((slot_size - value_w) * 0.5), center_y + 1, accent, value_text);
+
+    if (vertical) then
+        local cx = x + (slot_size * 0.5);
+        draw_text_shadow(draw_list, cx - 3, y + 3, accent, '^');
+        draw_text_shadow(draw_list, cx - 3, y + slot_size - 15, accent, 'v');
+        draw_list:AddLine({ x + 5, y + (slot_size * 0.5) }, { x + slot_size - 5, y + (slot_size * 0.5) }, color_u32(color_with_alpha(accent, 0.22)), 1.0);
+    else
+        draw_text_shadow(draw_list, x + 4, y + (slot_size * 0.5) - 7, accent, '<');
+        draw_text_shadow(draw_list, x + slot_size - 11, y + (slot_size * 0.5) - 7, accent, '>');
+        draw_list:AddLine({ x + (slot_size * 0.5), y + 5 }, { x + (slot_size * 0.5), y + slot_size - 5 }, color_u32(color_with_alpha(accent, 0.16)), 1.0);
+    end
+end
+
 local function draw_empty_slot_overlay(draw_list, x, y, slot_size)
     local theme = current_theme();
     local inset = math.max(8, math.floor(slot_size * 0.18));
@@ -10209,6 +11119,42 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local draw_list = imgui.GetWindowDrawList();
     local edit_hovered = show_frame and hovered and edit_handle_hovered(x, y, slot_size);
     local edit_clicked = clicked and edit_hovered;
+    local is_value_stepper = COMMAND_MODE.mode_for_slot(slot) == 'valuestepper';
+    local stepper_definition = is_value_stepper and COMMAND_MODE.stepper_from_slot(slot) or nil;
+    if (is_value_stepper and COMMAND_MODE.stepper_validation_error(stepper_definition) ~= nil) then
+        command_supported = false;
+    end
+    local stepper_context = nil;
+    local stepper_value = nil;
+    local stepper_feedback = nil;
+    local stepper_direction = nil;
+    if (is_value_stepper) then
+        local bar_key = BAR.key_for_group(row.id);
+        local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
+        stepper_context = { profile_key = editable_profile_key(profile), group = row.id, index = index };
+        local current = COMMAND_MODE.stepper_current_value(slot, stepper_context, stepper_definition);
+        stepper_value = COMMAND_MODE.stepper_value_label(stepper_definition, current);
+        local feedback_key = COMMAND_MODE.stepper_state_key(slot, stepper_context);
+        stepper_feedback = type(state.value_stepper_feedback) == 'table' and state.value_stepper_feedback[feedback_key] or nil;
+        if (hovered and not edit_clicked) then
+            local right_clicked = safe_read(function () return imgui.IsMouseClicked(1); end, false) == true;
+            local wheel = safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
+            if (right_clicked) then
+                stepper_direction = 'decrease';
+            elseif (wheel > 0) then
+                stepper_direction = 'increase';
+            elseif (wheel < 0) then
+                stepper_direction = 'decrease';
+            elseif (clicked) then
+                local mouse_x, mouse_y = imgui.GetMousePos();
+                if (stepper_definition.orientation == 'vertical') then
+                    stepper_direction = mouse_y < (y + (slot_size * 0.5)) and 'increase' or 'decrease';
+                else
+                    stepper_direction = mouse_x < (x + (slot_size * 0.5)) and 'decrease' or 'increase';
+                end
+            end
+        end
+    end
     if (capture_anchor) then
         local window_x, window_y = imgui.GetWindowPos();
         local extra_anchor_key = capture_anchor == 'click' and 'extra1' or capture_anchor;
@@ -10347,7 +11293,9 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     local label = COMMAND_MODE.slot_label(slot);
-    if (setting_enabled('show_labels', true) and has_command and label ~= nil and label ~= '') then
+    if (is_value_stepper and has_command) then
+        COMMAND_MODE.draw_value_stepper_overlay(draw_list, rx, ry, slot_size, label, stepper_value, stepper_definition, stepper_feedback);
+    elseif (setting_enabled('show_labels', true) and has_command and label ~= nil and label ~= '') then
         draw_label_overlay(draw_list, rx, ry, slot_size, label, command_supported and draw_icon_color or { 1.00, 0.30, 0.24, 1.00 });
     end
 
@@ -10372,10 +11320,13 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     if (edit_clicked) then
         local editor_row = BAR.group_modifier(row.id) ~= nil and (ROW_BY_ID[BAR.parent_group(row.id)] or row) or row;
         open_macro_editor(editor_row, index);
-        return false;
+        return nil;
     end
 
-    return clicked;
+    if (is_value_stepper) then
+        return stepper_direction;
+    end
+    return clicked and 'activate' or nil;
 end
 
 local function render_tooltip(row, index)
@@ -10392,6 +11343,15 @@ local function render_tooltip(row, index)
     local label = COMMAND_MODE.slot_label(slot);
     if (label ~= nil and label ~= '') then
         imgui.Text(label);
+    end
+    if (COMMAND_MODE.mode_for_slot(slot) == 'valuestepper') then
+        local bar_key = BAR.key_for_group(row.id);
+        local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
+        local context = { profile_key = editable_profile_key(profile), group = row.id, index = index };
+        local definition = COMMAND_MODE.stepper_from_slot(slot);
+        local current = COMMAND_MODE.stepper_current_value(slot, context, definition);
+        imgui.Text(('value: %s'):fmt(COMMAND_MODE.stepper_value_label(definition, current)));
+        imgui.Text('left/down/right-click: decrease; right/up/wheel-up: increase');
     end
     if (prefix ~= '/item' and icon_token ~= nil) then
         imgui.Text('icon: ' .. icon_token);
@@ -10462,8 +11422,9 @@ local function render_row(row, active, transition_alpha, show_row_label, capture
             effective_transition_alpha = 0;
         end
 
-        if (render_slot_button(effective_row, index, current_slot_size, effective_active, effective_transition_alpha, should_capture_anchor, show_frame)) then
-            execute_slot(effective_row.id, index, 'click');
+        local activation = render_slot_button(effective_row, index, current_slot_size, effective_active, effective_transition_alpha, should_capture_anchor, show_frame);
+        if (activation ~= nil) then
+            execute_slot(effective_row.id, index, 'click', activation);
         end
         render_tooltip(effective_row, index);
     end
@@ -10959,12 +11920,15 @@ function MACRO.render_editor_active_form(editor)
     mode = MACRO.normalize_mode(editor.macro_mode);
 
     imgui.PushItemWidth(360);
-    if (COMMAND_MODE.is_structured_mode(mode)) then
+    if (COMMAND_MODE.is_structured_mode(mode) and mode ~= 'valuestepper') then
         if (imgui.Checkbox('Use Action Name As Label##ashitabars_button_action_name_label', editor.use_action_name_label)) then
             if (editor.use_action_name_label[1] ~= false) then
                 COMMAND_MODE.apply_editor_action_label(editor, mode);
             end
         end
+    end
+    if (mode == 'valuestepper') then
+        editor.use_action_name_label[1] = false;
     end
     if (not COMMAND_MODE.is_structured_mode(mode) or editor.use_action_name_label[1] == false) then
         imgui.InputText('Label##ashitabars_button_label', editor.label_buffer, LIMITS.macro_label_max);
@@ -11359,11 +12323,22 @@ ashita.events.register('key', 'key_cb', function (e)
 
     local map = KEYBIND.binding_map();
     local binding = map[combo];
+    local direction = 'increase';
+    if (binding == nil and key_down(VK.SHIFT) and not key_down(VK.CONTROL) and not key_down(VK.ALT)) then
+        local key = KEYBIND.event_key_label(e.wparam);
+        local base_combo = KEYBIND.combo_from_parts(key, false, false, false);
+        local candidate = base_combo ~= nil and map[base_combo] or nil;
+        local candidate_slot = candidate ~= nil and get_slot(candidate.group, candidate.index) or nil;
+        if (candidate ~= nil and COMMAND_MODE.mode_for_slot(candidate_slot) == 'valuestepper') then
+            binding = candidate;
+            direction = 'decrease';
+        end
+    end
     if (binding == nil) then
         return;
     end
 
-    if (execute_slot(binding.group, binding.index, 'key')) then
+    if (execute_slot(binding.group, binding.index, 'key', direction)) then
         e.blocked = true;
     end
 end);
