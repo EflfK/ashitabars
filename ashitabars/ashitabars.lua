@@ -11728,7 +11728,7 @@ local function render_bars()
     local offset_x, offset_y = bar_window_offset(show_frame);
     local window_x = anchor_x - offset_x;
     local window_y = anchor_y - offset_y;
-    local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
+    local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
     local style_var_count = 0;
     local anchor_locked = state.bar_anchor_lock_x ~= nil and state.bar_anchor_lock_y ~= nil;
 
@@ -11813,7 +11813,7 @@ function BAR.render_extra_bar(bar_key)
     local offset_x, offset_y = BAR.extra_bar_window_offset(bar_key, show_frame);
     local window_x = anchor_x - offset_x;
     local window_y = anchor_y - offset_y;
-    local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
+    local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
     local style_var_count = 0;
     local runtime = BAR.extra_runtime(bar_key);
     local anchor_locked = runtime.anchor_lock_x ~= nil and runtime.anchor_lock_y ~= nil;
