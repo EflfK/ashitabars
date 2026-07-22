@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.29.0';
+addon.version   = '0.29.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -8869,6 +8869,12 @@ local function save_macro_editor(clear_slot)
     end
 
     local mode, command, commands = MACRO.editor_commands();
+    if (clear_slot) then
+        -- Clearing must not preserve a structured mode that requires metadata.
+        -- Store an explicit empty single-command override so configured/default
+        -- buttons remain hidden without validating the editor's stale fields.
+        mode = 'single';
+    end
     local use_action_name_label = COMMAND_MODE.is_structured_mode(mode) and editor.use_action_name_label[1] ~= false;
     local label = clear_slot and '' or (use_action_name_label and COMMAND_MODE.editor_action_label(editor, mode) or trim_one_line(editor.label_buffer[1], LIMITS.macro_label_max));
     command = clear_slot and '' or command;
