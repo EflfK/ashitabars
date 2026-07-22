@@ -484,7 +484,9 @@ Command mode options are:
   desired half, right-click anywhere on the button to decrease, or use the
   mouse wheel. Bind the button to `Wheel` by scrolling during keybind capture
   to adjust it anywhere on the game view without hovering the button; wheel up
-  increases and wheel down decreases. A normal assigned hotkey increases;
+  increases and wheel down decreases by default. Enable `Invert Mouse Wheel`
+  on the Value Stepper to make wheel up decrease and wheel down increase without
+  changing click or keyboard directions. A normal assigned hotkey increases;
   `Shift+hotkey` decreases
   when that button does not have an enabled Shift variant.
   The editor first filters by category so it only displays relevant fields:

@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.29.1';
+addon.version   = '0.30.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -946,6 +946,7 @@ local state = {
         stepper_suffix_buffer = T{ '' },
         stepper_options_buffer = T{ 'Low = 1\nMedium = 2\nHigh = 3' },
         stepper_wrap = T{ false },
+        stepper_invert_wheel = T{ false },
         message = nil,
         message_color = UI_COLORS.success,
     },
@@ -3254,6 +3255,7 @@ function SHARED.slot_parts(slot)
         end
         if (slot.stepper_suffix ~= nil and slot.stepper_suffix ~= '') then table.insert(parts, ('stepper_suffix = %s'):fmt(lua_string_literal(slot.stepper_suffix))); end
         if (slot.stepper_wrap == true) then table.insert(parts, 'stepper_wrap = true'); end
+        if (slot.stepper_invert_wheel ~= nil) then table.insert(parts, ('stepper_invert_wheel = %s'):fmt(slot.stepper_invert_wheel == true and 'true' or 'false')); end
         if (type(slot.stepper_options) == 'table' and #slot.stepper_options > 0) then
             local option_parts = {};
             for _, option in ipairs(slot.stepper_options) do
@@ -3828,6 +3830,7 @@ local function sanitize_slot_override(slot, allow_shared)
             sanitized.stepper_suffix = stepper.suffix;
             sanitized.stepper_options = stepper.options;
             sanitized.stepper_wrap = stepper.wrap;
+            sanitized.stepper_invert_wheel = stepper.invert_wheel;
         end
     end
 
@@ -4180,7 +4183,7 @@ local function apply_slot_override(base_slot, override)
         'stepper_min', 'stepper_max', 'stepper_step', 'stepper_value', 'stepper_suffix',
         'stepper_default_min', 'stepper_default_max', 'stepper_default_step', 'stepper_default_value',
         'stepper_battle_min', 'stepper_battle_max', 'stepper_battle_step', 'stepper_battle_value',
-        'stepper_options', 'stepper_wrap',
+        'stepper_options', 'stepper_wrap', 'stepper_invert_wheel',
     }) do
         if (override[key] ~= nil) then
             slot[key] = type(override[key]) == 'table' and copy_slot(override[key]) or override[key];
@@ -4290,6 +4293,7 @@ function MACRO.normalize_slot_runtime(slot)
         normalized.stepper_suffix = stepper.suffix;
         normalized.stepper_options = stepper.options;
         normalized.stepper_wrap = stepper.wrap;
+        normalized.stepper_invert_wheel = stepper.invert_wheel;
     end
 
     return normalized;
@@ -5373,6 +5377,7 @@ function COMMAND_MODE.stepper_from_editor(editor)
         suffix = trim_one_line(editor.stepper_suffix_buffer and editor.stepper_suffix_buffer[1] or '', LIMITS.stepper_suffix_max),
         options = COMMAND_MODE.parse_stepper_options(editor.stepper_options_buffer and editor.stepper_options_buffer[1] or ''),
         wrap = editor.stepper_wrap ~= nil and editor.stepper_wrap[1] == true,
+        invert_wheel = editor.stepper_invert_wheel ~= nil and editor.stepper_invert_wheel[1] == true,
     };
 end
 
@@ -5455,6 +5460,7 @@ function COMMAND_MODE.stepper_from_slot(slot)
         suffix = trim_one_line(slot.stepper_suffix, LIMITS.stepper_suffix_max),
         options = options,
         wrap = slot.stepper_wrap == true,
+        invert_wheel = slot.stepper_invert_wheel == true,
     };
 end
 
@@ -5622,6 +5628,14 @@ function COMMAND_MODE.stepper_value_label(definition, value)
         return option ~= nil and option.label or tostring(value);
     end
     return COMMAND_MODE.stepper_number_text(value) .. (definition.suffix or '');
+end
+
+function COMMAND_MODE.stepper_wheel_direction(definition, wheel)
+    local decrease = tonumber(wheel) ~= nil and tonumber(wheel) < 0;
+    if (type(definition) == 'table' and definition.invert_wheel == true) then
+        decrease = not decrease;
+    end
+    return decrease and 'decrease' or 'increase';
 end
 
 function COMMAND_MODE.stepper_next_command(slot, context, direction, definition)
@@ -5965,6 +5979,7 @@ function COMMAND_MODE.load_editor_slot(editor, slot)
     buffer_set(editor.stepper_suffix_buffer, stepper.suffix or '');
     buffer_set(editor.stepper_options_buffer, #stepper.options > 0 and COMMAND_MODE.stepper_options_to_text(stepper.options) or 'Low = 1\nMedium = 2\nHigh = 3');
     editor.stepper_wrap[1] = stepper.wrap == true;
+    editor.stepper_invert_wheel[1] = stepper.invert_wheel == true;
     if (mode == 'target') then
         editor.target_action = action or '/target';
     end
@@ -7023,6 +7038,7 @@ function COMMAND_MODE.change_editor_mode(editor, mode)
         buffer_set(editor.stepper_suffix_buffer, '');
         buffer_set(editor.stepper_options_buffer, 'Low = 1\nMedium = 2\nHigh = 3');
         editor.stepper_wrap[1] = false;
+        editor.stepper_invert_wheel[1] = false;
         buffer_set(editor.label_buffer, 'Camera');
         buffer_set(editor.icon_buffer, 'asset_camera');
     end
@@ -7871,7 +7887,8 @@ function COMMAND_MODE.render_value_stepper_editor(editor)
     end
     imgui.PushItemWidth(110); imgui.InputText('Display Suffix##ashitabars_stepper_suffix', editor.stepper_suffix_buffer, LIMITS.stepper_suffix_max); imgui.PopItemWidth();
     imgui.Checkbox('Wrap At Ends##ashitabars_stepper_wrap', editor.stepper_wrap);
-    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Click a side, right-click to decrease, or use the mouse wheel. Bind Wheel to adjust without hovering. Hotkey increases; Shift+hotkey decreases when no Shift page is assigned.');
+    imgui.Checkbox('Invert Mouse Wheel##ashitabars_stepper_invert_wheel', editor.stepper_invert_wheel);
+    imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'Click a side, right-click to decrease, or use the mouse wheel. Bind Wheel to adjust without hovering. Invert Mouse Wheel swaps wheel up/down only. Hotkey increases; Shift+hotkey decreases when no Shift page is assigned.');
 
     local definition = COMMAND_MODE.stepper_from_editor(editor);
     if (COMMAND_MODE.stepper_validation_error(definition) == nil) then
@@ -8576,6 +8593,7 @@ function MACRO.apply_value_stepper_to_slot(slot, definition)
     slot.stepper_suffix = definition.suffix;
     slot.stepper_options = copy_slot(definition.options);
     slot.stepper_wrap = definition.wrap == true;
+    slot.stepper_invert_wheel = definition.invert_wheel == true;
     slot.config_key = definition.source == 'config' and definition.config_key or nil;
     local value = definition.value;
     local option = nil;
@@ -11376,10 +11394,8 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
             local wheel = state.value_stepper_wheel_handled == true and 0 or safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
             if (right_clicked) then
                 stepper_direction = 'decrease';
-            elseif (wheel > 0) then
-                stepper_direction = 'increase';
-            elseif (wheel < 0) then
-                stepper_direction = 'decrease';
+            elseif (wheel ~= 0) then
+                stepper_direction = COMMAND_MODE.stepper_wheel_direction(stepper_definition, wheel);
             elseif (clicked) then
                 local mouse_x, mouse_y = imgui.GetMousePos();
                 if (stepper_definition.orientation == 'vertical') then
@@ -12605,7 +12621,8 @@ local function handle_bound_mouse_wheel()
     if (COMMAND_MODE.mode_for_slot(slot) ~= 'valuestepper') then
         return;
     end
-    state.value_stepper_wheel_handled = execute_slot(binding.group, binding.index, 'mouse wheel', wheel < 0 and 'decrease' or 'increase');
+    local definition = COMMAND_MODE.stepper_from_slot(slot);
+    state.value_stepper_wheel_handled = execute_slot(binding.group, binding.index, 'mouse wheel', COMMAND_MODE.stepper_wheel_direction(definition, wheel));
 end
 
 ashita.events.register('d3d_present', 'present_cb', function ()
