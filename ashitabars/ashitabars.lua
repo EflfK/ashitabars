@@ -11751,6 +11751,11 @@ local function render_bars()
 
     local window_title = ('AshitaBars [%s]###AshitaBars'):fmt(profile.key or 'DEFAULT');
     if (imgui.Begin(window_title, state.visible, window_flags)) then
+        -- The ImGui window survives addon reloads, so clear any wheel scroll that
+        -- was captured before NoScrollWithMouse was enabled.
+        if (type(imgui.SetScrollY) == 'function') then
+            imgui.SetScrollY(0);
+        end
         state.bar_window_x, state.bar_window_y = imgui.GetWindowPos();
 
         if (state.config_error ~= nil) then
@@ -11838,6 +11843,11 @@ function BAR.render_extra_bar(bar_key)
 
     local window_title = ('AshitaBars %s [%s]###AshitaBars%s'):fmt(BAR.extra_label(bar_key), profile.key or 'DEFAULT', bar_key);
     if (imgui.Begin(window_title, runtime.open, window_flags)) then
+        -- Keep action content anchored even if this persistent ImGui window had
+        -- already accumulated wheel scroll before the addon was reloaded.
+        if (type(imgui.SetScrollY) == 'function') then
+            imgui.SetScrollY(0);
+        end
         runtime.window_x, runtime.window_y = imgui.GetWindowPos();
         BAR.render_button_layout(ROW_BY_ID[BAR.extra_row_id(bar_key)] or CLICK_ROW, false, 0, false, bar_key, show_frame, bar_key);
 
