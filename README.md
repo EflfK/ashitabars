@@ -23,6 +23,14 @@ or another text input is open.
 - Selects an action profile by current main job, falling back to `DEFAULT`.
 - Clicks on visible slots also execute one configured command, structured
   generated command, or static multi-line macro.
+- Treats a single-command button containing `<stpt>` as an attended party
+  selection request. AshitaBars opens its own picker, accepts `F1`-`F6`,
+  Up/Down, mouse selection, Enter, and Escape, then replaces `<stpt>` with the
+  confirmed `<p0>`-`<p5>` before queuing the ordinary command.
+- Publishes the temporary party slot and server ID through the blocked local
+  `/ashitaui partyselect` command-event protocol so display-only addons such as
+  AshitaFrames can highlight the same member. The receiving addon blocks these
+  UI-state messages so they never reach FFXI chat or the game server.
 - Draws image-first action-button slots with hotkey badges, configurable label
   placement, readable text outlines, empty-slot dimming, and unsupported-command
   markers.
@@ -56,6 +64,42 @@ can wrap normal item-use and gear-state flows.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
+
+## Party Picker
+
+FFXI does not open its native purple `<stpt>` cursor for addon-injected chat
+commands. AshitaBars therefore intercepts a one-command button such as:
+
+```lua
+{ label = 'Regen', command = '/ma "Regen" <stpt>' }
+```
+
+Pressing or clicking that button opens an Ashita-owned picker. `F1` through
+`F6` choose the corresponding party slot, Up/Down cycle available members,
+Enter confirms, and Escape cancels. Mouse users can select a row and use Cast
+or Cancel. Confirmation re-reads the party slot and verifies the member's
+server ID before resolving the command, so a party reorder cannot silently
+cast on a different member. The picker follows the selected server ID if the
+same member moves to another party slot and cancels on removal or timeout.
+While the picker is open, AshitaBars blocks the initial and repeating
+DirectInput events for Up, Down, Enter, and Numpad Enter so those keys do not
+move or confirm the native battle menu.
+
+Picker commands must contain exactly one command and cannot run in script mode.
+Multi-command macros continue to use the existing direct or `/exec` paths and
+must use explicit targets.
+
+To hide the AshitaBars picker window/list while retaining keyboard selection
+and the AshitaFrames highlight, disable **Show Party Picker List** under
+`/ashitabars config` > General and save, or set:
+
+```lua
+show_party_picker = false,
+```
+
+`F1`-`F6`, Up/Down, Enter, and Escape remain active while the hidden picker is
+open. Its selection still clears on confirmation, cancellation, removal, or
+timeout.
 
 ## Install
 

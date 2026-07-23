@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.30.0';
+addon.version   = '0.31.4';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -18,9 +18,20 @@ local VK = {
     ALT     = 0x12,
     SHIFT   = 0x10,
     BACKSPACE = 0x08,
+    ENTER     = 0x0D,
     DELETE    = 0x2E,
     ESCAPE    = 0x1B,
+    UP        = 0x26,
+    DOWN      = 0x28,
     OEM_3     = 0xC0,
+    F1        = 0x70,
+    F6        = 0x75,
+    DIK_PARTY_PICKER = {
+        0x1C, -- Enter
+        0x9C, -- Numpad Enter
+        0xC8, -- Up Arrow
+        0xD0, -- Down Arrow
+    },
     DIGITS  = {
         [0x31] = 1,
         [0x32] = 2,
@@ -226,6 +237,10 @@ local MACRO = {
     COMMANDS_TEXT_MAX = LIMITS.macro_commands_text_max,
 };
 local COMMAND_MODE = {};
+PARTY_PICKER = {
+    TIMEOUT_SECONDS = 20.0,
+    PROTOCOL_COMMAND = '/ashitaui',
+};
 local SHARED = {
     NAME_MAX = 48,
 };
@@ -684,6 +699,7 @@ local DEFAULT_CONFIG = {
         show_recasts = true,
         show_counts = true,
         show_availability = true,
+        show_party_picker = true,
         show_weaponskill_pulse = true,
         weaponskill_tp_threshold = 1000,
         icon_style = 'auto',
@@ -952,6 +968,8 @@ local state = {
         message_color = UI_COLORS.success,
     },
     macro_clipboard = nil,
+    party_picker = nil,
+    party_picker_sequence = 0,
 };
 
 local ICON_ART_STYLE = {};
@@ -1589,6 +1607,310 @@ local function load_config()
     end
 end
 
+function PARTY_PICKER.command_has_party_subtarget(command)
+    return type(command) == 'string' and command:find('<[sS][tT][pP][tT]>') ~= nil;
+end
+
+function PARTY_PICKER.command_label(command)
+    command = tostring(command or '');
+    return command:match('^/%S+%s+"([^"]+)"') or command:match('^/%S+%s+(%S+)') or 'Action';
+end
+
+function PARTY_PICKER.member_at_slot(slot)
+    slot = tonumber(slot);
+    if (slot == nil or slot < 0 or slot > 5) then
+        return nil;
+    end
+
+    local memory = safe_read(function () return AshitaCore:GetMemoryManager(); end, nil);
+    local party = memory ~= nil and safe_read(function () return memory:GetParty(); end, nil) or nil;
+    if (party == nil) then
+        return nil;
+    end
+
+    local active = safe_read(function () return party:GetMemberIsActive(slot); end, false);
+    local name = tostring(safe_read(function () return party:GetMemberName(slot); end, '') or ''):gsub('^%s+', ''):gsub('%s+$', '');
+    local server_id = tonumber(safe_read(function () return party:GetMemberServerId(slot); end, 0)) or 0;
+    local target_index = tonumber(safe_read(function () return party:GetMemberTargetIndex(slot); end, 0)) or 0;
+    if (active ~= true and tonumber(active) ~= 1 and server_id == 0 and target_index == 0 and name == '') then
+        return nil;
+    end
+
+    return {
+        slot = slot,
+        name = name ~= '' and name or ('Party %d'):fmt(slot + 1),
+        server_id = server_id,
+        target_index = target_index,
+    };
+end
+
+function PARTY_PICKER.members()
+    local result = {};
+    for slot = 0, 5, 1 do
+        local member = PARTY_PICKER.member_at_slot(slot);
+        if (member ~= nil) then
+            result[#result + 1] = member;
+        end
+    end
+    return result;
+end
+
+function PARTY_PICKER.publish(action, picker)
+    picker = picker or state.party_picker;
+    if (picker == nil or picker.token == nil) then
+        return;
+    end
+
+    local command = nil;
+    if (action == 'set' and picker.selected_slot ~= nil and picker.selected_server_id ~= nil) then
+        command = ('%s partyselect set %s %d %d'):fmt(
+            PARTY_PICKER.PROTOCOL_COMMAND,
+            picker.token,
+            picker.selected_slot,
+            picker.selected_server_id);
+    elseif (action == 'clear') then
+        command = ('%s partyselect clear %s'):fmt(PARTY_PICKER.PROTOCOL_COMMAND, picker.token);
+    end
+
+    if (command ~= nil) then
+        AshitaCore:GetChatManager():QueueCommand(-1, command);
+    end
+end
+
+function PARTY_PICKER.select_member(member)
+    local picker = state.party_picker;
+    if (picker == nil or member == nil) then
+        return false;
+    end
+
+    picker.selected_slot = member.slot;
+    picker.selected_server_id = member.server_id;
+    picker.selected_name = member.name;
+    PARTY_PICKER.publish('set', picker);
+    return true;
+end
+
+function PARTY_PICKER.same_member(member, picker)
+    if (member == nil or picker == nil) then
+        return false;
+    end
+    if ((tonumber(picker.selected_server_id) or 0) > 0) then
+        return member.server_id == picker.selected_server_id;
+    end
+    return member.slot == picker.selected_slot and member.name == picker.selected_name;
+end
+
+function PARTY_PICKER.cancel(reason)
+    local picker = state.party_picker;
+    if (picker == nil) then
+        return false;
+    end
+
+    PARTY_PICKER.publish('clear', picker);
+    state.party_picker = nil;
+    if (reason ~= nil and reason ~= '') then
+        log_warn(reason);
+    end
+    return true;
+end
+
+function PARTY_PICKER.start(commands, context)
+    if (type(commands) ~= 'table' or #commands ~= 1 or type(commands[1]) ~= 'string') then
+        return false, 'Party subtarget buttons must contain exactly one command.';
+    end
+    if (type(context) == 'table' and context.script == true) then
+        return false, 'Party subtarget selection is not available for script-mode buttons.';
+    end
+
+    local members = PARTY_PICKER.members();
+    if (#members == 0) then
+        return false, 'No party members are available for selection.';
+    end
+
+    if (state.party_picker ~= nil) then
+        PARTY_PICKER.cancel(nil);
+    end
+
+    state.party_picker_sequence = (tonumber(state.party_picker_sequence) or 0) + 1;
+    local picker = {
+        command = commands[1],
+        context = context or {},
+        label = PARTY_PICKER.command_label(commands[1]),
+        token = ('%d-%d'):fmt(os.time(), state.party_picker_sequence),
+        expires_at = os.clock() + PARTY_PICKER.TIMEOUT_SECONDS,
+        visible = T{ true },
+    };
+    state.party_picker = picker;
+
+    local initial = members[1];
+    local memory = safe_read(function () return AshitaCore:GetMemoryManager(); end, nil);
+    local target = memory ~= nil and safe_read(function () return memory:GetTarget(); end, nil) or nil;
+    local current_index = target ~= nil and tonumber(safe_read(function () return target:GetTargetIndex(0); end, 0)) or 0;
+    if (current_index ~= 0) then
+        for _, member in ipairs(members) do
+            if member.target_index == current_index then
+                initial = member;
+                break;
+            end
+        end
+    end
+
+    PARTY_PICKER.select_member(initial);
+    return true, nil;
+end
+
+function PARTY_PICKER.try_start(commands, context)
+    local has_subtarget = false;
+    for _, command in ipairs(type(commands) == 'table' and commands or {}) do
+        if (PARTY_PICKER.command_has_party_subtarget(command)) then
+            has_subtarget = true;
+            break;
+        end
+    end
+    if (not has_subtarget) then
+        return false, nil;
+    end
+
+    local ok, err = PARTY_PICKER.start(commands, context);
+    return true, ok and nil or err;
+end
+
+function PARTY_PICKER.refresh()
+    local picker = state.party_picker;
+    if (picker == nil) then
+        return;
+    end
+    if (picker.visible ~= nil and picker.visible[1] == false) then
+        PARTY_PICKER.cancel(nil);
+        return;
+    end
+    if (os.clock() >= (tonumber(picker.expires_at) or 0)) then
+        PARTY_PICKER.cancel('Party selection timed out.');
+        return;
+    end
+
+    local matched = nil;
+    for _, member in ipairs(PARTY_PICKER.members()) do
+        if (PARTY_PICKER.same_member(member, picker)) then
+            matched = member;
+            break;
+        end
+    end
+    if (matched == nil) then
+        PARTY_PICKER.cancel('The selected party member is no longer available.');
+        return;
+    end
+    if (matched.slot ~= picker.selected_slot) then
+        PARTY_PICKER.select_member(matched);
+    else
+        picker.selected_name = matched.name;
+    end
+end
+
+function PARTY_PICKER.select_slot(slot)
+    local member = PARTY_PICKER.member_at_slot(slot);
+    return member ~= nil and PARTY_PICKER.select_member(member) or false;
+end
+
+function PARTY_PICKER.select_relative(delta)
+    local picker = state.party_picker;
+    local members = PARTY_PICKER.members();
+    if (picker == nil or #members == 0) then
+        return false;
+    end
+
+    local current = 1;
+    for index, member in ipairs(members) do
+        if (PARTY_PICKER.same_member(member, picker)) then
+            current = index;
+            break;
+        end
+    end
+    local next_index = ((current - 1 + delta) % #members) + 1;
+    return PARTY_PICKER.select_member(members[next_index]);
+end
+
+function PARTY_PICKER.confirm()
+    local picker = state.party_picker;
+    if (picker == nil) then
+        return false;
+    end
+
+    local member = PARTY_PICKER.member_at_slot(picker.selected_slot);
+    if (not PARTY_PICKER.same_member(member, picker)) then
+        PARTY_PICKER.cancel('Party membership changed; the action was not cast.');
+        return true;
+    end
+
+    local resolved = picker.command:gsub('<[sS][tT][pP][tT]>', ('<p%d>'):fmt(member.slot));
+    local context = picker.context or {};
+    PARTY_PICKER.publish('clear', picker);
+    state.party_picker = nil;
+
+    local queue_ok, queue_message = MACRO.queue_commands({ resolved }, context);
+    if (not queue_ok) then
+        log_warn(('Party action was not queued: %s'):fmt(tostring(queue_message or 'unknown error')));
+        return true;
+    end
+    COMMAND_MODE.track_command_execution({ resolved });
+    COMMAND_MODE.commit_stepper_execution(context);
+    return true;
+end
+
+function PARTY_PICKER.handle_key(vk)
+    if (state.party_picker == nil) then
+        return false;
+    end
+    if (vk >= VK.F1 and vk <= VK.F6) then
+        PARTY_PICKER.select_slot(vk - VK.F1);
+        return true;
+    end
+    if (vk == VK.UP) then
+        PARTY_PICKER.select_relative(-1);
+        return true;
+    end
+    if (vk == VK.DOWN) then
+        PARTY_PICKER.select_relative(1);
+        return true;
+    end
+    if (vk == VK.ENTER) then
+        return PARTY_PICKER.confirm();
+    end
+    if (vk == VK.ESCAPE) then
+        PARTY_PICKER.cancel(nil);
+        return true;
+    end
+    return false;
+end
+
+function PARTY_PICKER.render()
+    local picker = state.party_picker;
+    local settings = state.config.settings or {};
+    if (picker == nil or settings.show_party_picker == false) then
+        return;
+    end
+
+    if (imgui.Begin(('Select Party Target: %s###AshitaBarsPartyPicker'):fmt(picker.label), picker.visible, ImGuiWindowFlags_AlwaysAutoResize)) then
+        imgui.TextUnformatted('F1-F6 or Up/Down: select   Enter: cast   Esc: cancel');
+        imgui.Separator();
+        for _, member in ipairs(PARTY_PICKER.members()) do
+            local selected = PARTY_PICKER.same_member(member, picker);
+            if (imgui.Selectable(('F%d  %s##ashitabars_party_%d'):fmt(member.slot + 1, member.name, member.slot), selected)) then
+                PARTY_PICKER.select_member(member);
+            end
+        end
+        imgui.Separator();
+        if (imgui.Button('Cast')) then
+            PARTY_PICKER.confirm();
+        end
+        imgui.SameLine();
+        if (imgui.Button('Cancel')) then
+            PARTY_PICKER.cancel(nil);
+        end
+    end
+    imgui.End();
+end
+
 local function key_down(vk)
     return ffi.C.GetKeyState(vk) < 0;
 end
@@ -1601,6 +1923,32 @@ end
 
 local function input_is_closed()
     return AshitaCore:GetChatManager():IsInputOpen() == 0x00;
+end
+
+function PARTY_PICKER.clear_directinput_state(e)
+    if (state.party_picker == nil or e.data_raw == nil or not input_is_closed()) then
+        return;
+    end
+
+    local keyptr = ffi.cast('uint8_t*', e.data_raw);
+    for _, scancode in ipairs(VK.DIK_PARTY_PICKER) do
+        keyptr[scancode] = 0;
+    end
+end
+
+function PARTY_PICKER.block_directinput_key(e)
+    if (state.party_picker == nil or e == nil or not input_is_closed()) then
+        return false;
+    end
+
+    local key = tonumber(e.key);
+    for _, scancode in ipairs(VK.DIK_PARTY_PICKER) do
+        if (key == scancode) then
+            e.blocked = true;
+            return true;
+        end
+    end
+    return false;
 end
 
 local function directinput_digit_index(keyptr)
@@ -3409,6 +3757,7 @@ local function current_runtime_visual_settings()
         window_x = main_bar.window_x,
         window_y = main_bar.window_y,
         show_weaponskill_pulse = MACRO.weaponskill_pulse_enabled(settings),
+        show_party_picker = settings.show_party_picker ~= false,
         bars_unlocked = bar_frame_visible(),
     };
 
@@ -3516,6 +3865,9 @@ local function apply_visual_settings(settings)
     elseif (settings.show_weaponskill_flames ~= nil) then
         target.show_weaponskill_pulse = settings.show_weaponskill_flames ~= false;
     end
+    if (settings.show_party_picker ~= nil) then
+        target.show_party_picker = settings.show_party_picker ~= false;
+    end
     if (settings.bars_unlocked ~= nil) then
         target.bars_unlocked = settings.bars_unlocked == true;
     end
@@ -3612,6 +3964,7 @@ local function serialize_visual_settings(settings)
         ('        display_mode = %s,'):fmt(lua_string_literal(settings.display_mode)),
         ('        profile_scope = %s,'):fmt(lua_string_literal(settings.profile_scope or main.profile_scope or 'job')),
         ('        show_weaponskill_pulse = %s,'):fmt(tostring(settings.show_weaponskill_pulse ~= false)),
+        ('        show_party_picker = %s,'):fmt(tostring(settings.show_party_picker ~= false)),
         ('        bars_unlocked = %s,'):fmt(tostring(settings.bars_unlocked == true)),
         ('        slot_size = %d,'):fmt(settings.slot_size),
         ('        button_gap = %d,'):fmt(settings.button_gap),
@@ -8096,6 +8449,13 @@ function MACRO.run_editor_commands()
         context.stepper_direction = 'increase';
     end
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
+    local intercepted, picker_error = PARTY_PICKER.try_start(commands_to_queue, context);
+    if (intercepted) then
+        if (picker_error ~= nil) then
+            return false, picker_error;
+        end
+        return true, 'Party picker opened.';
+    end
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
         return false, queue_message;
@@ -8139,6 +8499,14 @@ local function execute_slot(group, index, source, direction)
         stepper_direction = direction == 'decrease' and 'decrease' or 'increase',
     };
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
+    local intercepted, picker_error = PARTY_PICKER.try_start(commands_to_queue, context);
+    if (intercepted) then
+        if (picker_error ~= nil) then
+            log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, BAR.slot_index_label(index), source, picker_error));
+            return false;
+        end
+        return true;
+    end
     local queue_ok, queue_message = MACRO.queue_commands(commands_to_queue, context);
     if (not queue_ok) then
         log_warn(('Rejected %s slot %s command from %s: %s'):fmt(group, BAR.slot_index_label(index), source, queue_message));
@@ -12020,6 +12388,11 @@ local function render_config_window()
                     state.config.settings.bars_unlocked = not bars_unlocked;
                     state.config_save_message = nil;
                 end
+                local show_party_picker = state.config.settings.show_party_picker ~= false;
+                if (imgui.Checkbox('Show Party Picker List##ashitabars_config_show_party_picker', { show_party_picker })) then
+                    state.config.settings.show_party_picker = not show_party_picker;
+                    state.config_save_message = nil;
+                end
                 imgui.Separator();
                 imgui.TextColored(UI_COLORS.config_header, 'Weapon Skills');
                 local ws_pulse = MACRO.weaponskill_pulse_enabled();
@@ -12354,6 +12727,7 @@ ashita.events.register('load', 'load_cb', function ()
 end);
 
 ashita.events.register('unload', 'unload_cb', function ()
+    PARTY_PICKER.cancel(nil);
     log_info('Unloaded. No keybind cleanup required.');
 end);
 
@@ -12544,10 +12918,20 @@ ashita.events.register('command', 'command_cb', function (e)
 end);
 
 ashita.events.register('key_state', 'key_state_cb', function (e)
+    PARTY_PICKER.clear_directinput_state(e);
     clear_directinput_modifier_state(e);
 end);
 
+ashita.events.register('key_data', 'key_data_cb', function (e)
+    PARTY_PICKER.block_directinput_key(e);
+end);
+
 ashita.events.register('key', 'key_cb', function (e)
+    if (is_initial_keydown(e) and PARTY_PICKER.handle_key(e.wparam)) then
+        e.blocked = true;
+        return;
+    end
+
     if (e.blocked) then
         return;
     end
@@ -12630,10 +13014,12 @@ local function handle_bound_mouse_wheel()
 end
 
 ashita.events.register('d3d_present', 'present_cb', function ()
+    PARTY_PICKER.refresh();
     sync_bar_frame_visibility();
     handle_bound_mouse_wheel();
     render_bars();
     render_click_bar();
     render_config_window();
     render_macro_editor_window();
+    PARTY_PICKER.render();
 end);
