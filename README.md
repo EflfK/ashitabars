@@ -676,7 +676,9 @@ as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, `/targetnpc`,
 `/targetbnpc`, and `/map` are accepted. `/config get <id>` and
 `/config set <id> <value>` are accepted for attended client configuration
 buttons. `/trusts` and `/trusts p1` through `/trusts p5` are accepted for
-attended FancyTrusts buttons. `/ashitabars`, `/ashitaframes`, and
+attended FancyTrusts buttons. `/refa all` is accepted for attended Refa
+buttons; other `/refa` subcommands remain rejected. `/ashitabars`,
+`/ashitaframes`, and
 `/ashitaguide config` are accepted for attended addon UI buttons, such as
 `/ashitabars config` or `/ashitaframes config`. Other `/ashitaguide`
 subcommands remain rejected.
