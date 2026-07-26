@@ -717,6 +717,18 @@ another hotkey, disable it:
 block_native_macro_modifiers = false,
 ```
 
+To prevent the native FFXI Alt macro palette from appearing when Alt is pressed
+by itself, enable Alt suppression:
+
+```lua
+suppress_native_macro_alt = true,
+```
+
+AshitaBars still reads Alt through the Windows key event, so attended AshitaBars
+shortcuts such as `Alt+1` and other Ashita binds such as `Alt+E` continue to
+work. The native game does not receive Alt while chat input is closed. Native
+Ctrl shortcuts remain available.
+
 Allowed command prefixes are intentionally narrow. Player action commands such
 as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, `/targetnpc`,
 `/targetbnpc`, and `/map` are accepted. `/config get <id>` and

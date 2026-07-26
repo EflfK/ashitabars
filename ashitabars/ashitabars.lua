@@ -716,6 +716,7 @@ local DEFAULT_CONFIG = {
         click_bar_window_x = 820,
         click_bar_window_y = 680,
         block_native_macro_modifiers = true,
+        suppress_native_macro_alt = false,
         main_bar = {
             visible = true,
             display_mode = 'single',
@@ -1967,7 +1968,9 @@ end
 
 local function clear_directinput_modifier_state(e)
     local settings = state.config.settings or {};
-    if (settings.block_native_macro_modifiers == false or not input_is_closed() or e.data_raw == nil) then
+    local block_bound_modifiers = settings.block_native_macro_modifiers ~= false;
+    local suppress_alt = settings.suppress_native_macro_alt == true;
+    if ((not block_bound_modifiers and not suppress_alt) or not input_is_closed() or e.data_raw == nil) then
         return;
     end
 
@@ -1978,6 +1981,16 @@ local function clear_directinput_modifier_state(e)
     end
 
     local keyptr = ffi.cast('uint8_t*', e.data_raw);
+    if (suppress_alt and alt) then
+        for index = 3, 4 do
+            keyptr[DIK_BLOCKED_MODIFIERS[index]] = 0;
+        end
+    end
+
+    if (not block_bound_modifiers) then
+        return;
+    end
+
     local index = directinput_digit_index(keyptr);
     if (index == nil) then
         return;
@@ -12803,7 +12816,7 @@ ashita.events.register('command', 'command_cb', function (e)
         local _, theme_key = current_theme();
         local window_x, window_y = bar_window_position(settings);
         local click_window_x, click_window_y = click_bar_window_position(settings);
-        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X activeModifier=%s displayMode=%s displayModeSource=%s mainButtons=%d mainButtonsSource=%s mainButtonsPerRow=%d mainButtonsPerRowSource=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Buttons=%d extra1ButtonsSource=%s extra1ButtonsPerRow=%d extra1ButtonsPerRowSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s'):fmt(
+        log_info(('mainVisible=%s mainVisibleSource=%s input=0x%02X activeModifier=%s displayMode=%s displayModeSource=%s mainButtons=%d mainButtonsSource=%s mainButtonsPerRow=%d mainButtonsPerRowSource=%s mainSize=%d mainSizeSource=%s mainGap=%d mainGapSource=%s mainLabelY=%d mainLabelYSource=%s mainGlowSize=%d mainGlowSizeSource=%s mainGlowOpacity=%d mainGlowOpacitySource=%s mainFrame=%s mainFrameSource=%s mainAnchor=%d,%d extra1Visible=%s extra1VisibleSource=%s extra1Buttons=%d extra1ButtonsSource=%s extra1ButtonsPerRow=%d extra1ButtonsPerRowSource=%s extra1Size=%d extra1SizeSource=%s extra1Gap=%d extra1GapSource=%s extra1LabelY=%d extra1LabelYSource=%s extra1GlowSize=%d extra1GlowSizeSource=%s extra1GlowOpacity=%d extra1GlowOpacitySource=%s extra1Frame=%s extra1FrameSource=%s extra1Anchor=%d,%d theme=%s iconStyle=%s showRecasts=%s showCounts=%s showAvailability=%s wsTp=%d job=%s subjob=%s mainScope=%s mainScopeSource=%s mainProfile=%s mainBaseProfile=%s mainProfileSource=%s extra1Scope=%s extra1ScopeSource=%s extra1Profile=%s extra1BaseProfile=%s extra1ProfileSource=%s blockModifiers=%s suppressAlt=%s'):fmt(
             tostring(main_bar_visible()),
             main_bar_visible_source(),
             input_state,
@@ -12866,7 +12879,8 @@ ashita.events.register('command', 'command_cb', function (e)
             tostring(extra_profile.key),
             tostring(extra_profile.base_key),
             tostring(extra_profile.source),
-            tostring(settings.block_native_macro_modifiers ~= false)));
+            tostring(settings.block_native_macro_modifiers ~= false),
+            tostring(settings.suppress_native_macro_alt == true)));
         log_info(('visualEffects weaponskillPulse=%s'):fmt(tostring(MACRO.weaponskill_pulse_enabled())));
         for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
             local extra_status_profile = refresh_profile_context(bar_key);

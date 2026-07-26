@@ -25,6 +25,8 @@ foreach ($needle in @(
     'PARTY_PICKER.block_directinput_key',
     "ashita.events.register('key_data'",
     'VK.DIK_PARTY_PICKER',
+    'keyptr[DIK_BLOCKED_MODIFIERS[index]] = 0',
+    'local suppress_alt = settings.suppress_native_macro_alt == true',
     "PROTOCOL_COMMAND = '/ashitaui'",
     "('<p%d>'):fmt(member.slot)",
     'PARTY_PICKER.same_member(member, picker)',
@@ -35,7 +37,7 @@ foreach ($needle in @(
     }
 }
 
-foreach ($needle in @('Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'never')) {
+foreach ($needle in @('Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"
     }
