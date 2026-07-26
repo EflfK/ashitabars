@@ -6195,7 +6195,7 @@ function COMMAND_MODE.mode_from_command(command)
     if (prefix == '/ra' or prefix == '/range' or prefix == '/shoot') then
         return 'ranged';
     end
-    if (prefix == '/target' or prefix == '/targetnpc' or prefix == '/targetbnpc' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
+    if (prefix == '/target' or prefix == '/assist' or prefix == '/attack' or prefix == '/check') then
         return 'target';
     end
 

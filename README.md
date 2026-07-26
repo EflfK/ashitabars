@@ -575,6 +575,8 @@ Command mode options are:
   `<stal>`, `<stnpc>`, `<lastst>`, `<me>`, `<pet>`, `<scan>`, and `<r>`.
   Weapon skill and ranged buttons use combat-oriented targets, while pet
   commands include combat targets plus `<me>` and `<pet>`.
+- Target-nearest commands such as `/targetnpc` and `/targetbnpc` remain
+  `Freeform Command` entries because they do not take a target argument.
 
 Structured modes still save normal command text in `button_overrides.lua`, with
 small mode-specific metadata only when needed, such as `Config Toggle`'s two
