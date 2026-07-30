@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.31.4';
+addon.version   = '0.31.5';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -144,6 +144,7 @@ local ALLOWED_PREFIXES = T{
     ['/equip'] = true,
     ['/lac'] = true,
     ['/heal'] = true,
+    ['/fish'] = true,
     ['/target'] = true,
     ['/targetnpc'] = true,
     ['/targetbnpc'] = true,
@@ -513,7 +514,7 @@ local ICON_ASSET_CATEGORIES = {
     { label = 'Magic Art', family = 'black_magic', tokens = { 'aether_orb', 'crystal_compass', 'dark_vortex', 'earth_rocks', 'fire_flame', 'holy_ascent', 'holy_star', 'ice_crystal', 'lightning_bolt', 'pink_crystal', 'void_burst', 'water_drop', 'wind_gale' } },
     { label = 'Combat Art', family = 'weapon', tokens = { 'aegis_shield', 'pet_paw', 'ranged_bow', 'shadow_hood', 'summon_avatar', 'weapon_crest', 'weapon_swords' } },
     { label = 'Attack Art', family = 'weapon', tokens = { 'attack_archery', 'attack_axe', 'attack_club', 'attack_dagger', 'attack_great_axe', 'attack_great_katana', 'attack_great_sword', 'attack_hand_to_hand', 'attack_katana', 'attack_marksmanship', 'attack_polearm', 'attack_scythe', 'attack_staff', 'attack_sword', 'attack_throwing' } },
-    { label = 'Command Art', family = 'command', tokens = { 'ashitabars_config', 'ashitaframes_config', 'camera' } },
+    { label = 'Command Art', family = 'command', tokens = { 'ashitabars_config', 'ashitaframes_config', 'camera', 'fish' } },
     { label = 'Weapon Skills - Archery', family = 'weapon', tokens = { 'ws_archery_apex_arrow', 'ws_archery_arching_arrow', 'ws_archery_blast_arrow', 'ws_archery_dulling_arrow', 'ws_archery_empyreal_arrow', 'ws_archery_flaming_arrow', 'ws_archery_jishnus_radiance', 'ws_archery_namas_arrow', 'ws_archery_piercing_arrow', 'ws_archery_refulgent_arrow', 'ws_archery_sarv', 'ws_archery_sidewinder' } },
     { label = 'Weapon Skills - Automaton', family = 'weapon', tokens = { 'ws_automaton_arcuballista', 'ws_automaton_armor_piercer', 'ws_automaton_armor_shatterer', 'ws_automaton_bone_crusher', 'ws_automaton_cannibal_blade', 'ws_automaton_chimera_ripper', 'ws_automaton_daze', 'ws_automaton_knockout', 'ws_automaton_magic_mortar', 'ws_automaton_slapstick', 'ws_automaton_string_clipper', 'ws_automaton_string_shredder' } },
     { label = 'Weapon Skills - Axe', family = 'weapon', tokens = { 'ws_axe_avalanche_axe', 'ws_axe_blitz', 'ws_axe_bora_axe', 'ws_axe_calamity', 'ws_axe_cloudsplitter', 'ws_axe_decimation', 'ws_axe_gale_axe', 'ws_axe_mistral_axe', 'ws_axe_onslaught', 'ws_axe_primal_rend', 'ws_axe_raging_axe', 'ws_axe_rampage', 'ws_axe_ruinator', 'ws_axe_smash_axe', 'ws_axe_spinning_axe' } },

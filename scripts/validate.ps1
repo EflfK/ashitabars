@@ -3,8 +3,9 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $addon = Join-Path $root 'ashitabars\ashitabars.lua'
 $readme = Join-Path $root 'README.md'
+$fishIcon = Join-Path $root 'ashitabars\assets\icons\fish.png'
 
-foreach ($path in @($addon, $readme)) {
+foreach ($path in @($addon, $readme, $fishIcon)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Missing required file: $path"
     }
@@ -18,6 +19,8 @@ if ($topLevelLocalCount -gt 199) {
 }
 
 foreach ($needle in @(
+    "['/fish'] = true",
+    "'camera', 'fish'",
     'PARTY_PICKER.try_start',
     'PARTY_PICKER.handle_key',
     'PARTY_PICKER.confirm',
@@ -37,7 +40,7 @@ foreach ($needle in @(
     }
 }
 
-foreach ($needle in @('Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'never')) {
+foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"
     }

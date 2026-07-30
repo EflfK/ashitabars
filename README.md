@@ -676,6 +676,7 @@ assets under `ashitabars/assets/icons/` and are stored by token name, such as
 `asset_sigil`, `asset_sanction`, `asset_ionis`, `asset_moogle`, and
 `asset_maps`, `asset_target_mark`, `asset_trusts_summon`,
 `asset_ashitabars_config`, `asset_ashitaframes_config`, `asset_camera`,
+`asset_fish`,
 `asset_attack_sword`, `asset_ws_axe_raging_axe`, and
 `asset_ws_sword_savage_blade`.
 Item buttons use the resolved in-game item icon automatically, while mount
@@ -731,7 +732,7 @@ Ctrl shortcuts remain available.
 
 Allowed command prefixes are intentionally narrow. Player action commands such
 as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, `/targetnpc`,
-`/targetbnpc`, and `/map` are accepted. `/config get <id>` and
+`/targetbnpc`, `/fish`, and `/map` are accepted. `/config get <id>` and
 `/config set <id> <value>` are accepted for attended client configuration
 buttons. `/trusts` and `/trusts p1` through `/trusts p5` are accepted for
 attended FancyTrusts buttons. `/refa all` is accepted for attended Refa
