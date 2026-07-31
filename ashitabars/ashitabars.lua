@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.31.5';
+addon.version   = '0.32.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -238,6 +238,13 @@ local MACRO = {
     COMMANDS_TEXT_MAX = LIMITS.macro_commands_text_max,
 };
 local COMMAND_MODE = {};
+FISHING = {
+    SKILL_ID = 48,
+    RANGE_SLOT_MASK = 0x0004,
+    AMMO_SLOT_MASK = 0x0008,
+    EQUIP_CONTAINERS = { 0, 8, 9, 10, 11, 12, 13, 14, 15 },
+    CACHE_SECONDS = 0.50,
+};
 PARTY_PICKER = {
     TIMEOUT_SECONDS = 20.0,
     PROTOCOL_COMMAND = '/ashitaui',
@@ -893,6 +900,16 @@ local state = {
     command_mode_cache = {},
     value_stepper_state = {},
     value_stepper_feedback = {},
+    fishing = {
+        active = false,
+        rod_id = nil,
+        bait_id = nil,
+        anchor_x = nil,
+        anchor_y = nil,
+        slot_size = nil,
+        item_cache = nil,
+        item_cache_at = 0,
+    },
     pet_target_server_id = nil,
     pet_target_seen_at = nil,
     macro_editor = {
@@ -1523,6 +1540,9 @@ local function load_config()
         if (DEFERRED.load_value_stepper_state ~= nil) then
             DEFERRED.load_value_stepper_state();
         end
+        if (DEFERRED.load_fishing_state ~= nil) then
+            DEFERRED.load_fishing_state();
+        end
         return;
     end
 
@@ -1606,6 +1626,9 @@ local function load_config()
     end
     if (DEFERRED.load_value_stepper_state ~= nil) then
         DEFERRED.load_value_stepper_state();
+    end
+    if (DEFERRED.load_fishing_state ~= nil) then
+        DEFERRED.load_fishing_state();
     end
 end
 
@@ -3586,6 +3609,9 @@ function SHARED.slot_parts(slot)
     if (slot.pet_fight_idle_flash ~= nil) then
         table.insert(parts, ('pet_fight_idle_flash = %s'):fmt(slot.pet_fight_idle_flash ~= false and 'true' or 'false'));
     end
+    if (slot.fishing_strip == true) then
+        table.insert(parts, 'fishing_strip = true');
+    end
     if (slot.config_key ~= nil) then
         table.insert(parts, ('config_key = %d'):fmt(slot.config_key));
     end
@@ -4161,6 +4187,9 @@ local function sanitize_slot_override(slot, allow_shared)
     if (slot.pet_fight_idle_flash ~= nil and COMMAND_MODE.command_is_pet_fight(slot.command)) then
         sanitized.pet_fight_idle_flash = slot.pet_fight_idle_flash ~= false;
     end
+    if (slot.fishing_strip == true and trim_string(slot.command):lower() == '/fish') then
+        sanitized.fishing_strip = true;
+    end
     local config_key = COMMAND_MODE.normalize_config_id(slot.config_key);
     local config_value_a = COMMAND_MODE.normalize_config_value(slot.config_value_a);
     local config_value_b = COMMAND_MODE.normalize_config_value(slot.config_value_b);
@@ -4202,7 +4231,7 @@ local function sanitize_slot_override(slot, allow_shared)
         end
     end
 
-    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.pet_fight_idle_flash == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil and sanitized.stepper_source == nil) then
+    if (sanitized.label == nil and sanitized.command == nil and sanitized.commands == nil and sanitized.macro_mode == nil and sanitized.icon == nil and sanitized.use_action_name_label == nil and sanitized.weaponskill_effect == nil and sanitized.weaponskill_effect_intensity == nil and sanitized.weaponskill_effect_opacity == nil and sanitized.weaponskill_effect_frequency == nil and sanitized.pet_fight_idle_flash == nil and sanitized.fishing_strip == nil and sanitized.config_key == nil and sanitized.config_value_a == nil and sanitized.config_value_b == nil and sanitized.stepper_source == nil) then
         return nil;
     end
 
@@ -4536,6 +4565,9 @@ local function apply_slot_override(base_slot, override)
     end
     if (override.pet_fight_idle_flash ~= nil) then
         slot.pet_fight_idle_flash = override.pet_fight_idle_flash ~= false;
+    end
+    if (override.fishing_strip ~= nil) then
+        slot.fishing_strip = override.fishing_strip == true;
     end
     if (override.config_key ~= nil) then
         slot.config_key = override.config_key;
@@ -6587,6 +6619,392 @@ function COMMAND_MODE.item_resource(item_id, item_name)
     return nil;
 end
 
+function FISHING.ensure_state()
+    if (type(state.fishing) ~= 'table') then
+        state.fishing = {};
+    end
+    local fishing = state.fishing;
+    fishing.active = fishing.active == true;
+    fishing.item_cache_at = tonumber(fishing.item_cache_at) or 0;
+    if (type(fishing.window_open) ~= 'table') then
+        fishing.window_open = T{ true };
+    end
+    return fishing;
+end
+
+function FISHING.is_toggle_slot(slot)
+    return type(slot) == 'table' and slot.fishing_strip == true and trim_string(MACRO.primary_command(slot)):lower() == '/fish';
+end
+
+function FISHING.state_file_path()
+    local dir = button_overrides_dir();
+    return dir ~= nil and (dir .. 'fishing_state.lua') or nil;
+end
+
+function FISHING.serialize_state()
+    local fishing = FISHING.ensure_state();
+    local lines = {
+        '-- Generated by AshitaBars. Remembers the last attended fishing equipment selection.',
+        'return {',
+    };
+    if (tonumber(fishing.rod_id) ~= nil) then
+        table.insert(lines, ('    rod_id = %d,'):fmt(math.floor(tonumber(fishing.rod_id))));
+    end
+    if (tonumber(fishing.bait_id) ~= nil) then
+        table.insert(lines, ('    bait_id = %d,'):fmt(math.floor(tonumber(fishing.bait_id))));
+    end
+    table.insert(lines, '}');
+    table.insert(lines, '');
+    return table.concat(lines, '\n');
+end
+
+DEFERRED.load_fishing_state = function ()
+    local fishing = FISHING.ensure_state();
+    fishing.active = false;
+    fishing.rod_id = nil;
+    fishing.bait_id = nil;
+    fishing.anchor_x = nil;
+    fishing.anchor_y = nil;
+    fishing.slot_size = nil;
+    fishing.item_cache = nil;
+    fishing.item_cache_at = 0;
+    fishing.window_open[1] = true;
+
+    local path = FISHING.state_file_path();
+    if (path == nil or ashita == nil or ashita.fs == nil or not ashita.fs.exists(path)) then
+        return true;
+    end
+
+    local chunk, load_err = loadfile(path);
+    if (chunk == nil) then
+        log_warn(('Fishing state ignored: %s'):fmt(tostring(load_err)));
+        return false;
+    end
+
+    local ok, saved = pcall(chunk);
+    if (not ok or type(saved) ~= 'table') then
+        log_warn(('Fishing state ignored: %s'):fmt(tostring(saved)));
+        return false;
+    end
+
+    local rod_id = tonumber(saved.rod_id);
+    local bait_id = tonumber(saved.bait_id);
+    fishing.rod_id = rod_id ~= nil and rod_id > 0 and math.floor(rod_id) or nil;
+    fishing.bait_id = bait_id ~= nil and bait_id > 0 and math.floor(bait_id) or nil;
+    return true;
+end
+
+function FISHING.save_state()
+    local ok, dir_or_err = ensure_button_overrides_dir();
+    if (not ok) then
+        return false, tostring(dir_or_err);
+    end
+
+    local write_ok, write_err = write_text_file(dir_or_err .. 'fishing_state.lua', FISHING.serialize_state());
+    if (not write_ok) then
+        return false, tostring(write_err);
+    end
+    return true, nil;
+end
+
+function FISHING.scan_items(force)
+    local fishing = FISHING.ensure_state();
+    local now = os.clock();
+    if (not force and type(fishing.item_cache) == 'table' and (now - fishing.item_cache_at) <= FISHING.CACHE_SECONDS) then
+        return fishing.item_cache.rods, fishing.item_cache.baits;
+    end
+
+    local rods = {};
+    local baits = {};
+    local rod_lookup = {};
+    local bait_lookup = {};
+    local inventory = safe_read(function () return AshitaCore:GetMemoryManager():GetInventory(); end, nil);
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    if (inventory ~= nil and resources ~= nil) then
+        for _, container_id in ipairs(FISHING.EQUIP_CONTAINERS) do
+            local max = tonumber(safe_read(function ()
+                return inventory:GetContainerCountMax(container_id);
+            end, 0)) or 0;
+
+            for slot = 0, max, 1 do
+                local item = safe_read(function ()
+                    return inventory:GetContainerItem(container_id, slot);
+                end, nil);
+                local item_id = item ~= nil and tonumber(item.Id) or nil;
+                local item_count = item ~= nil and tonumber(item.Count) or 0;
+                if (item_id ~= nil and item_id > 0 and item_id ~= 65535 and item_count > 0) then
+                    local resource = safe_read(function ()
+                        return resources:GetItemById(item_id);
+                    end, nil);
+                    local skill = tonumber(resource ~= nil and safe_read(function () return resource.Skill; end, nil));
+                    local slots = tonumber(resource ~= nil and safe_read(function () return resource.Slots; end, 0)) or 0;
+                    local name = COMMAND_MODE.resource_name(resource);
+                    local target = nil;
+                    local lookup = nil;
+                    if (skill == FISHING.SKILL_ID and bit.band(slots, FISHING.RANGE_SLOT_MASK) ~= 0) then
+                        target = rods;
+                        lookup = rod_lookup;
+                    elseif (skill == FISHING.SKILL_ID and bit.band(slots, FISHING.AMMO_SLOT_MASK) ~= 0) then
+                        target = baits;
+                        lookup = bait_lookup;
+                    end
+
+                    if (target ~= nil and name ~= '') then
+                        local existing = lookup[item_id];
+                        if (existing ~= nil) then
+                            existing.count = existing.count + item_count;
+                        else
+                            local option = {
+                                id = item_id,
+                                name = name,
+                                count = item_count,
+                                resource = resource,
+                            };
+                            lookup[item_id] = option;
+                            table.insert(target, option);
+                        end
+                    end
+                end
+            end
+        end
+    end
+
+    local sorter = function (left, right)
+        local left_name = tostring(left.name or ''):lower();
+        local right_name = tostring(right.name or ''):lower();
+        if (left_name == right_name) then
+            return tonumber(left.id) < tonumber(right.id);
+        end
+        return left_name < right_name;
+    end;
+    table.sort(rods, sorter);
+    table.sort(baits, sorter);
+
+    fishing.item_cache = {
+        rods = rods,
+        baits = baits,
+    };
+    fishing.item_cache_at = now;
+    return rods, baits;
+end
+
+function FISHING.option_by_id(options, item_id)
+    item_id = tonumber(item_id);
+    if (item_id == nil or type(options) ~= 'table') then
+        return nil;
+    end
+    for _, option in ipairs(options) do
+        if (tonumber(option.id) == item_id) then
+            return option;
+        end
+    end
+    return nil;
+end
+
+function FISHING.preferred_option(options, preferred_name)
+    for _, option in ipairs(options or {}) do
+        if (tostring(option.name):lower() == tostring(preferred_name):lower()) then
+            return option;
+        end
+    end
+    return type(options) == 'table' and options[1] or nil;
+end
+
+function FISHING.ensure_selection()
+    local fishing = FISHING.ensure_state();
+    local rods, baits = FISHING.scan_items(true);
+    local rod = FISHING.option_by_id(rods, fishing.rod_id);
+    local bait = FISHING.option_by_id(baits, fishing.bait_id);
+    if (rod == nil and fishing.rod_id == nil) then
+        rod = FISHING.preferred_option(rods, 'Halcyon Rod');
+        fishing.rod_id = rod ~= nil and rod.id or nil;
+    end
+    if (bait == nil and fishing.bait_id == nil) then
+        bait = FISHING.preferred_option(baits, 'Insect Ball');
+        fishing.bait_id = bait ~= nil and bait.id or nil;
+    end
+    return rod, bait, rods, baits;
+end
+
+function FISHING.queue(command, context)
+    local ok, message = MACRO.queue_commands({ command }, context or {});
+    if (ok) then
+        COMMAND_MODE.track_command_execution({ command });
+    end
+    return ok, message;
+end
+
+function FISHING.toggle(context, source)
+    local fishing = FISHING.ensure_state();
+    if (fishing.active) then
+        local ok, message = FISHING.queue('/lac fwd fishoff', context);
+        if (not ok) then
+            log_warn(('Fishing toggle from %s failed: %s'):fmt(tostring(source), tostring(message)));
+            return false;
+        end
+        fishing.active = false;
+        return true;
+    end
+
+    local rod, bait = FISHING.ensure_selection();
+    if (rod == nil) then
+        log_warn('Fishing toggle needs an owned fishing rod in Inventory or a Wardrobe.');
+        return false;
+    end
+    if (bait == nil) then
+        log_warn('Fishing toggle needs owned bait or a lure in Inventory or a Wardrobe.');
+        return false;
+    end
+
+    local ok, message = FISHING.queue(('/lac fwd fishon %d %d'):fmt(rod.id, bait.id), context);
+    if (not ok) then
+        log_warn(('Fishing toggle from %s failed: %s'):fmt(tostring(source), tostring(message)));
+        return false;
+    end
+
+    fishing.active = true;
+    local saved, save_error = FISHING.save_state();
+    if (not saved) then
+        log_warn(('Fishing selection could not be remembered: %s'):fmt(tostring(save_error)));
+    end
+    return true;
+end
+
+function FISHING.select(kind, item_id)
+    local fishing = FISHING.ensure_state();
+    local rods, baits = FISHING.scan_items(true);
+    local options = kind == 'rod' and rods or baits;
+    local option = FISHING.option_by_id(options, item_id);
+    if (option == nil) then
+        log_warn(('Fishing %s selection is no longer available.'):fmt(kind));
+        return false;
+    end
+
+    if (kind == 'rod') then
+        fishing.rod_id = option.id;
+    else
+        fishing.bait_id = option.id;
+    end
+
+    local saved, save_error = FISHING.save_state();
+    if (not saved) then
+        log_warn(('Fishing selection could not be remembered: %s'):fmt(tostring(save_error)));
+    end
+
+    if (fishing.active) then
+        local command = kind == 'rod'
+            and ('/lac fwd fishrod %d'):fmt(option.id)
+            or ('/lac fwd fishbait %d'):fmt(option.id);
+        local ok, message = FISHING.queue(command, { profile_key = 'FISHING', group = 'click', index = 0 });
+        if (not ok) then
+            log_warn(('Fishing %s change failed: %s'):fmt(kind, tostring(message)));
+            return false;
+        end
+    end
+
+    return true;
+end
+
+function FISHING.cast()
+    local fishing = FISHING.ensure_state();
+    if (not fishing.active) then
+        return false;
+    end
+    local ok, message = FISHING.queue('/fish', { profile_key = 'FISHING', group = 'click', index = 0 });
+    if (not ok) then
+        log_warn(('Fishing cast failed: %s'):fmt(tostring(message)));
+    end
+    return ok;
+end
+
+function FISHING.begin_frame()
+    local fishing = FISHING.ensure_state();
+    fishing.anchor_x = nil;
+    fishing.anchor_y = nil;
+    fishing.slot_size = nil;
+end
+
+function FISHING.capture_anchor(x, y, size)
+    local fishing = FISHING.ensure_state();
+    fishing.anchor_x = tonumber(x);
+    fishing.anchor_y = tonumber(y);
+    fishing.slot_size = tonumber(size);
+end
+
+function FISHING.option_label(option, fallback, show_count)
+    if (option == nil) then
+        return fallback;
+    end
+    if (show_count and tonumber(option.count) ~= nil) then
+        return ('%s x%d'):fmt(option.name, option.count);
+    end
+    return option.name;
+end
+
+function FISHING.render_selector(kind, options, selected, width)
+    local label = FISHING.option_label(selected, kind == 'rod' and 'Select rod' or 'Select bait', kind ~= 'rod');
+    imgui.SetNextItemWidth(width);
+    if (imgui.BeginCombo(('##ashitabars_fishing_%s'):fmt(kind), label, ImGuiComboFlags_None)) then
+        if (#options == 0) then
+            imgui.TextDisabled(kind == 'rod' and 'No fishing rods found.' or 'No bait or lures found.');
+        end
+        for _, option in ipairs(options) do
+            local selected_now = selected ~= nil and tonumber(selected.id) == tonumber(option.id);
+            local option_label = FISHING.option_label(option, option.name, kind ~= 'rod');
+            if (imgui.Selectable(('%s##ashitabars_fishing_%s_%d'):fmt(option_label, kind, option.id), selected_now)) then
+                FISHING.select(kind, option.id);
+            end
+            if (imgui.IsItemHovered()) then
+                COMMAND_MODE.render_item_resource_tooltip(option, option.resource);
+            end
+        end
+        imgui.EndCombo();
+    end
+end
+
+function FISHING.render()
+    local fishing = FISHING.ensure_state();
+    if (not fishing.active or fishing.anchor_x == nil or fishing.anchor_y == nil or fishing.slot_size == nil) then
+        return;
+    end
+
+    local rods, baits = FISHING.scan_items(false);
+    local selected_rod = FISHING.option_by_id(rods, fishing.rod_id);
+    local selected_bait = FISHING.option_by_id(baits, fishing.bait_id);
+    local estimated_width = 430;
+    local x = fishing.anchor_x + fishing.slot_size + 6;
+    local display_size = safe_read(function () return imgui.GetIO().DisplaySize; end, nil);
+    local display_width = display_size ~= nil and tonumber(display_size.x) or nil;
+    if (display_width ~= nil and x + estimated_width > display_width) then
+        x = math.max(0, fishing.anchor_x - estimated_width - 6);
+    end
+
+    imgui.SetNextWindowPos({ x, fishing.anchor_y }, ImGuiCond_Always);
+    local flags = bit.bor(
+        ImGuiWindowFlags_NoDecoration,
+        ImGuiWindowFlags_AlwaysAutoResize,
+        ImGuiWindowFlags_NoSavedSettings,
+        ImGuiWindowFlags_NoFocusOnAppearing);
+    local theme = current_theme();
+    imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.92 });
+    imgui.PushStyleColor(ImGuiCol_Border, theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
+    if (imgui.Begin('Fishing Quick Strip###AshitaBarsFishingQuickStrip', fishing.window_open, flags)) then
+        FISHING.render_selector('rod', rods, selected_rod, 170);
+        imgui.SameLine(0, 6);
+        FISHING.render_selector('bait', baits, selected_bait, 170);
+        imgui.SameLine(0, 6);
+        if (imgui.Button('Cast', { 56, 0 })) then
+            FISHING.cast();
+        end
+        if (imgui.IsItemHovered()) then
+            imgui.SetTooltip('Issue one attended /fish command.');
+        end
+    end
+    imgui.End();
+    imgui.PopStyleColor(2);
+    fishing.window_open[1] = true;
+end
+
 function COMMAND_MODE.selected_item_action(editor)
     if (editor == nil) then
         return nil, nil;
@@ -8512,6 +8930,9 @@ local function execute_slot(group, index, source, direction)
         slot = slot,
         stepper_direction = direction == 'decrease' and 'decrease' or 'increase',
     };
+    if (FISHING.is_toggle_slot(slot)) then
+        return FISHING.toggle(context, source);
+    end
     local commands_to_queue = COMMAND_MODE.commands_for_execution(commands, context);
     local intercepted, picker_error = PARTY_PICKER.try_start(commands_to_queue, context);
     if (intercepted) then
@@ -11751,6 +12172,9 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local hovered = imgui.IsItemHovered();
     local pressed = imgui.IsItemActive();
     local x, y = imgui.GetItemRectMin();
+    if (FISHING.is_toggle_slot(slot)) then
+        FISHING.capture_anchor(x, y, slot_size);
+    end
     local draw_list = imgui.GetWindowDrawList();
     local edit_hovered = show_frame and hovered and edit_handle_hovered(x, y, slot_size);
     local edit_clicked = clicked and edit_hovered;
@@ -11938,6 +12362,11 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     if (has_command and command_supported and visual_state ~= nil and visual_state.count_label ~= nil) then
         draw_count_badge(draw_list, rx, ry, slot_size, visual_state.count_label);
+    end
+    if (has_command and command_supported and FISHING.is_toggle_slot(slot) and FISHING.ensure_state().active) then
+        local fishing_color = UI_COLORS.success;
+        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32(color_with_alpha(fishing_color, 0.92)), rr, ImDrawCornerFlags_All, 2.0);
+        draw_count_badge(draw_list, rx, ry, slot_size, 'ON');
     end
 
     if (has_command and not command_supported) then
@@ -12750,6 +13179,26 @@ ashita.events.register('command', 'command_cb', function (e)
     if (#args == 0) then return; end
 
     local cmd = args[1]:lower();
+    if (cmd == '/lac' and #args >= 3 and tostring(args[2]):lower() == 'fwd') then
+        local fishing = FISHING.ensure_state();
+        local forwarded = tostring(args[3]):lower();
+        if (forwarded == 'fishoff') then
+            fishing.active = false;
+        elseif (forwarded == 'fishon') then
+            fishing.active = true;
+            local rod_id = tonumber(args[4]);
+            local bait_id = tonumber(args[5]);
+            if (rod_id ~= nil and rod_id > 0) then fishing.rod_id = math.floor(rod_id); end
+            if (bait_id ~= nil and bait_id > 0) then fishing.bait_id = math.floor(bait_id); end
+        elseif (forwarded == 'fishrod') then
+            local rod_id = tonumber(args[4]);
+            if (rod_id ~= nil and rod_id > 0) then fishing.rod_id = math.floor(rod_id); end
+        elseif (forwarded == 'fishbait') then
+            local bait_id = tonumber(args[4]);
+            if (bait_id ~= nil and bait_id > 0) then fishing.bait_id = math.floor(bait_id); end
+        end
+        return;
+    end
     if (cmd ~= '/ashitabars' and cmd ~= '/abars') then
         return;
     end
@@ -13032,8 +13481,10 @@ ashita.events.register('d3d_present', 'present_cb', function ()
     PARTY_PICKER.refresh();
     sync_bar_frame_visibility();
     handle_bound_mouse_wheel();
+    FISHING.begin_frame();
     render_bars();
     render_click_bar();
+    FISHING.render();
     render_config_window();
     render_macro_editor_window();
     PARTY_PICKER.render();

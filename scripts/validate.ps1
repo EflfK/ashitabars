@@ -33,14 +33,23 @@ foreach ($needle in @(
     "PROTOCOL_COMMAND = '/ashitaui'",
     "('<p%d>'):fmt(member.slot)",
     'PARTY_PICKER.same_member(member, picker)',
-    'settings.show_party_picker == false'
+    'settings.show_party_picker == false',
+    'fishing_strip == true',
+    'FISHING.scan_items',
+    'FISHING.toggle',
+    'FISHING.render',
+    "('/lac fwd fishon %d %d')",
+    "'/lac fwd fishoff'",
+    "'/lac fwd fishrod %d'",
+    "'/lac fwd fishbait %d'",
+    "'fishing_state.lua'"
 )) {
     if (-not $lua.Contains($needle)) {
         throw "Expected attended party-picker pattern not found: $needle"
     }
 }
 
-foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'never')) {
+foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'Fishing Quick Strip', '`fishing_strip = true`', '`fishrod`', '`fishbait`', 'fishing_state.lua', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"
     }

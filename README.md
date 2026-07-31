@@ -27,6 +27,9 @@ or another text input is open.
   selection request. AshitaBars opens its own picker, accepts `F1`-`F6`,
   Up/Down, mouse selection, Enter, and Escape, then replaces `<stpt>` with the
   confirmed `<p0>`-`<p5>` before queuing the ordinary command.
+- Supports an opt-in Fishing Quick Strip on a `/fish` button. The button
+  toggles LuAshitacast fishing mode, then expands owned rod and bait selectors
+  plus a separate attended Cast button.
 - Publishes the temporary party slot and server ID through the blocked local
   `/ashitaui partyselect` command-event protocol so display-only addons such as
   AshitaFrames can highlight the same member. The receiving addon blocks these
@@ -100,6 +103,40 @@ show_party_picker = false,
 `F1`-`F6`, Up/Down, Enter, and Escape remain active while the hidden picker is
 open. Its selection still clears on confirmation, cancellation, removal, or
 timeout.
+
+## Fishing Quick Strip
+
+Add `fishing_strip = true` to a single-command `/fish` button:
+
+```lua
+{ label = 'Fish', icon = 'fish', command = '/fish', fishing_strip = true }
+```
+
+That button becomes a compact attended fishing control:
+
+- While fishing mode is off, only the normal Fish button is visible.
+- Pressing Fish validates the remembered owned rod and bait, then queues one
+  `/lac fwd fishon <rod-id> <bait-id>` command.
+- While active, a horizontal strip appears next to the Fish button with Rod
+  and Bait/Lure selectors plus a Cast button.
+- The selectors list every owned equippable item whose Ashita resource has
+  Fishing skill and the Range or Ammo equipment slot. Inventory and all
+  Wardrobes are checked; other weapons, ammo, and pet broths are excluded.
+- Changing a selector queues exactly one attended `/lac fwd fishrod <item-id>`
+  or `/lac fwd fishbait <item-id>` command.
+- Cast queues exactly one `/fish`.
+- Pressing the original Fish button again queues `/lac fwd fishoff`, restores
+  the normal LuAshitacast set, and collapses the strip.
+
+The selected item IDs persist across toggles and addon restarts in:
+
+```txt
+Ashita/config/addons/ashitabars/fishing_state.lua
+```
+
+The LuAshitacast profile must implement the `fishon`, `fishoff`, `fishrod`, and
+`fishbait` forwarded commands. AshitaBars never chooses a replacement item in
+response to game state, never casts automatically, and never repeats an action.
 
 ## Install
 
@@ -439,6 +476,10 @@ return {
     },
 }
 ```
+
+`fishing_strip = true` is preserved in runtime override files when it is
+attached to a `/fish` button. It is intentionally opt-in; ordinary `/fish`
+buttons keep their original one-click cast behavior.
 
 You can edit visible buttons in game while `/ashitabars config` is open and
 `Unlock Bars` is checked. Click the small top-left corner of a button to edit it.
