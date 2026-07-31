@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.33.0';
+addon.version   = '0.34.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -12,6 +12,20 @@ local imgui = require('imgui');
 
 pcall(ffi.cdef, 'short __stdcall GetKeyState(int nVirtKey);');
 pcall(ffi.cdef, 'typedef int32_t (__cdecl* ashitabars_get_config_value_t)(int32_t);');
+pcall(ffi.cdef, [[
+    typedef struct ashitabars_slot_overlay_event_t {
+        uint32_t version;
+        uint32_t active;
+        uint32_t index;
+        char owner[32];
+        char bar_key[16];
+        char row_id[16];
+        char combo[32];
+        char label[32];
+        char command[128];
+        char icon[32];
+    } ashitabars_slot_overlay_event_t;
+]]);
 
 local VK = {
     CONTROL = 0x11,
@@ -159,6 +173,7 @@ local ALLOWED_PREFIXES = T{
     ['/ashitabars'] = true,
     ['/ashitaframes'] = true,
     ['/ashitaguide'] = true,
+    ['/afishing'] = true,
     ['/echo'] = true,
     ['/p'] = true,
     ['/party'] = true,
@@ -231,6 +246,7 @@ local LIMITS = {
     frameless_window_padding = 4,
 };
 local BAR = {};
+EXTERNAL_OVERLAY = {};
 function BAR.slot_index_label(index)
     return DIGIT_LABELS[index] or tostring(index);
 end
@@ -844,6 +860,7 @@ local state = {
     keybind_capture = nil,
     keybind_message = nil,
     keybind_message_color = UI_COLORS.success,
+    external_slot_overlays = {},
     main_bar_profile_scope_override = nil,
     main_bar_visible_override = nil,
     main_bar_button_count_override = nil,
@@ -3328,7 +3345,7 @@ function KEYBIND.binding_map()
     local function add_binding(combo, bar_key, row_id, index)
         local normalized = KEYBIND.normalize(combo);
         local enabled = KEYBIND.slot_enabled_for_binding == nil or KEYBIND.slot_enabled_for_binding(bar_key, row_id, index);
-        if (normalized == nil or not enabled) then
+        if (normalized == nil or not enabled or EXTERNAL_OVERLAY.for_slot(bar_key, row_id, index) ~= nil) then
             return;
         end
 
@@ -3366,6 +3383,24 @@ function KEYBIND.binding_map()
                         end
                     end
                 end
+            end
+        end
+    end
+
+    for _, owner in ipairs(sorted_keys(state.external_slot_overlays)) do
+        local overlay = state.external_slot_overlays[owner];
+        if (type(overlay) == 'table' and overlay.active == true) then
+            local normalized = KEYBIND.normalize(overlay.combo);
+            if (normalized ~= nil and KEYBIND.slot_enabled_for_binding(overlay.bar_key, overlay.group, overlay.index)) then
+                map[normalized] = {
+                    combo = normalized,
+                    bar_key = overlay.bar_key,
+                    group = overlay.group,
+                    index = overlay.index,
+                    name = ('%s (%s)'):fmt(KEYBIND.slot_name(overlay.bar_key, overlay.group, overlay.index), overlay.owner),
+                    external_overlay = overlay.owner,
+                };
+                conflicts[normalized] = nil;
             end
         end
     end
@@ -4736,6 +4771,97 @@ local function apply_editor_preview(slot, profile_key, group, index)
     return preview_slot;
 end
 
+function EXTERNAL_OVERLAY.for_slot(bar_key, group, index)
+    local owners = sorted_keys(state.external_slot_overlays);
+    for _, owner in ipairs(owners) do
+        local overlay = state.external_slot_overlays[owner];
+        if (type(overlay) == 'table'
+            and overlay.active == true
+            and overlay.bar_key == bar_key
+            and overlay.group == group
+            and tonumber(overlay.index) == tonumber(index)) then
+            return overlay;
+        end
+    end
+    return nil;
+end
+
+function EXTERNAL_OVERLAY.apply(slot, bar_key, group, index)
+    local overlay = EXTERNAL_OVERLAY.for_slot(bar_key, group, index);
+    if (overlay == nil) then
+        return slot;
+    end
+
+    return {
+        label = overlay.label,
+        command = overlay.command,
+        icon = overlay.icon,
+        macro_mode = 'single',
+        external_overlay = overlay.owner,
+    };
+end
+
+function EXTERNAL_OVERLAY.read_string(value, maximum)
+    local text = safe_read(function () return ffi.string(value); end, '');
+    text = trim_string(text):sub(1, maximum);
+    return text;
+end
+
+function EXTERNAL_OVERLAY.handle_event(e)
+    if (e == nil or e.name ~= 'ashitabars_slot_overlay_v1' or e.data_raw == nil) then
+        return false;
+    end
+    local required = ffi.sizeof('ashitabars_slot_overlay_event_t');
+    if ((tonumber(e.size) or 0) < required) then
+        return false;
+    end
+
+    local payload = ffi.cast('const ashitabars_slot_overlay_event_t*', e.data_raw);
+    if (tonumber(payload.version) ~= 1) then
+        return false;
+    end
+
+    local owner = EXTERNAL_OVERLAY.read_string(payload.owner, 31);
+    if (owner == '' or owner:match('^[%w_-]+$') == nil) then
+        return false;
+    end
+    if (tonumber(payload.active) ~= 1) then
+        state.external_slot_overlays[owner] = nil;
+        return true;
+    end
+
+    local bar_key = EXTERNAL_OVERLAY.read_string(payload.bar_key, 15):lower();
+    local group = EXTERNAL_OVERLAY.read_string(payload.row_id, 15):lower();
+    local index = math.floor(tonumber(payload.index) or 0);
+    local combo = KEYBIND.normalize(EXTERNAL_OVERLAY.read_string(payload.combo, 31));
+    local label = EXTERNAL_OVERLAY.read_string(payload.label, LIMITS.macro_label_max);
+    local command = EXTERNAL_OVERLAY.read_string(payload.command, 127);
+    local icon = EXTERNAL_OVERLAY.read_string(payload.icon, LIMITS.macro_icon_max);
+    local command_prefix = command:lower():match('^%s*(/%S+)');
+    local command_allowed = command_prefix ~= nil and ALLOWED_PREFIXES[command_prefix] == true
+        and command:find('[\r\n]') == nil;
+    local valid_bar = bar_key == 'main' or BAR.is_extra_bar(bar_key);
+    local valid_group = (bar_key == 'main' and group == 'base')
+        or (BAR.is_extra_bar(bar_key) and group == BAR.extra_row_id(bar_key));
+    if (not valid_bar or not valid_group or index < 1 or index > LIMITS.button_count_max
+        or combo == nil or label == '' or not command_allowed) then
+        return false;
+    end
+
+    state.external_slot_overlays[owner] = {
+        active = true,
+        owner = owner,
+        bar_key = bar_key,
+        group = group,
+        index = index,
+        combo = combo,
+        label = label,
+        command = command,
+        icon = icon ~= '' and icon or nil,
+    };
+    return true;
+end
+
 local function get_slot(group, index)
     local bar_key = BAR.key_for_group(group);
     local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
@@ -4745,6 +4871,7 @@ local function get_slot(group, index)
     slot = apply_slot_override(slot, override);
     slot = SHARED.resolve_slot(slot);
     slot = apply_editor_preview(slot, profile_key, group, index);
+    slot = EXTERNAL_OVERLAY.apply(slot, bar_key, group, index);
     slot = MACRO.normalize_slot_runtime(slot);
     if (type(slot) ~= 'table') then
         return nil;
@@ -12737,6 +12864,7 @@ end
 
 ashita.events.register('load', 'load_cb', function ()
     load_config();
+    AshitaCore:GetPluginManager():RaiseEvent('ashitabars_slot_overlay_query_v1', {});
     log_info('Loaded. Uses configurable key events, not /bind. Keys pass through while chat/input is open.');
 end);
 
@@ -12930,6 +13058,10 @@ ashita.events.register('command', 'command_cb', function (e)
     end
 
     e.blocked = true;
+end);
+
+ashita.events.register('plugin_event', 'plugin_event_cb', function (e)
+    EXTERNAL_OVERLAY.handle_event(e);
 end);
 
 ashita.events.register('key_state', 'key_state_cb', function (e)

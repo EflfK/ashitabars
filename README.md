@@ -320,6 +320,21 @@ button count. Lowering `button_count` hides higher-numbered buttons and disables
 their keybind capture while hidden, but it does not delete saved button profiles
 or shared-button assignments for those slots.
 
+## Temporary addon overlays
+
+AshitaBars accepts a versioned local `plugin_event` protocol for attended addons
+to temporarily replace one visible slot and its hotkey. These overlays exist
+only in memory: the configured profile button and keybind are suppressed while
+the overlay is active and return unchanged when it clears. AshitaBars requests
+the current overlay state whenever it loads, so reloading the bar does not lose
+an active provider's display.
+
+AshitaFishing uses this protocol to show its `Cast` action on the selected Main
+Bar button while fishing mode is on. Its in-game settings choose both the button
+position and temporary hotkey. The overlay runs `/afishing cast`, leaving the
+fishing addon responsible for confirming that fishing mode is active and for
+issuing exactly one attended `/fish` command.
+
 You can tune button size at runtime without editing the config:
 
 ```txt
@@ -737,7 +752,7 @@ as `/ma`, `/ja`, `/pet`, `/ws`, `/item`, `/attack`, `/target`, `/targetnpc`,
 buttons. `/trusts` and `/trusts p1` through `/trusts p5` are accepted for
 attended FancyTrusts buttons. `/refa all` is accepted for attended Refa
 buttons; other `/refa` subcommands remain rejected. `/ashitabars`,
-`/ashitaframes`, and
+`/ashitaframes`, `/afishing cast`, and
 `/ashitaguide config` are accepted for attended addon UI buttons, such as
 `/ashitabars config` or `/ashitaframes config`. Other `/ashitaguide`
 subcommands remain rejected.

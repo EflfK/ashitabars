@@ -20,6 +20,12 @@ if ($topLevelLocalCount -gt 199) {
 
 foreach ($needle in @(
     "['/fish'] = true",
+    "['/afishing'] = true",
+    'ashitabars_slot_overlay_event_t',
+    "e.name ~= 'ashitabars_slot_overlay_v1'",
+    "RaiseEvent('ashitabars_slot_overlay_query_v1'",
+    'EXTERNAL_OVERLAY.apply',
+    'external_slot_overlays',
     "'camera', 'fish'",
     'PARTY_PICKER.try_start',
     'PARTY_PICKER.handle_key',
@@ -40,7 +46,7 @@ foreach ($needle in @(
     }
 }
 
-foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'never')) {
+foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'Temporary addon overlays', '`/afishing cast`', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"
     }
