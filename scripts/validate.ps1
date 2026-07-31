@@ -18,6 +18,12 @@ if ($topLevelLocalCount -gt 199) {
     throw "Addon has $topLevelLocalCount top-level local declarations; keep this below Lua 5.1's 200-local chunk limit."
 }
 
+$themeDefinition = $lua.IndexOf('local function current_theme()')
+$fishingRender = $lua.IndexOf('function FISHING.render()')
+if ($themeDefinition -lt 0 -or $fishingRender -lt 0 -or $themeDefinition -gt $fishingRender) {
+    throw 'current_theme must be declared before the Fishing Quick Strip render path.'
+}
+
 foreach ($needle in @(
     "['/fish'] = true",
     "'camera', 'fish'",

@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.32.0';
+addon.version   = '0.32.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -6619,6 +6619,30 @@ function COMMAND_MODE.item_resource(item_id, item_name)
     return nil;
 end
 
+local function normalize_theme_key(value)
+    if (type(value) ~= 'string') then
+        return nil;
+    end
+
+    local key = value:lower():gsub('[%s%-]+', '_'):gsub('[^%w_]+', ''):gsub('_+', '_'):gsub('^_', ''):gsub('_$', '');
+    if (key == '') then
+        return nil;
+    end
+
+    return THEME_ALIASES[key] or key;
+end
+
+local function current_theme()
+    local settings = state.config.settings or {};
+    local key = normalize_theme_key(settings.theme);
+    if (key ~= nil and THEMES[key] ~= nil) then
+        return THEMES[key], key;
+    end
+
+    local default_key = normalize_theme_key(DEFAULT_CONFIG.settings.theme) or 'ffxi';
+    return THEMES[default_key] or THEMES.ffxi, default_key;
+end
+
 function FISHING.ensure_state()
     if (type(state.fishing) ~= 'table') then
         state.fishing = {};
@@ -10667,30 +10691,6 @@ local function icon_style()
     end
 
     return DEFAULT_CONFIG.settings.icon_style;
-end
-
-local function normalize_theme_key(value)
-    if (type(value) ~= 'string') then
-        return nil;
-    end
-
-    local key = value:lower():gsub('[%s%-]+', '_'):gsub('[^%w_]+', ''):gsub('_+', '_'):gsub('^_', ''):gsub('_$', '');
-    if (key == '') then
-        return nil;
-    end
-
-    return THEME_ALIASES[key] or key;
-end
-
-local function current_theme()
-    local settings = state.config.settings or {};
-    local key = normalize_theme_key(settings.theme);
-    if (key ~= nil and THEMES[key] ~= nil) then
-        return THEMES[key], key;
-    end
-
-    local default_key = normalize_theme_key(DEFAULT_CONFIG.settings.theme) or 'ffxi';
-    return THEMES[default_key] or THEMES.ffxi, default_key;
 end
 
 DEFERRED.normalize_icon_token = function (value)
