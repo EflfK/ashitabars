@@ -55,9 +55,8 @@ most one configured action or static macro.
 - Done: curated CatsEye `Signet` server-command mode that resolves to
   `!signet`, `!sigil`, `!sanction`, or `!ionis` by current zone, with
   display-only pulse when the zone-appropriate buff is missing.
-- Done: opt-in Fishing Quick Strip for an attended `/fish` button, with
-  persistent owned rod/bait selectors, LuAshitacast gear-state commands, and a
-  separate one-click Cast action.
+- Extracted: the attended Fishing Quick Strip now lives in the standalone
+  AshitaFishing addon so AshitaBars remains focused on general action bars.
 
 ## Later Feature Ideas
 
