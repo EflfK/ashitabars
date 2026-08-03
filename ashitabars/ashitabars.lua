@@ -12102,6 +12102,18 @@ local function render_tooltip(row, index)
     local family = command_family(slot);
     local _, icon_token = slot_icon(slot, family);
     local prefix = slot ~= nil and command_prefix_and_name(slot.command) or nil;
+    if (prefix == '/item') then
+        local source = item_source_for_command(slot.command);
+        if (source ~= nil) then
+            local resource = COMMAND_MODE.item_resource(source.id, source.name);
+            COMMAND_MODE.render_item_resource_tooltip({
+                id = source.id,
+                name = source.name,
+            }, resource);
+            return;
+        end
+    end
+
     imgui.BeginTooltip();
     imgui.Text(row.label .. ' ' .. BAR.slot_index_label(index));
     local label = COMMAND_MODE.slot_label(slot);

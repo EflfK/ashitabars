@@ -2,20 +2,34 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
 $addon = Join-Path $root 'ashitabars\ashitabars.lua'
+$config = Join-Path $root 'ashitabars\ashitabars_config.lua'
 $readme = Join-Path $root 'README.md'
 $fishIcon = Join-Path $root 'ashitabars\assets\icons\fish.png'
 
-foreach ($path in @($addon, $readme, $fishIcon)) {
+foreach ($path in @($addon, $config, $readme, $fishIcon)) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Missing required file: $path"
     }
 }
 
 $lua = Get-Content -LiteralPath $addon -Raw
+$configText = Get-Content -LiteralPath $config -Raw
 $readmeText = Get-Content -LiteralPath $readme -Raw
 $topLevelLocalCount = ([regex]::Matches($lua, '(?m)^local\s+')).Count
 if ($topLevelLocalCount -gt 199) {
     throw "Addon has $topLevelLocalCount top-level local declarations; keep this below Lua 5.1's 200-local chunk limit."
+}
+
+foreach ($needle in @('Daedalus Wing', "Gnostic's Drink", "Stalwart's Tonic", "profile_scope = 'global'")) {
+    if (-not $configText.Contains($needle)) {
+        throw "Expected Temporary Items bar configuration not found: $needle"
+    }
+}
+
+foreach ($needle in @('COMMAND_MODE.render_item_resource_tooltip({', 'source = item_source_for_command(slot.command)')) {
+    if (-not $lua.Contains($needle)) {
+        throw "Expected item-button tooltip integration not found: $needle"
+    }
 }
 
 foreach ($needle in @(

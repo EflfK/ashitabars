@@ -517,6 +517,8 @@ Command mode options are:
   previews the selected item's in-game icon and shows the item resource tooltip
   when hovering the preview or item rows. Saved item buttons do not need an
   `icon` token; the action bar renders the item icon from the game resource.
+  Hovering a saved item button also shows the full item resource tooltip,
+  including its description.
 - `Mount`: search Ashita's `mounts.names` resource list, choose a mount, and
   generate `/mount`. Mount buttons do not show a target selector or icon token
   selector; the action bar uses the automatic mount icon. The selector lists
@@ -708,6 +710,13 @@ Existing configs that still use a top-level `bars = { ... }` table continue to
 work as a legacy fallback.
 
 The sample config includes a `WHM` test profile and a `BST` leveling profile.
+It also enables Extra Bar 4 as a compact, global, click-only Temporary Items
+strip for Daedalus Wing, Gnostic's Drink, and Stalwart's Tonic. Those buttons
+hide their labels, use the in-game item icons, and retain full descriptions on
+hover. Existing installations that already have saved visual settings can opt
+into that layout during deployment with `install.ps1 -EnableTemporaryItemsBar`;
+the switch preserves the bar's saved position while enabling the three-button
+global layout.
 The WHM profile intentionally mixes common WHM spells with `/heal`, `/target`,
 `/assist`, `/check`, `/echo`, and one `/ja` slot so different command paths,
 target forms, and built-in icon tokens can be tested. The BST profile is tuned

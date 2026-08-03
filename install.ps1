@@ -1,5 +1,6 @@
 param(
-    [string]$AshitaRoot = 'C:\Games\CatsEyeXI\catseyexi-client\Ashita'
+    [string]$AshitaRoot = 'C:\Games\CatsEyeXI\catseyexi-client\Ashita',
+    [switch]$EnableTemporaryItemsBar
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,6 +100,46 @@ function Save-VisualSettingsMigration {
     Write-Host "Migrated visual settings to: $visualSettings"
 }
 
+function Enable-TemporaryItemsBarSettings {
+    param(
+        [Parameter(Mandatory)][string]$AshitaRoot
+    )
+
+    $visualSettings = Join-Path $AshitaRoot 'config\addons\ashitabars\visual_settings.lua'
+    if (-not (Test-Path -LiteralPath $visualSettings)) {
+        return
+    }
+
+    $content = Get-Content -LiteralPath $visualSettings -Raw
+    $blockPattern = '(?ms)(^        extra_bar_4\s*=\s*\{)(.*?)(^        \},)'
+    $match = [regex]::Match($content, $blockPattern)
+    if (-not $match.Success) {
+        throw "Could not find extra_bar_4 in: $visualSettings"
+    }
+
+    $body = $match.Groups[2].Value
+    $values = [ordered]@{
+        visible = 'true'
+        profile_scope = "'global'"
+        button_count = '3'
+        buttons_per_row = '3'
+        slot_size = '48'
+        button_gap = '4'
+    }
+    foreach ($entry in $values.GetEnumerator()) {
+        $settingPattern = "(?m)^(\s*$([regex]::Escape($entry.Key))\s*=\s*)[^,\r\n]+(,.*)$"
+        if (-not [regex]::IsMatch($body, $settingPattern)) {
+            throw "Could not find $($entry.Key) in extra_bar_4: $visualSettings"
+        }
+        $body = [regex]::Replace($body, $settingPattern, "`${1}$($entry.Value)`${2}", 1)
+    }
+
+    $replacement = $match.Groups[1].Value + $body + $match.Groups[3].Value
+    $updated = $content.Substring(0, $match.Index) + $replacement + $content.Substring($match.Index + $match.Length)
+    [IO.File]::WriteAllText($visualSettings, $updated, [Text.UTF8Encoding]::new($false))
+    Write-Host "Enabled compact Temporary Items bar in: $visualSettings"
+}
+
 if (-not (Test-Path -LiteralPath $AshitaRoot)) {
     throw "Ashita root does not exist: $AshitaRoot"
 }
@@ -123,4 +164,8 @@ if (Test-Path -LiteralPath $target) {
 
 Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
 Write-Host "Installed AshitaBars addon: $target"
+
+if ($EnableTemporaryItemsBar) {
+    Enable-TemporaryItemsBarSettings -AshitaRoot $AshitaRoot
+}
 
