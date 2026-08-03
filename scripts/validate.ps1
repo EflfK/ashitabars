@@ -41,6 +41,12 @@ foreach ($needle in @(
     }
 }
 
+$itemHandleIndex = $lua.IndexOf('local item_handle = COMMAND_MODE.item_icon_handle_for_slot(slot);')
+$assetHandleIndex = $lua.IndexOf('local asset_handle = ICON_ART_STYLE.icon_handle(icon_def);', $itemHandleIndex)
+if ($itemHandleIndex -lt 0 -or $assetHandleIndex -lt 0 -or $itemHandleIndex -gt $assetHandleIndex) {
+    throw 'Real item texture must be attempted before the generic inferred icon asset.'
+}
+
 foreach ($needle in @(
     "['/fish'] = true",
     "['/afishing'] = true",

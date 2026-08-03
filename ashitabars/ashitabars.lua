@@ -12216,20 +12216,20 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         local highlight = theme.icon_highlight or { 1.00, 1.00, 1.00, 1.00 };
         draw_list:AddRectFilled({ ix1 + 1, iy1 + 1 }, { ix2 - 1, iy1 + ((iy2 - iy1) * 0.45) }, color_u32(color_with_alpha(highlight, command_supported and 0.05 or 0.02)), 2.0);
         local drew_image_icon = false;
-        local asset_handle = ICON_ART_STYLE.icon_handle(icon_def);
-        if (asset_handle ~= nil) then
+        local item_handle = COMMAND_MODE.item_icon_handle_for_slot(slot);
+        if (item_handle ~= nil) then
+            local image_inset = math.max(2, math.floor(slot_size * 0.08));
             local tint = available and { 1.00, 1.00, 1.00, icon_alpha } or { 0.58, 0.58, 0.58, icon_alpha };
             drew_image_icon = pcall(function ()
-                draw_list:AddImage(asset_handle, { ix1, iy1 }, { ix2, iy2 }, { 0, 0 }, { 1, 1 }, color_u32(tint));
+                draw_list:AddImage(item_handle, { ix1 + image_inset, iy1 + image_inset }, { ix2 - image_inset, iy2 - image_inset }, { 0, 0 }, { 1, 1 }, color_u32(tint));
             end);
         end
         if (not drew_image_icon) then
-            local item_handle = COMMAND_MODE.item_icon_handle_for_slot(slot);
-            if (item_handle ~= nil) then
-                local image_inset = math.max(2, math.floor(slot_size * 0.08));
+            local asset_handle = ICON_ART_STYLE.icon_handle(icon_def);
+            if (asset_handle ~= nil) then
                 local tint = available and { 1.00, 1.00, 1.00, icon_alpha } or { 0.58, 0.58, 0.58, icon_alpha };
                 drew_image_icon = pcall(function ()
-                    draw_list:AddImage(item_handle, { ix1 + image_inset, iy1 + image_inset }, { ix2 - image_inset, iy2 - image_inset }, { 0, 0 }, { 1, 1 }, color_u32(tint));
+                    draw_list:AddImage(asset_handle, { ix1, iy1 }, { ix2, iy2 }, { 0, 0 }, { 1, 1 }, color_u32(tint));
                 end);
             end
         end
