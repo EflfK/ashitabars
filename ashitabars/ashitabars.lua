@@ -7285,9 +7285,9 @@ function ITEM_BAR.scan(force)
                 local count = item ~= nil and tonumber(item.Count) or nil;
                 if (item_id ~= nil and item_id > 0 and item_id ~= 65535 and count ~= nil and count > 0) then
                     local resource = safe_read(function () return resources:GetItemById(item_id); end, nil);
-                    local category = tonumber(resource ~= nil and safe_read(function () return resource.Category; end, nil) or nil);
+                    local item_type = tonumber(resource ~= nil and safe_read(function () return resource.Type; end, nil) or nil);
                     local name = COMMAND_MODE.resource_name(resource);
-                    if (category == 7 and name ~= '') then
+                    if (item_type == 7 and name ~= '') then
                         local entry = by_id[item_id];
                         if (entry == nil) then
                             entry = {

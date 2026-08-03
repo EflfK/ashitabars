@@ -30,7 +30,8 @@ foreach ($needle in @(
     'COMMAND_MODE.render_item_resource_tooltip({',
     'source = item_source_for_command(slot.command)',
     'function ITEM_BAR.scan(force)',
-    'category == 7',
+    'resource.Type',
+    'item_type == 7',
     'function ITEM_BAR.render_config_tab()',
     'excluded_item_ids',
     'ITEM_BAR.render();'
