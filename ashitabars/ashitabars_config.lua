@@ -43,11 +43,7 @@ local default_profile = {
     click = {},
     click2 = {},
     click3 = {},
-    click4 = {
-        [1] = { label = '', command = '/item "Daedalus Wing" <me>', macro_mode = 'item', use_action_name_label = false },
-        [2] = { label = '', command = '/item "Gnostic\'s Drink" <me>', macro_mode = 'item', use_action_name_label = false },
-        [3] = { label = '', command = '/item "Stalwart\'s Tonic" <me>', macro_mode = 'item', use_action_name_label = false },
-    },
+    click4 = {},
 };
 
 local whm_profile = {
@@ -226,20 +222,31 @@ return {
             window_y = 520,
         },
         extra_bar_4 = {
-            visible = true, -- Compact, click-only temporary-item strip.
-            profile_scope = 'global', -- Always use DEFAULT.click4 on every job.
-            button_count = 3, -- Daedalus Wing, Gnostic's Drink, Stalwart's Tonic.
-            buttons_per_row = 3,
+            visible = false, -- General tab toggle. Hiding a bar does not remove saved profiles.
+            profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
+            button_count = 10, -- 1-20. Lowering this only hides higher-numbered buttons.
+            buttons_per_row = 10, -- 1-button_count.
             keybinds = {
                 click4 = {}, -- Optional. Empty means click-only.
             },
-            slot_size = 48,
-            button_gap = 4,
+            slot_size = 64,
+            button_gap = 6,
             slot_glow_size = 100,
             slot_glow_opacity = 100,
             label_vertical_position = 100,
             window_x = 820,
             window_y = 440,
+        },
+        item_bar = {
+            visible = true,
+            buttons_per_row = 10,
+            slot_size = 48,
+            button_gap = 4,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            window_x = 820,
+            window_y = 440,
+            excluded_item_ids = {},
         },
     },
 

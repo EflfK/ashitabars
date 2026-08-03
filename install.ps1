@@ -1,6 +1,6 @@
 param(
     [string]$AshitaRoot = 'C:\Games\CatsEyeXI\catseyexi-client\Ashita',
-    [switch]$EnableTemporaryItemsBar
+    [Alias('EnableTemporaryItemsBar')][switch]$EnableItemBar
 )
 
 $ErrorActionPreference = 'Stop'
@@ -100,7 +100,7 @@ function Save-VisualSettingsMigration {
     Write-Host "Migrated visual settings to: $visualSettings"
 }
 
-function Enable-TemporaryItemsBarSettings {
+function Enable-ItemBarSettings {
     param(
         [Parameter(Mandatory)][string]$AshitaRoot
     )
@@ -118,26 +118,20 @@ function Enable-TemporaryItemsBarSettings {
     }
 
     $body = $match.Groups[2].Value
-    $values = [ordered]@{
-        visible = 'true'
-        profile_scope = "'global'"
-        button_count = '3'
-        buttons_per_row = '3'
-        slot_size = '48'
-        button_gap = '4'
+    $isLegacyTemporaryBar = $body -match "(?m)^\s*profile_scope\s*=\s*'global'\s*," -and
+        $body -match '(?m)^\s*button_count\s*=\s*3\s*,' -and
+        $body -match '(?m)^\s*buttons_per_row\s*=\s*3\s*,'
+    if (-not $isLegacyTemporaryBar) {
+        Write-Host 'Extra Bar 4 is customized; leaving it unchanged.'
+        return
     }
-    foreach ($entry in $values.GetEnumerator()) {
-        $settingPattern = "(?m)^(\s*$([regex]::Escape($entry.Key))\s*=\s*)[^,\r\n]+(,.*)$"
-        if (-not [regex]::IsMatch($body, $settingPattern)) {
-            throw "Could not find $($entry.Key) in extra_bar_4: $visualSettings"
-        }
-        $body = [regex]::Replace($body, $settingPattern, "`${1}$($entry.Value)`${2}", 1)
-    }
+
+    $body = [regex]::Replace($body, '(?m)^(\s*visible\s*=\s*)[^,\r\n]+(,.*)$', '${1}false${2}', 1)
 
     $replacement = $match.Groups[1].Value + $body + $match.Groups[3].Value
     $updated = $content.Substring(0, $match.Index) + $replacement + $content.Substring($match.Index + $match.Length)
     [IO.File]::WriteAllText($visualSettings, $updated, [Text.UTF8Encoding]::new($false))
-    Write-Host "Enabled compact Temporary Items bar in: $visualSettings"
+    Write-Host "Disabled the superseded fixed Temporary Items bar in: $visualSettings"
 }
 
 if (-not (Test-Path -LiteralPath $AshitaRoot)) {
@@ -165,7 +159,7 @@ if (Test-Path -LiteralPath $target) {
 Copy-Item -LiteralPath $source -Destination $target -Recurse -Force
 Write-Host "Installed AshitaBars addon: $target"
 
-if ($EnableTemporaryItemsBar) {
-    Enable-TemporaryItemsBarSettings -AshitaRoot $AshitaRoot
+if ($EnableItemBar) {
+    Enable-ItemBarSettings -AshitaRoot $AshitaRoot
 }
 

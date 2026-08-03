@@ -20,15 +20,23 @@ if ($topLevelLocalCount -gt 199) {
     throw "Addon has $topLevelLocalCount top-level local declarations; keep this below Lua 5.1's 200-local chunk limit."
 }
 
-foreach ($needle in @('Daedalus Wing', "Gnostic's Drink", "Stalwart's Tonic", "profile_scope = 'global'")) {
+foreach ($needle in @('item_bar = {', 'excluded_item_ids = {}', 'buttons_per_row = 10')) {
     if (-not $configText.Contains($needle)) {
-        throw "Expected Temporary Items bar configuration not found: $needle"
+        throw "Expected dynamic Item Bar configuration not found: $needle"
     }
 }
 
-foreach ($needle in @('COMMAND_MODE.render_item_resource_tooltip({', 'source = item_source_for_command(slot.command)')) {
+foreach ($needle in @(
+    'COMMAND_MODE.render_item_resource_tooltip({',
+    'source = item_source_for_command(slot.command)',
+    'function ITEM_BAR.scan(force)',
+    'category == 7',
+    'function ITEM_BAR.render_config_tab()',
+    'excluded_item_ids',
+    'ITEM_BAR.render();'
+)) {
     if (-not $lua.Contains($needle)) {
-        throw "Expected item-button tooltip integration not found: $needle"
+        throw "Expected dynamic Item Bar integration not found: $needle"
     }
 }
 

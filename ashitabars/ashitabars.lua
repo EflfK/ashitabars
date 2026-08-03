@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.34.0';
+addon.version   = '0.35.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -89,6 +89,7 @@ local ROWS              = {
     { id = 'shift', label = 'Shift', keyPrefix = 'S', parent = 'base', modifier = 'shift' },
 };
 local CLICK_ROW         = { id = 'click', label = 'Click', keyPrefix = '', showHotkeys = false };
+ITEM_BAR_ROW            = { id = 'itembar', label = 'Items', keyPrefix = '', showHotkeys = false };
 local BUTTON_ROWS       = {
     ROWS[1],
     ROWS[2],
@@ -98,6 +99,7 @@ local BUTTON_ROWS       = {
     { id = 'click2', label = 'Click 2', keyPrefix = '', showHotkeys = false },
     { id = 'click3', label = 'Click 3', keyPrefix = '', showHotkeys = false },
     { id = 'click4', label = 'Click 4', keyPrefix = '', showHotkeys = false },
+    ITEM_BAR_ROW,
     { id = 'click_ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'click', modifier = 'ctrl', showHotkeys = false },
     { id = 'click_alt', label = 'Alt', keyPrefix = 'A', parent = 'click', modifier = 'alt', showHotkeys = false },
     { id = 'click_shift', label = 'Shift', keyPrefix = 'S', parent = 'click', modifier = 'shift', showHotkeys = false },
@@ -210,11 +212,13 @@ local ROW_THEME = {
     alt  = { 1.00, 0.55, 0.26, 1.00 },
     shift = { 0.72, 0.56, 1.00, 1.00 },
     click = { 0.55, 0.86, 0.64, 1.00 },
+    itembar = { 0.82, 0.68, 0.36, 1.00 },
 };
 
 local LIMITS = {
     item_count_containers = { 0, 3 },
     item_count_cache_seconds = 0.40,
+    item_bar_cache_seconds = 0.25,
     slot_size_min = 40,
     slot_size_max = 96,
     button_count_min = 1,
@@ -246,6 +250,7 @@ local LIMITS = {
     frameless_window_padding = 4,
 };
 local BAR = {};
+ITEM_BAR = {};
 EXTERNAL_OVERLAY = {};
 function BAR.slot_index_label(index)
     return DIGIT_LABELS[index] or tostring(index);
@@ -815,6 +820,17 @@ local DEFAULT_CONFIG = {
             window_x = 820,
             window_y = 440,
         },
+        item_bar = {
+            visible = true,
+            buttons_per_row = 10,
+            slot_size = 48,
+            button_gap = 4,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            window_x = 820,
+            window_y = 440,
+            excluded_item_ids = {},
+        },
     },
     profiles = {
         DEFAULT = {
@@ -897,6 +913,11 @@ local state = {
     click_bar_hidden_offset_y = LIMITS.frameless_window_padding,
     extra_bar_runtime = {},
     extra_bar_overrides = {},
+    item_bar_window_x = nil,
+    item_bar_window_y = nil,
+    item_bar_open = T{ true },
+    item_bar_cache = { at = -1, all = {}, visible = {} },
+    item_bar_filter_buffer = T{ '' },
     recast_cache = {},
     recast_totals = {},
     mount_recast_overlay = nil,
@@ -1348,6 +1369,9 @@ end
 
 function BAR.key_for_group(group)
     local parent_group = BAR.parent_group(group);
+    if (parent_group == ITEM_BAR_ROW.id) then
+        return 'item';
+    end
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         if (BAR.extra_row_id(bar_key) == parent_group) then
             return bar_key;
@@ -1528,6 +1552,10 @@ local function load_config()
         state.click_bar_hidden_offset_y = LIMITS.frameless_window_padding;
         state.extra_bar_overrides = {};
         BAR.reset_all_extra_runtime();
+        local item_bar_settings = ITEM_BAR.settings();
+        state.item_bar_window_x = tonumber(item_bar_settings.window_x);
+        state.item_bar_window_y = tonumber(item_bar_settings.window_y);
+        ITEM_BAR.invalidate();
         state.recast_cache = {};
         state.recast_totals = {};
         state.macro_runs = {};
@@ -1612,6 +1640,10 @@ local function load_config()
     state.click_bar_hidden_offset_y = LIMITS.frameless_window_padding;
     state.extra_bar_overrides = {};
     BAR.reset_all_extra_runtime();
+    local item_bar_settings = ITEM_BAR.settings();
+    state.item_bar_window_x = tonumber(item_bar_settings.window_x);
+    state.item_bar_window_y = tonumber(item_bar_settings.window_y);
+    ITEM_BAR.invalidate();
     state.recast_cache = {};
     state.recast_totals = {};
     state.macro_runs = {};
@@ -2064,6 +2096,7 @@ BAR.EXTRA_LABEL = {
 
 BAR.SETTINGS_KEY = {
     main = 'main_bar',
+    item = 'item_bar',
     extra1 = 'extra_bar_1',
     extra2 = 'extra_bar_2',
     extra3 = 'extra_bar_3',
@@ -3835,6 +3868,19 @@ local function current_runtime_visual_settings()
         end
     end
 
+    local item_settings = ITEM_BAR.settings();
+    result.item_bar = {
+        visible = item_settings.visible ~= false,
+        buttons_per_row = math.max(1, math.min(20, math.floor(tonumber(item_settings.buttons_per_row) or 10))),
+        slot_size = slot_size('item'),
+        button_gap = button_gap('item'),
+        slot_glow_size = slot_glow_size('item'),
+        slot_glow_opacity = slot_glow_opacity('item'),
+        window_x = math.floor((tonumber(state.item_bar_window_x) or tonumber(item_settings.window_x) or DEFAULT_CONFIG.settings.item_bar.window_x) + 0.5),
+        window_y = math.floor((tonumber(state.item_bar_window_y) or tonumber(item_settings.window_y) or DEFAULT_CONFIG.settings.item_bar.window_y) + 0.5),
+        excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids),
+    };
+
     return result;
 end
 
@@ -3894,6 +3940,27 @@ local function apply_visual_settings(settings)
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         local settings_key = BAR.SETTINGS_KEY[bar_key];
         BAR.apply_visual_settings(target[settings_key], settings[settings_key], bar_key);
+    end
+    if (type(target.item_bar) ~= 'table') then
+        target.item_bar = copy_slot(DEFAULT_CONFIG.settings.item_bar);
+    end
+    if (type(settings.item_bar) == 'table') then
+        local item_settings = settings.item_bar;
+        local item_target = target.item_bar;
+        local columns = tonumber(item_settings.buttons_per_row);
+        local size = normalize_slot_size(item_settings.slot_size);
+        local gap = normalize_button_gap(item_settings.button_gap);
+        local glow_size = normalize_slot_glow_size(item_settings.slot_glow_size);
+        local glow_opacity = normalize_slot_glow_opacity(item_settings.slot_glow_opacity);
+        if (item_settings.visible ~= nil) then item_target.visible = item_settings.visible ~= false; end
+        if (columns ~= nil) then item_target.buttons_per_row = math.max(1, math.min(20, math.floor(columns + 0.5))); end
+        if (size ~= nil) then item_target.slot_size = size; end
+        if (gap ~= nil) then item_target.button_gap = gap; end
+        if (glow_size ~= nil) then item_target.slot_glow_size = glow_size; end
+        if (glow_opacity ~= nil) then item_target.slot_glow_opacity = glow_opacity; end
+        if (tonumber(item_settings.window_x) ~= nil) then item_target.window_x = math.floor(tonumber(item_settings.window_x) + 0.5); end
+        if (tonumber(item_settings.window_y) ~= nil) then item_target.window_y = math.floor(tonumber(item_settings.window_y) + 0.5); end
+        item_target.excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids);
     end
 
     local mode = normalize_display_mode(settings.display_mode);
@@ -4008,6 +4075,26 @@ local function serialize_visual_settings(settings)
         append_bar(BAR.SETTINGS_KEY[bar_key], bar_key, settings[BAR.SETTINGS_KEY[bar_key]], false);
     end
 
+    local item_bar = settings.item_bar or {};
+    table.insert(lines, '        item_bar = {');
+    table.insert(lines, ('            visible = %s,'):fmt(tostring(item_bar.visible ~= false)));
+    table.insert(lines, ('            buttons_per_row = %d,'):fmt(item_bar.buttons_per_row or 10));
+    table.insert(lines, ('            slot_size = %d,'):fmt(item_bar.slot_size or 48));
+    table.insert(lines, ('            button_gap = %d,'):fmt(item_bar.button_gap or 4));
+    table.insert(lines, ('            slot_glow_size = %d,'):fmt(item_bar.slot_glow_size or 100));
+    table.insert(lines, ('            slot_glow_opacity = %d,'):fmt(item_bar.slot_glow_opacity or 100));
+    table.insert(lines, ('            window_x = %d,'):fmt(item_bar.window_x or 820));
+    table.insert(lines, ('            window_y = %d,'):fmt(item_bar.window_y or 440));
+    local excluded_parts = {};
+    for item_id, excluded in pairs(ITEM_BAR.normalize_excluded_ids(item_bar.excluded_item_ids)) do
+        if (excluded == true) then
+            table.insert(excluded_parts, ('[%d] = true'):fmt(item_id));
+        end
+    end
+    table.sort(excluded_parts);
+    table.insert(lines, ('            excluded_item_ids = { %s },'):fmt(table.concat(excluded_parts, ', ')));
+    table.insert(lines, '        },');
+
     local extra = settings.extra_bar_1 or {};
     for _, line in ipairs({
         ('        display_mode = %s,'):fmt(lua_string_literal(settings.display_mode)),
@@ -4101,6 +4188,10 @@ local function save_visual_settings()
     state.click_bar_window_y = settings.click_bar_window_y;
     state.click_bar_anchor_x = settings.click_bar_window_x;
     state.click_bar_anchor_y = settings.click_bar_window_y;
+    if (type(settings.item_bar) == 'table') then
+        state.item_bar_window_x = settings.item_bar.window_x;
+        state.item_bar_window_y = settings.item_bar.window_y;
+    end
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         local values = settings[BAR.SETTINGS_KEY[bar_key]];
         if (type(values) == 'table') then
@@ -4863,6 +4954,10 @@ function EXTERNAL_OVERLAY.handle_event(e)
 end
 
 local function get_slot(group, index)
+    if (group == ITEM_BAR_ROW.id) then
+        return MACRO.normalize_slot_runtime(ITEM_BAR.slot(index));
+    end
+
     local bar_key = BAR.key_for_group(group);
     local profile = (type(state.profile) == 'table' and state.profile.bar_key == bar_key) and state.profile or refresh_profile_context(bar_key);
     local profile_key = editable_profile_key(profile);
@@ -7125,6 +7220,128 @@ function COMMAND_MODE.render_item_resource_tooltip(action, resource)
 
     imgui.PopTextWrapPos();
     imgui.EndTooltip();
+end
+
+function ITEM_BAR.settings()
+    local settings = state.config.settings or {};
+    if (type(settings.item_bar) ~= 'table') then
+        settings.item_bar = copy_slot(DEFAULT_CONFIG.settings.item_bar);
+        state.config.settings = settings;
+    end
+    return settings.item_bar;
+end
+
+function ITEM_BAR.normalize_excluded_ids(value)
+    local normalized = {};
+    if (type(value) == 'table') then
+        for key, entry in pairs(value) do
+            local id = entry == true and tonumber(key) or tonumber(entry);
+            if (id ~= nil and id > 0) then
+                normalized[math.floor(id)] = true;
+            end
+        end
+    end
+    return normalized;
+end
+
+function ITEM_BAR.excluded_ids()
+    local settings = ITEM_BAR.settings();
+    local normalized = ITEM_BAR.normalize_excluded_ids(settings.excluded_item_ids);
+    settings.excluded_item_ids = normalized;
+    return normalized;
+end
+
+function ITEM_BAR.invalidate()
+    state.item_bar_cache = { at = -1, all = {}, visible = {} };
+end
+
+function ITEM_BAR.set_excluded(item_id, excluded)
+    item_id = math.floor(tonumber(item_id) or 0);
+    if (item_id <= 0) then
+        return;
+    end
+    local excluded_ids = ITEM_BAR.excluded_ids();
+    excluded_ids[item_id] = excluded == true and true or nil;
+    ITEM_BAR.invalidate();
+    state.config_save_message = nil;
+end
+
+function ITEM_BAR.scan(force)
+    local now = os.clock();
+    local cached = state.item_bar_cache or { at = -1, all = {}, visible = {} };
+    if (force ~= true and (now - (tonumber(cached.at) or -1)) <= LIMITS.item_bar_cache_seconds) then
+        return cached.all, cached.visible;
+    end
+
+    local inventory = safe_read(function () return AshitaCore:GetMemoryManager():GetInventory(); end, nil);
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    local by_id = {};
+    if (inventory ~= nil and resources ~= nil) then
+        for _, container_id in ipairs({ 3, 0 }) do
+            local maximum = tonumber(safe_read(function () return inventory:GetContainerCountMax(container_id); end, 0)) or 0;
+            for slot_index = 0, maximum do
+                local item = safe_read(function () return inventory:GetContainerItem(container_id, slot_index); end, nil);
+                local item_id = item ~= nil and tonumber(item.Id) or nil;
+                local count = item ~= nil and tonumber(item.Count) or nil;
+                if (item_id ~= nil and item_id > 0 and item_id ~= 65535 and count ~= nil and count > 0) then
+                    local resource = safe_read(function () return resources:GetItemById(item_id); end, nil);
+                    local category = tonumber(resource ~= nil and safe_read(function () return resource.Category; end, nil) or nil);
+                    local name = COMMAND_MODE.resource_name(resource);
+                    if (category == 7 and name ~= '') then
+                        local entry = by_id[item_id];
+                        if (entry == nil) then
+                            entry = {
+                                id = item_id,
+                                name = name,
+                                count = 0,
+                                temporary = container_id == 3,
+                                resource = resource,
+                            };
+                            by_id[item_id] = entry;
+                        end
+                        entry.count = entry.count + count;
+                        entry.temporary = entry.temporary or container_id == 3;
+                    end
+                end
+            end
+        end
+    end
+
+    local all_items = {};
+    for _, entry in pairs(by_id) do
+        entry.slot = {
+            label = '',
+            command = ('/item "%s" <me>'):fmt(entry.name:gsub('"', '')),
+            macro_mode = 'item',
+            use_action_name_label = false,
+        };
+        table.insert(all_items, entry);
+    end
+    table.sort(all_items, function (left, right)
+        if left.temporary ~= right.temporary then
+            return left.temporary;
+        end
+        local left_name = left.name:lower();
+        local right_name = right.name:lower();
+        return left_name == right_name and left.id < right.id or left_name < right_name;
+    end);
+
+    local visible_items = {};
+    local excluded_ids = ITEM_BAR.excluded_ids();
+    for _, entry in ipairs(all_items) do
+        if excluded_ids[entry.id] ~= true then
+            table.insert(visible_items, entry);
+        end
+    end
+
+    state.item_bar_cache = { at = now, all = all_items, visible = visible_items };
+    return all_items, visible_items;
+end
+
+function ITEM_BAR.slot(index)
+    local _, items = ITEM_BAR.scan(false);
+    local entry = items[tonumber(index) or 0];
+    return entry ~= nil and entry.slot or nil;
 end
 
 function COMMAND_MODE.render_item_icon_preview(editor, size)
@@ -12404,6 +12621,80 @@ local function render_click_bar()
     end
 end
 
+function ITEM_BAR.render()
+    local settings = ITEM_BAR.settings();
+    if (settings.visible == false) then
+        return;
+    end
+
+    local _, items = ITEM_BAR.scan(false);
+    local item_count = #items;
+    if (item_count == 0) then
+        return;
+    end
+
+    local previous_bar_key = state.render_bar_key;
+    state.render_bar_key = 'item';
+    local current_slot_size = slot_size('item');
+    local gap = button_gap('item');
+    local columns = math.max(1, math.min(item_count, math.floor(tonumber(settings.buttons_per_row) or 10)));
+    local rows = math.max(1, math.ceil(item_count / columns));
+    local row_gap = tonumber((state.config.settings or {}).row_gap) or DEFAULT_CONFIG.settings.row_gap;
+    local show_frame = bar_frame_visible();
+    local hidden_pad = show_frame and 0 or frameless_window_padding();
+    local content_width = (current_slot_size * columns) + (gap * math.max(0, columns - 1));
+    local content_height = (current_slot_size * rows) + (row_gap * math.max(0, rows - 1));
+    local width = content_width + (show_frame and 20 or (hidden_pad * 2));
+    local height = content_height + (show_frame and 48 or (hidden_pad * 2));
+    local window_x = tonumber(state.item_bar_window_x) or tonumber(settings.window_x) or DEFAULT_CONFIG.settings.item_bar.window_x;
+    local window_y = tonumber(state.item_bar_window_y) or tonumber(settings.window_y) or DEFAULT_CONFIG.settings.item_bar.window_y;
+    local flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
+    local style_var_count = 0;
+    if (show_frame) then
+        imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_FirstUseEver);
+    else
+        imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_Always);
+        flags = bit.bor(flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
+        imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
+        imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
+        style_var_count = 2;
+    end
+
+    imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
+    local theme = current_theme();
+    imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
+    imgui.PushStyleColor(ImGuiCol_Border, theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
+    state.item_bar_open[1] = true;
+    if (imgui.Begin('AshitaBars Item Bar###AshitaBarsItemBar', state.item_bar_open, flags)) then
+        state.item_bar_window_x, state.item_bar_window_y = imgui.GetWindowPos();
+        for index = 1, item_count do
+            local column = ((index - 1) % columns) + 1;
+            if (column > 1) then
+                imgui.SameLine(0, gap);
+            elseif (index > 1 and row_gap > 0) then
+                imgui.Dummy({ 1, row_gap });
+            end
+
+            local activation = render_slot_button(ITEM_BAR_ROW, index, current_slot_size, false, 0, false, false);
+            if (activation ~= nil) then
+                execute_slot(ITEM_BAR_ROW.id, index, 'item bar click', activation);
+            end
+            render_tooltip(ITEM_BAR_ROW, index);
+        end
+    end
+    imgui.End();
+    if (state.item_bar_open[1] == false) then
+        settings.visible = false;
+        state.item_bar_open[1] = true;
+        state.config_save_message = nil;
+    end
+    imgui.PopStyleColor(2);
+    if (style_var_count > 0) then
+        imgui.PopStyleVar(style_var_count);
+    end
+    state.render_bar_key = previous_bar_key;
+end
+
 local function render_runtime_int_control(label, id, value, source, min_value, max_value, apply_value, unit)
     unit = unit or 'px';
     local text = (unit == '%') and ('%d%% (%s)'):fmt(value, source) or ('%d %s (%s)'):fmt(value, unit, source);
@@ -12455,22 +12746,28 @@ function BAR.render_visibility_config()
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         bars[#bars + 1] = { key = bar_key, label = BAR.extra_label(bar_key) };
     end
+    bars[#bars + 1] = { key = 'item', label = 'Item Bar' };
 
     for _, bar in ipairs(bars) do
         local is_main = bar.key == 'main';
-        local visible = is_main and main_bar_visible() or BAR.extra_bar_visible(bar.key);
+        local is_item = bar.key == 'item';
+        local visible = is_main and main_bar_visible() or (is_item and ITEM_BAR.settings().visible ~= false or BAR.extra_bar_visible(bar.key));
         if (imgui.Checkbox(('%s##ashitabars_config_visible_%s'):fmt(bar.label, bar.key), { visible })) then
             local next_visible = not visible;
-            BAR.set_override(bar.key, 'visible', next_visible);
             if (is_main) then
+                BAR.set_override(bar.key, 'visible', next_visible);
                 state.visible[1] = next_visible;
+            elseif (is_item) then
+                ITEM_BAR.settings().visible = next_visible;
+                state.item_bar_open[1] = true;
             else
+                BAR.set_override(bar.key, 'visible', next_visible);
                 BAR.extra_runtime(bar.key).open[1] = true;
             end
             state.config_save_message = nil;
         end
         imgui.SameLine(0, 8);
-        imgui.Text(('(%s)'):fmt(is_main and main_bar_visible_source() or BAR.extra_bar_visible_source(bar.key)));
+        imgui.Text(('(%s)'):fmt(is_item and 'config' or (is_main and main_bar_visible_source() or BAR.extra_bar_visible_source(bar.key))));
     end
 end
 
@@ -12516,6 +12813,97 @@ function BAR.render_config_tab(bar_key)
     end, '%');
 
     KEYBIND.render_config_section(bar_key);
+end
+
+function ITEM_BAR.render_config_tab()
+    local settings = ITEM_BAR.settings();
+    imgui.TextColored(UI_COLORS.config_header, 'Dynamic Item Bar');
+    imgui.TextWrapped('Shows only currently owned usable items from Inventory and Temporary. Temporary items sort first. Click an icon to use it; hover for the item description.');
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
+    render_runtime_int_control('Buttons Per Row', 'item_bar_buttons_per_row', math.max(1, math.min(20, math.floor(tonumber(settings.buttons_per_row) or 10))), 'config', 1, 20, function (value)
+        settings.buttons_per_row = math.max(1, math.min(20, math.floor(value + 0.5)));
+        state.config_save_message = nil;
+    end, 'buttons');
+    render_runtime_int_control('Button Size', 'item_bar_slot_size', slot_size('item'), 'config', LIMITS.slot_size_min, LIMITS.slot_size_max, function (value)
+        settings.slot_size = normalize_slot_size(value);
+        state.config_save_message = nil;
+    end);
+    render_runtime_int_control('Button Gap', 'item_bar_button_gap', button_gap('item'), 'config', LIMITS.button_gap_min, LIMITS.button_gap_max, function (value)
+        settings.button_gap = normalize_button_gap(value);
+        state.config_save_message = nil;
+    end);
+
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Item Exclusions');
+    imgui.TextWrapped('Clear Show for items you never want on this bar. Exclusions are saved by item ID.');
+    imgui.PushItemWidth(320);
+    imgui.InputText('Search##ashitabars_item_bar_filter', state.item_bar_filter_buffer, 64);
+    imgui.PopItemWidth();
+    imgui.SameLine(0, 8);
+    if (imgui.Button('Clear##ashitabars_item_bar_filter_clear')) then
+        buffer_set(state.item_bar_filter_buffer, '');
+    end
+
+    local all_items = ITEM_BAR.scan(false);
+    local excluded_ids = ITEM_BAR.excluded_ids();
+    local entries = {};
+    local seen = {};
+    for _, item in ipairs(all_items) do
+        table.insert(entries, item);
+        seen[item.id] = true;
+    end
+    local resources = safe_read(function () return AshitaCore:GetResourceManager(); end, nil);
+    for item_id, excluded in pairs(excluded_ids) do
+        if (excluded == true and seen[item_id] ~= true) then
+            local resource = resources ~= nil and safe_read(function () return resources:GetItemById(item_id); end, nil) or nil;
+            local name = COMMAND_MODE.resource_name(resource);
+            table.insert(entries, { id = item_id, name = name ~= '' and name or ('Item %d'):fmt(item_id), count = 0, temporary = false, resource = resource });
+        end
+    end
+    table.sort(entries, function (left, right)
+        if left.temporary ~= right.temporary then return left.temporary; end
+        return left.name:lower() < right.name:lower();
+    end);
+
+    local filter = trim_string(state.item_bar_filter_buffer[1] or ''):lower();
+    local child_open = false;
+    local child_visible = true;
+    if (type(imgui.BeginChild) == 'function' and type(imgui.EndChild) == 'function') then
+        local ok, result = pcall(imgui.BeginChild, '##ashitabars_item_bar_exclusions', { 400, 240 }, true);
+        child_open = ok;
+        child_visible = (not ok) or result ~= false;
+    end
+    local shown = 0;
+    if (child_visible) then
+        for _, item in ipairs(entries) do
+            if filter == '' or item.name:lower():find(filter, 1, true) ~= nil then
+                shown = shown + 1;
+                local included = excluded_ids[item.id] ~= true;
+                if (imgui.Checkbox(('Show##ashitabars_item_bar_item_%d'):fmt(item.id), { included })) then
+                    ITEM_BAR.set_excluded(item.id, included);
+                    excluded_ids = ITEM_BAR.excluded_ids();
+                end
+                imgui.SameLine(0, 8);
+                local source = item.temporary and 'Temporary' or 'Inventory';
+                imgui.Text(('%s  x%d  (%s)'):fmt(item.name, item.count or 0, source));
+                if (imgui.IsItemHovered() and item.resource ~= nil) then
+                    COMMAND_MODE.render_item_resource_tooltip({ id = item.id, name = item.name }, item.resource);
+                end
+            end
+        end
+        if (shown == 0) then
+            imgui.TextColored({ 0.72, 0.72, 0.76, 1.00 }, 'No matching usable items are currently owned.');
+        end
+    end
+    if (child_open) then
+        imgui.EndChild();
+    end
+    if (next(excluded_ids) ~= nil and imgui.Button('Reset Exclusions##ashitabars_item_bar_reset_exclusions')) then
+        settings.excluded_item_ids = {};
+        ITEM_BAR.invalidate();
+        state.config_save_message = nil;
+    end
 end
 
 local function render_config_window()
@@ -12565,6 +12953,10 @@ local function render_config_window()
                     BAR.render_config_tab(bar_key);
                     imgui.EndTabItem();
                 end
+            end
+            if (imgui.BeginTabItem('Item Bar##ashitabars_config_item_bar', nil)) then
+                ITEM_BAR.render_config_tab();
+                imgui.EndTabItem();
             end
             imgui.EndTabBar();
         end
@@ -13178,6 +13570,7 @@ ashita.events.register('d3d_present', 'present_cb', function ()
     handle_bound_mouse_wheel();
     render_bars();
     render_click_bar();
+    ITEM_BAR.render();
     render_config_window();
     render_macro_editor_window();
     PARTY_PICKER.render();

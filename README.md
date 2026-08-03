@@ -710,13 +710,21 @@ Existing configs that still use a top-level `bars = { ... }` table continue to
 work as a legacy fallback.
 
 The sample config includes a `WHM` test profile and a `BST` leveling profile.
-It also enables Extra Bar 4 as a compact, global, click-only Temporary Items
-strip for Daedalus Wing, Gnostic's Drink, and Stalwart's Tonic. Those buttons
-hide their labels, use the in-game item icons, and retain full descriptions on
-hover. Existing installations that already have saved visual settings can opt
-into that layout during deployment with `install.ps1 -EnableTemporaryItemsBar`;
-the switch preserves the bar's saved position while enabling the three-button
-global layout.
+AshitaBars also has one dedicated Item Bar, separate from the profile-driven
+main and extra bars. It scans Inventory and Temporary several times per second
+and shows only currently owned, directly usable item resources. Temporary items
+sort first, followed by normal usable items alphabetically. When an item reaches
+zero, its button disappears instead of leaving an empty slot. Each button uses
+the in-game item icon, executes one attended `/item ... <me>` action when
+clicked, and shows the full item resource description on hover.
+
+The `Item Bar` configuration tab controls its button size, spacing, buttons per
+row, and a searchable exclusion list. Exclusions persist by numeric item ID, so
+an unwanted item stays hidden when it is reacquired. `Reset Exclusions` restores
+all currently usable items. Existing installations can run
+`install.ps1 -EnableItemBar` during deployment; this disables the superseded
+fixed three-item Extra Bar 4 layout when that exact legacy layout is detected,
+without changing a customized Extra Bar 4.
 The WHM profile intentionally mixes common WHM spells with `/heal`, `/target`,
 `/assist`, `/check`, `/echo`, and one `/ja` slot so different command paths,
 target forms, and built-in icon tokens can be tested. The BST profile is tuned
