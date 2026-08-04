@@ -713,7 +713,9 @@ The sample config includes a `WHM` test profile and a `BST` leveling profile.
 AshitaBars also has one dedicated Item Bar, separate from the profile-driven
 main and extra bars. It scans Inventory and Temporary several times per second
 and shows only currently owned, directly usable item resources. Temporary items
-sort first, followed by normal usable items alphabetically. When an item reaches
+marked with Ashita's `CanUse` flag are included even when their broad resource
+category is `Item` instead of `UsableItem`. Temporary items sort first, followed
+by normal usable items alphabetically. When an item reaches
 zero, its button disappears instead of leaving an empty slot. Each button uses
 the in-game item icon, executes one attended `/item ... <me>` action when
 clicked, and shows the full item resource description on hover.

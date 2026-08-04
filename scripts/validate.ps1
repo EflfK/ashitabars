@@ -32,6 +32,8 @@ foreach ($needle in @(
     'function ITEM_BAR.scan(force)',
     'resource.Type',
     'item_type == 7',
+    'ITEM_BAR.CAN_USE_FLAG = 0x0200',
+    'temporary == true and bit.band(item_flags, ITEM_BAR.CAN_USE_FLAG) ~= 0',
     'function ITEM_BAR.render_config_tab()',
     'excluded_item_ids',
     'ITEM_BAR.render();'

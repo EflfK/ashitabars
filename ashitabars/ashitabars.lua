@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.35.0';
+addon.version   = '0.35.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -251,6 +251,7 @@ local LIMITS = {
 };
 local BAR = {};
 ITEM_BAR = {};
+ITEM_BAR.CAN_USE_FLAG = 0x0200;
 EXTERNAL_OVERLAY = {};
 function BAR.slot_index_label(index)
     return DIGIT_LABELS[index] or tostring(index);
@@ -7266,6 +7267,16 @@ function ITEM_BAR.set_excluded(item_id, excluded)
     state.config_save_message = nil;
 end
 
+function ITEM_BAR.resource_is_usable(resource, temporary)
+    local item_type = tonumber(resource ~= nil and safe_read(function () return resource.Type; end, nil) or nil);
+    if (item_type == 7) then
+        return true;
+    end
+
+    local item_flags = tonumber(resource ~= nil and safe_read(function () return resource.Flags; end, nil) or nil) or 0;
+    return temporary == true and bit.band(item_flags, ITEM_BAR.CAN_USE_FLAG) ~= 0;
+end
+
 function ITEM_BAR.scan(force)
     local now = os.clock();
     local cached = state.item_bar_cache or { at = -1, all = {}, visible = {} };
@@ -7285,22 +7296,22 @@ function ITEM_BAR.scan(force)
                 local count = item ~= nil and tonumber(item.Count) or nil;
                 if (item_id ~= nil and item_id > 0 and item_id ~= 65535 and count ~= nil and count > 0) then
                     local resource = safe_read(function () return resources:GetItemById(item_id); end, nil);
-                    local item_type = tonumber(resource ~= nil and safe_read(function () return resource.Type; end, nil) or nil);
                     local name = COMMAND_MODE.resource_name(resource);
-                    if (item_type == 7 and name ~= '') then
+                    local temporary = container_id == 3;
+                    if (ITEM_BAR.resource_is_usable(resource, temporary) and name ~= '') then
                         local entry = by_id[item_id];
                         if (entry == nil) then
                             entry = {
                                 id = item_id,
                                 name = name,
                                 count = 0,
-                                temporary = container_id == 3,
+                                temporary = temporary,
                                 resource = resource,
                             };
                             by_id[item_id] = entry;
                         end
                         entry.count = entry.count + count;
-                        entry.temporary = entry.temporary or container_id == 3;
+                        entry.temporary = entry.temporary or temporary;
                     end
                 end
             end
