@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.35.1';
+addon.version   = '0.36.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -252,6 +252,62 @@ local LIMITS = {
 local BAR = {};
 ITEM_BAR = {};
 ITEM_BAR.CAN_USE_FLAG = 0x0200;
+ITEM_BAR.FOOD_FLAG = 0x0008;
+ITEM_BAR.CATEGORY_GAP = 10;
+ITEM_BAR.HEADER_HEIGHT = 18;
+ITEM_BAR.CATEGORIES = {
+    { key = 'hp',      label = 'HP',      detail = 'HP Recovery', rank = 1, color = { 1.00, 0.38, 0.38, 1.00 } },
+    { key = 'mp',      label = 'MP',      detail = 'MP Recovery', rank = 2, color = { 0.38, 0.68, 1.00, 1.00 } },
+    { key = 'cures',   label = 'CURES',   detail = 'Status Cures', rank = 3, color = { 0.48, 0.90, 0.46, 1.00 } },
+    { key = 'food',    label = 'FOOD',    detail = 'Food and Drinks', rank = 4, color = { 0.96, 0.72, 0.28, 1.00 } },
+    { key = 'utility', label = 'UTILITY', detail = 'Utility', rank = 5, color = { 0.72, 0.72, 0.76, 1.00 } },
+    { key = 'temp',    label = 'TEMP',    detail = 'Temporary Items', rank = 6, color = { 0.76, 0.50, 1.00, 1.00 } },
+};
+ITEM_BAR.CATEGORY_BY_KEY = {};
+for _, category in ipairs(ITEM_BAR.CATEGORIES) do
+    ITEM_BAR.CATEGORY_BY_KEY[category.key] = category;
+end
+ITEM_BAR.RECOVERY_BY_ID = {
+    [4112] = { kind = 'hp', amount = 50 },
+    [4113] = { kind = 'hp', amount = 60 },
+    [4114] = { kind = 'hp', amount = 70 },
+    [4115] = { kind = 'hp', amount = 100 },
+    [4116] = { kind = 'hp', amount = 100 },
+    [4117] = { kind = 'hp', amount = 110 },
+    [4118] = { kind = 'hp', amount = 120 },
+    [4119] = { kind = 'hp', amount = 130 },
+    [4120] = { kind = 'hp', amount = 150 },
+    [4128] = { kind = 'mp', amount = 20 },
+    [4129] = { kind = 'mp', amount = 25 },
+    [4130] = { kind = 'mp', amount = 30 },
+    [4131] = { kind = 'mp', amount = 40 },
+    [4132] = { kind = 'mp', amount = 50 },
+    [4133] = { kind = 'mp', amount = 55 },
+    [4134] = { kind = 'mp', amount = 60 },
+    [4135] = { kind = 'mp', amount = 70 },
+    [4136] = { kind = 'mp', amount = 100 },
+    [4137] = { kind = 'mp', amount = 110 },
+    [4138] = { kind = 'mp', amount = 120 },
+    [4139] = { kind = 'mp', amount = 130 },
+    [4140] = { kind = 'mp', amount = 250 },
+    [4141] = { kind = 'mp', amount = 275 },
+    [4142] = { kind = 'mp', amount = 300 },
+    [4143] = { kind = 'mp', amount = 350 },
+    [4144] = { kind = 'hp', amount = 50, unit = 'percent', both = true },
+    [4145] = { kind = 'hp', amount = 25, unit = 'percent', both = true },
+    [4174] = { kind = 'hp', amount = 25, unit = 'percent', both = true },
+    [4175] = { kind = 'hp', amount = 50, unit = 'percent', both = true },
+};
+ITEM_BAR.CURE_NAMES = {
+    ['antidote'] = true,
+    ['catholicon'] = true,
+    ['catholicon +1'] = true,
+    ['echo drops'] = true,
+    ['eye drops'] = true,
+    ['holy water'] = true,
+    ['panacea'] = true,
+    ['remedy'] = true,
+};
 EXTERNAL_OVERLAY = {};
 function BAR.slot_index_label(index)
     return DIGIT_LABELS[index] or tostring(index);
@@ -828,6 +884,8 @@ local DEFAULT_CONFIG = {
             button_gap = 4,
             slot_glow_size = 100,
             slot_glow_opacity = 100,
+            potency_order = 'highest',
+            show_recovery_amounts = true,
             window_x = 820,
             window_y = 440,
             excluded_item_ids = {},
@@ -3877,6 +3935,8 @@ local function current_runtime_visual_settings()
         button_gap = button_gap('item'),
         slot_glow_size = slot_glow_size('item'),
         slot_glow_opacity = slot_glow_opacity('item'),
+        potency_order = ITEM_BAR.normalize_potency_order(item_settings.potency_order),
+        show_recovery_amounts = item_settings.show_recovery_amounts ~= false,
         window_x = math.floor((tonumber(state.item_bar_window_x) or tonumber(item_settings.window_x) or DEFAULT_CONFIG.settings.item_bar.window_x) + 0.5),
         window_y = math.floor((tonumber(state.item_bar_window_y) or tonumber(item_settings.window_y) or DEFAULT_CONFIG.settings.item_bar.window_y) + 0.5),
         excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids),
@@ -3959,6 +4019,8 @@ local function apply_visual_settings(settings)
         if (gap ~= nil) then item_target.button_gap = gap; end
         if (glow_size ~= nil) then item_target.slot_glow_size = glow_size; end
         if (glow_opacity ~= nil) then item_target.slot_glow_opacity = glow_opacity; end
+        item_target.potency_order = ITEM_BAR.normalize_potency_order(item_settings.potency_order);
+        if (item_settings.show_recovery_amounts ~= nil) then item_target.show_recovery_amounts = item_settings.show_recovery_amounts ~= false; end
         if (tonumber(item_settings.window_x) ~= nil) then item_target.window_x = math.floor(tonumber(item_settings.window_x) + 0.5); end
         if (tonumber(item_settings.window_y) ~= nil) then item_target.window_y = math.floor(tonumber(item_settings.window_y) + 0.5); end
         item_target.excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids);
@@ -4084,6 +4146,8 @@ local function serialize_visual_settings(settings)
     table.insert(lines, ('            button_gap = %d,'):fmt(item_bar.button_gap or 4));
     table.insert(lines, ('            slot_glow_size = %d,'):fmt(item_bar.slot_glow_size or 100));
     table.insert(lines, ('            slot_glow_opacity = %d,'):fmt(item_bar.slot_glow_opacity or 100));
+    table.insert(lines, ('            potency_order = %s,'):fmt(lua_string_literal(ITEM_BAR.normalize_potency_order(item_bar.potency_order))));
+    table.insert(lines, ('            show_recovery_amounts = %s,'):fmt(tostring(item_bar.show_recovery_amounts ~= false)));
     table.insert(lines, ('            window_x = %d,'):fmt(item_bar.window_x or 820));
     table.insert(lines, ('            window_y = %d,'):fmt(item_bar.window_y or 440));
     local excluded_parts = {};
@@ -7232,6 +7296,113 @@ function ITEM_BAR.settings()
     return settings.item_bar;
 end
 
+function ITEM_BAR.normalize_potency_order(value)
+    return type(value) == 'string' and value:lower() == 'lowest' and 'lowest' or 'highest';
+end
+
+function ITEM_BAR.recovery_info(item_id, resource)
+    local mapped = ITEM_BAR.RECOVERY_BY_ID[math.floor(tonumber(item_id) or 0)];
+    if (mapped ~= nil) then
+        return copy_slot(mapped);
+    end
+
+    local desc = COMMAND_MODE.item_description_text(resource):lower();
+    local restorative = desc:find('restore', 1, true) ~= nil or desc:find('recover', 1, true) ~= nil;
+    if (not restorative) then
+        return nil;
+    end
+
+    local has_hp = desc:find('hp', 1, true) ~= nil;
+    local has_mp = desc:find('mp', 1, true) ~= nil;
+    if (has_hp or has_mp) then
+        return {
+            kind = has_hp and 'hp' or 'mp',
+            both = has_hp and has_mp,
+        };
+    end
+
+    return nil;
+end
+
+function ITEM_BAR.category_for_item(entry)
+    if (entry.temporary == true) then
+        return ITEM_BAR.CATEGORY_BY_KEY.temp, nil;
+    end
+
+    local mapped_recovery = ITEM_BAR.RECOVERY_BY_ID[math.floor(tonumber(entry.id) or 0)];
+    if (mapped_recovery ~= nil) then
+        local recovery = copy_slot(mapped_recovery);
+        return ITEM_BAR.CATEGORY_BY_KEY[recovery.kind] or ITEM_BAR.CATEGORY_BY_KEY.utility, recovery;
+    end
+
+    local name = (entry.name or ''):lower();
+    local base_name = trim_string(name:gsub('%s+%+%d+$', ''));
+    if (ITEM_BAR.CURE_NAMES[name] == true or ITEM_BAR.CURE_NAMES[base_name] == true) then
+        return ITEM_BAR.CATEGORY_BY_KEY.cures, nil;
+    end
+
+    local flags = tonumber(entry.resource ~= nil and safe_read(function () return entry.resource.Flags; end, 0) or 0) or 0;
+    if (bit.band(flags, ITEM_BAR.FOOD_FLAG) ~= 0) then
+        return ITEM_BAR.CATEGORY_BY_KEY.food, nil;
+    end
+
+    local recovery = ITEM_BAR.recovery_info(entry.id, entry.resource);
+    if (recovery ~= nil) then
+        return ITEM_BAR.CATEGORY_BY_KEY[recovery.kind] or ITEM_BAR.CATEGORY_BY_KEY.utility, recovery;
+    end
+
+    return ITEM_BAR.CATEGORY_BY_KEY.utility, nil;
+end
+
+function ITEM_BAR.decorate_entry(entry)
+    local category, recovery = ITEM_BAR.category_for_item(entry);
+    entry.category = category;
+    entry.category_key = category.key;
+    entry.recovery = recovery;
+    entry.recovery_label = nil;
+    entry.recovery_detail = nil;
+    if (recovery ~= nil and tonumber(recovery.amount) ~= nil) then
+        local amount = math.floor(tonumber(recovery.amount) + 0.5);
+        if (recovery.unit == 'percent') then
+            entry.recovery_label = ('%d%%'):fmt(amount);
+            entry.recovery_detail = recovery.both == true
+                and ('Restores %d%% HP and MP'):fmt(amount)
+                or ('Restores %d%% %s'):fmt(amount, recovery.kind:upper());
+        else
+            entry.recovery_label = ('+%d'):fmt(amount);
+            entry.recovery_detail = recovery.both == true
+                and ('Restores %d HP and MP'):fmt(amount)
+                or ('Restores %d %s'):fmt(amount, recovery.kind:upper());
+        end
+    end
+    return entry;
+end
+
+function ITEM_BAR.sort_items(items)
+    local potency_order = ITEM_BAR.normalize_potency_order(ITEM_BAR.settings().potency_order);
+    table.sort(items, function (left, right)
+        local left_category = left.category or ITEM_BAR.CATEGORY_BY_KEY.utility;
+        local right_category = right.category or ITEM_BAR.CATEGORY_BY_KEY.utility;
+        if (left_category.rank ~= right_category.rank) then
+            return left_category.rank < right_category.rank;
+        end
+
+        if (left_category.key == 'hp' or left_category.key == 'mp') then
+            local left_amount = left.recovery ~= nil and tonumber(left.recovery.amount) or nil;
+            local right_amount = right.recovery ~= nil and tonumber(right.recovery.amount) or nil;
+            if (left_amount ~= nil and right_amount == nil) then return true; end
+            if (left_amount == nil and right_amount ~= nil) then return false; end
+            if (left_amount ~= nil and right_amount ~= nil and left_amount ~= right_amount) then
+                return potency_order == 'lowest' and left_amount < right_amount or left_amount > right_amount;
+            end
+        end
+
+        local left_name = left.name:lower();
+        local right_name = right.name:lower();
+        return left_name == right_name and left.id < right.id or left_name < right_name;
+    end);
+end
+
 function ITEM_BAR.normalize_excluded_ids(value)
     local normalized = {};
     if (type(value) == 'table') then
@@ -7320,22 +7491,17 @@ function ITEM_BAR.scan(force)
 
     local all_items = {};
     for _, entry in pairs(by_id) do
+        ITEM_BAR.decorate_entry(entry);
         entry.slot = {
             label = '',
             command = ('/item "%s" <me>'):fmt(entry.name:gsub('"', '')),
             macro_mode = 'item',
             use_action_name_label = false,
+            count = false,
         };
         table.insert(all_items, entry);
     end
-    table.sort(all_items, function (left, right)
-        if left.temporary ~= right.temporary then
-            return left.temporary;
-        end
-        local left_name = left.name:lower();
-        local right_name = right.name:lower();
-        return left_name == right_name and left.id < right.id or left_name < right_name;
-    end);
+    ITEM_BAR.sort_items(all_items);
 
     local visible_items = {};
     local excluded_ids = ITEM_BAR.excluded_ids();
@@ -11620,7 +11786,7 @@ local function draw_weaponskill_pulse_overlay(draw_list, x, y, slot_size, pulse_
     end
 end
 
-local function draw_count_badge(draw_list, x, y, slot_size, label)
+local function draw_count_badge(draw_list, x, y, slot_size, label, anchor)
     if (label == nil or label == '') then
         return;
     end
@@ -11631,14 +11797,47 @@ local function draw_count_badge(draw_list, x, y, slot_size, label)
     th = tonumber(th) or 0;
 
     local pad_x = 3;
-    local by2 = y + slot_size - 18;
-    local by1 = by2 - th - 3;
+    local by1 = anchor == 'top_right' and (y + 5) or nil;
+    local by2 = by1 ~= nil and (by1 + th + 3) or (y + slot_size - 18);
+    by1 = by1 or (by2 - th - 3);
     local bx2 = x + slot_size - 5;
     local bx1 = math.max(x + 5, bx2 - tw - (pad_x * 2));
 
     draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32(theme.count_bg or { 0.00, 0.00, 0.00, 0.78 }), 1.5);
     draw_list:AddRect({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(theme.icon_border or { 1.00, 0.86, 0.54, 1.00 }, 0.34)), 1.5, ImDrawCornerFlags_All, 1.0);
     draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, theme.count_text or { 1.00, 0.97, 0.84, 1.00 }, label);
+end
+
+function ITEM_BAR.draw_recovery_badge(draw_list, x, y, slot_size, label, color)
+    if (label == nil or label == '') then
+        return;
+    end
+
+    local tw, th = imgui.CalcTextSize(label);
+    tw = tonumber(tw) or 0;
+    th = tonumber(th) or 0;
+    local pad_x = 3;
+    local bx1 = x + 5;
+    local by2 = y + slot_size - 5;
+    local by1 = by2 - th - 3;
+    local bx2 = math.min(x + slot_size - 5, bx1 + tw + (pad_x * 2));
+    local badge_color = color or ITEM_BAR.CATEGORY_BY_KEY.utility.color;
+
+    draw_list:AddRectFilled({ bx1, by1 }, { bx2, by2 }, color_u32({ 0.00, 0.00, 0.00, 0.82 }), 1.5);
+    draw_list:AddRect({ bx1, by1 }, { bx2, by2 }, color_u32(color_with_alpha(badge_color, 0.62)), 1.5, ImDrawCornerFlags_All, 1.0);
+    draw_text_shadow(draw_list, bx1 + pad_x, by1 + 1, badge_color, label);
+end
+
+function ITEM_BAR.draw_group_header(draw_list, x, y, slot_size, category, draw_separator, separator_gap)
+    category = category or ITEM_BAR.CATEGORY_BY_KEY.utility;
+    local color = category.color or { 0.72, 0.72, 0.76, 1.00 };
+    local label_y = y - ITEM_BAR.HEADER_HEIGHT + 1;
+    draw_text_shadow(draw_list, x + 1, label_y, color, category.label or 'UTILITY');
+    draw_list:AddLine({ x, y - 3 }, { x + slot_size, y - 3 }, color_u32(color_with_alpha(color, 0.82)), 2.0);
+    if (draw_separator == true) then
+        local separator_x = x - math.max(3, math.floor((tonumber(separator_gap) or ITEM_BAR.CATEGORY_GAP) * 0.50));
+        draw_list:AddLine({ separator_x, y + 4 }, { separator_x, y + slot_size - 4 }, color_u32(color_with_alpha(color, 0.48)), 1.0);
+    end
 end
 
 local function draw_unsupported_overlay(draw_list, x, y, slot_size)
@@ -12632,6 +12831,23 @@ local function render_click_bar()
     end
 end
 
+function ITEM_BAR.render_item_tooltip(entry)
+    if (entry == nil or not imgui.IsItemHovered()) then
+        return;
+    end
+
+    local category = entry.category or ITEM_BAR.CATEGORY_BY_KEY.utility;
+    local detail = category.detail or category.label or 'Utility';
+    if (entry.recovery_detail ~= nil) then
+        detail = ('%s | %s'):fmt(detail, entry.recovery_detail);
+    end
+    COMMAND_MODE.render_item_resource_tooltip({
+        id = entry.id,
+        name = entry.name,
+        detail = detail,
+    }, entry.resource);
+end
+
 function ITEM_BAR.render()
     local settings = ITEM_BAR.settings();
     if (settings.visible == false) then
@@ -12651,10 +12867,24 @@ function ITEM_BAR.render()
     local columns = math.max(1, math.min(item_count, math.floor(tonumber(settings.buttons_per_row) or 10)));
     local rows = math.max(1, math.ceil(item_count / columns));
     local row_gap = tonumber((state.config.settings or {}).row_gap) or DEFAULT_CONFIG.settings.row_gap;
+    local category_gap = ITEM_BAR.CATEGORY_GAP;
+    local header_height = ITEM_BAR.HEADER_HEIGHT;
     local show_frame = bar_frame_visible();
     local hidden_pad = show_frame and 0 or frameless_window_padding();
-    local content_width = (current_slot_size * columns) + (gap * math.max(0, columns - 1));
-    local content_height = (current_slot_size * rows) + (row_gap * math.max(0, rows - 1));
+    local content_width = 0;
+    for row_index = 1, rows do
+        local first_index = ((row_index - 1) * columns) + 1;
+        local last_index = math.min(item_count, first_index + columns - 1);
+        local row_count = last_index - first_index + 1;
+        local row_width = (current_slot_size * row_count) + (gap * math.max(0, row_count - 1));
+        for index = first_index + 1, last_index do
+            if (items[index].category_key ~= items[index - 1].category_key) then
+                row_width = row_width + category_gap;
+            end
+        end
+        content_width = math.max(content_width, row_width);
+    end
+    local content_height = ((current_slot_size + header_height) * rows) + (row_gap * math.max(0, rows - 1));
     local width = content_width + (show_frame and 20 or (hidden_pad * 2));
     local height = content_height + (show_frame and 48 or (hidden_pad * 2));
     local window_x = tonumber(state.item_bar_window_x) or tonumber(settings.window_x) or DEFAULT_CONFIG.settings.item_bar.window_x;
@@ -12678,19 +12908,44 @@ function ITEM_BAR.render()
     state.item_bar_open[1] = true;
     if (imgui.Begin('AshitaBars Item Bar###AshitaBarsItemBar', state.item_bar_open, flags)) then
         state.item_bar_window_x, state.item_bar_window_y = imgui.GetWindowPos();
-        for index = 1, item_count do
-            local column = ((index - 1) % columns) + 1;
-            if (column > 1) then
-                imgui.SameLine(0, gap);
-            elseif (index > 1 and row_gap > 0) then
+        local index = 1;
+        for row_index = 1, rows do
+            if (row_index > 1 and row_gap > 0) then
                 imgui.Dummy({ 1, row_gap });
             end
+            imgui.Dummy({ 1, header_height });
 
-            local activation = render_slot_button(ITEM_BAR_ROW, index, current_slot_size, false, 0, false, false);
-            if (activation ~= nil) then
-                execute_slot(ITEM_BAR_ROW.id, index, 'item bar click', activation);
+            local previous_category_key = nil;
+            for column = 1, columns do
+                local entry = items[index];
+                if (entry == nil) then
+                    break;
+                end
+                local category_boundary = column > 1 and entry.category_key ~= previous_category_key;
+                local item_gap = gap + (category_boundary and category_gap or 0);
+                if (column > 1) then
+                    imgui.SameLine(0, item_gap);
+                end
+
+                local activation = render_slot_button(ITEM_BAR_ROW, index, current_slot_size, false, 0, false, false);
+                local x, y = imgui.GetItemRectMin();
+                local draw_list = imgui.GetWindowDrawList();
+                if (column == 1 or category_boundary) then
+                    ITEM_BAR.draw_group_header(draw_list, x, y, current_slot_size, entry.category, category_boundary, item_gap);
+                end
+                if (setting_enabled('show_counts', true)) then
+                    draw_count_badge(draw_list, x, y, current_slot_size, format_count(entry.count), 'top_right');
+                end
+                if (settings.show_recovery_amounts ~= false and entry.recovery_label ~= nil) then
+                    ITEM_BAR.draw_recovery_badge(draw_list, x, y, current_slot_size, entry.recovery_label, entry.category.color);
+                end
+                if (activation ~= nil) then
+                    execute_slot(ITEM_BAR_ROW.id, index, 'item bar click', activation);
+                end
+                ITEM_BAR.render_item_tooltip(entry);
+                previous_category_key = entry.category_key;
+                index = index + 1;
             end
-            render_tooltip(ITEM_BAR_ROW, index);
         end
     end
     imgui.End();
@@ -12829,7 +13084,7 @@ end
 function ITEM_BAR.render_config_tab()
     local settings = ITEM_BAR.settings();
     imgui.TextColored(UI_COLORS.config_header, 'Dynamic Item Bar');
-    imgui.TextWrapped('Shows only currently owned usable items from Inventory and Temporary. Temporary items sort first. Click an icon to use it; hover for the item description.');
+    imgui.TextWrapped('Groups currently owned usable items into HP, MP, Cures, Food, Utility, and Temporary sections. Click an icon to use it; hover for its category, recovery amount, and item description.');
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
     render_runtime_int_control('Buttons Per Row', 'item_bar_buttons_per_row', math.max(1, math.min(20, math.floor(tonumber(settings.buttons_per_row) or 10))), 'config', 1, 20, function (value)
@@ -12844,6 +13099,31 @@ function ITEM_BAR.render_config_tab()
         settings.button_gap = normalize_button_gap(value);
         state.config_save_message = nil;
     end);
+
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Recovery Priority');
+    local potency_order = ITEM_BAR.normalize_potency_order(settings.potency_order);
+    imgui.PushItemWidth(180);
+    if (imgui.BeginCombo('Potency Order##ashitabars_item_bar_potency_order', potency_order == 'lowest' and 'Lowest First' or 'Highest First', ImGuiComboFlags_None)) then
+        if (imgui.Selectable('Highest First', potency_order == 'highest')) then
+            settings.potency_order = 'highest';
+            ITEM_BAR.invalidate();
+            state.config_save_message = nil;
+        end
+        if (imgui.Selectable('Lowest First', potency_order == 'lowest')) then
+            settings.potency_order = 'lowest';
+            ITEM_BAR.invalidate();
+            state.config_save_message = nil;
+        end
+        imgui.EndCombo();
+    end
+    imgui.PopItemWidth();
+    local show_recovery_amounts = settings.show_recovery_amounts ~= false;
+    if (imgui.Checkbox('Show Recovery Amounts##ashitabars_item_bar_show_recovery_amounts', { show_recovery_amounts })) then
+        settings.show_recovery_amounts = not show_recovery_amounts;
+        state.config_save_message = nil;
+    end
+    imgui.TextWrapped('HP and MP items show their restored amount on the icon. Percentage-based items show a percent badge. Unknown values remain grouped without a potency badge.');
 
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Item Exclusions');
@@ -12897,7 +13177,8 @@ function ITEM_BAR.render_config_tab()
                 end
                 imgui.SameLine(0, 8);
                 local source = item.temporary and 'Temporary' or 'Inventory';
-                imgui.Text(('%s  x%d  (%s)'):fmt(item.name, item.count or 0, source));
+                local category = item.category or ITEM_BAR.CATEGORY_BY_KEY.utility;
+                imgui.Text(('%s  x%d  (%s, %s)'):fmt(item.name, item.count or 0, source, category.label));
                 if (imgui.IsItemHovered() and item.resource ~= nil) then
                     COMMAND_MODE.render_item_resource_tooltip({ id = item.id, name = item.name }, item.resource);
                 end

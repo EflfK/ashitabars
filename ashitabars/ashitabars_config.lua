@@ -244,6 +244,8 @@ return {
             button_gap = 4,
             slot_glow_size = 100,
             slot_glow_opacity = 100,
+            potency_order = 'highest', -- 'highest' or 'lowest' within HP and MP groups.
+            show_recovery_amounts = true,
             window_x = 820,
             window_y = 440,
             excluded_item_ids = {},

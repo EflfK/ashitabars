@@ -714,16 +714,22 @@ AshitaBars also has one dedicated Item Bar, separate from the profile-driven
 main and extra bars. It scans Inventory and Temporary several times per second
 and shows only currently owned, directly usable item resources. Temporary items
 marked with Ashita's `CanUse` flag are included even when their broad resource
-category is `Item` instead of `UsableItem`. Temporary items sort first, followed
-by normal usable items alphabetically. When an item reaches
-zero, its button disappears instead of leaving an empty slot. Each button uses
-the in-game item icon, executes one attended `/item ... <me>` action when
-clicked, and shows the full item resource description on hover.
+category is `Item` instead of `UsableItem`. Visible items are grouped in a
+stable `HP`, `MP`, `CURES`, `FOOD`, `UTILITY`, and `TEMP` order. Known HP and MP
+restoratives show a colored potency badge, including percentage badges for
+Elixirs, and sort by potency within their group. The default is highest-first;
+the Item Bar tab can switch to lowest-first when conserving stronger items is
+more useful. Items whose exact amount is not known remain in the correct group
+without an amount badge. When an item reaches zero, its button disappears
+instead of leaving an empty slot. Each button uses the in-game item icon,
+executes one attended `/item ... <me>` action when clicked, and shows its group,
+known recovery amount, and full item resource description on hover.
 
 The `Item Bar` configuration tab controls its button size, spacing, buttons per
-row, and a searchable exclusion list. Exclusions persist by numeric item ID, so
-an unwanted item stays hidden when it is reacquired. `Reset Exclusions` restores
-all currently usable items. Existing installations can run
+row, potency order, recovery-amount badges, and a searchable exclusion list.
+Exclusions persist by numeric item ID, so an unwanted item stays hidden when it
+is reacquired. `Reset Exclusions` restores all currently usable items. Existing
+installations can run
 `install.ps1 -EnableItemBar` during deployment; this disables the superseded
 fixed three-item Extra Bar 4 layout when that exact legacy layout is detected,
 without changing a customized Extra Bar 4.
