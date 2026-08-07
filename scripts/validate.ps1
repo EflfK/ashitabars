@@ -57,6 +57,8 @@ if ($itemHandleIndex -lt 0 -or $assetHandleIndex -lt 0 -or $itemHandleIndex -gt 
 foreach ($needle in @(
     "['/fish'] = true",
     "['/afishing'] = true",
+    "['/aminimap'] = true",
+    "command:lower():match('^%s*/aminimap%s+toggle%s*$')",
     'ashitabars_slot_overlay_event_t',
     "e.name ~= 'ashitabars_slot_overlay_v1'",
     "RaiseEvent('ashitabars_slot_overlay_query_v1'",
@@ -82,7 +84,7 @@ foreach ($needle in @(
     }
 }
 
-foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'Temporary addon overlays', '`/afishing cast`', 'never')) {
+foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'Temporary addon overlays', '`/afishing cast`', '`/aminimap toggle`', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"
     }

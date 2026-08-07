@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.36.0';
+addon.version   = '0.36.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -175,6 +175,7 @@ local ALLOWED_PREFIXES = T{
     ['/ashitabars'] = true,
     ['/ashitaframes'] = true,
     ['/ashitaguide'] = true,
+    ['/aminimap'] = true,
     ['/afishing'] = true,
     ['/echo'] = true,
     ['/p'] = true,
@@ -8880,6 +8881,9 @@ local function command_validation_error(command)
     end
     if (prefix == '/ashitaguide' and command:lower():match('^%s*/ashitaguide%s+config%s*$') == nil) then
         return 'Invalid AshitaGuide command. Use /ashitaguide config.';
+    end
+    if (prefix == '/aminimap' and command:lower():match('^%s*/aminimap%s+toggle%s*$') == nil) then
+        return 'Invalid AshitaMiniMap command. Use /aminimap toggle.';
     end
 
     return nil;
