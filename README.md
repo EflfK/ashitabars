@@ -72,11 +72,12 @@ before normal use.
 ## BST Companion Palette
 
 The BST companion palette is visible only while Beastmaster is the main job.
-With no pet, it contains two compact buttons: a split `BL Jug` selector and
-`Bestial Loyalty`. Click the selector's left or right half,
-right-click it, or use the mouse wheel while hovering it to cycle the protected
-jug list. The selector shows the chosen pet name, the jug's in-game item icon,
-and its count across Inventory and Wardrobes.
+With no pet, it contains two compact buttons: a `BL Jug` picker and `Bestial
+Loyalty`. Click the picker once to temporarily expand it into three direct jug
+choices: Carrie, Como, and Melodia. Each choice uses the jug's in-game item icon
+and shows its count across Inventory and Wardrobes. The current choice has a
+gold border and check; zero-count choices remain visible but cannot be selected.
+Choosing an available jug immediately collapses the picker back to one button.
 
 The protected list is deliberately limited to Fish Oil Broth, C. Carrion
 Broth, and S. Herbal Broth. Pressing Bestial Loyalty forwards the selected item
@@ -86,7 +87,7 @@ elsewhere, the profile remains responsible for equipping and validating
 inexpensive Fish Broth. This prevents the protected selection from being
 consumed accidentally through Call Beast.
 
-While a pet is present, the selector remains available for the next summon and
+While a pet is present, the picker remains available for the next summon and
 the Bestial Loyalty button is replaced by the pet-specific commands currently
 reported by Ashita's live `HasPetCommand` state. Universal controls such as
 Fight, Heel, Stay, Leave, Ready, and Sic are excluded so the palette stays

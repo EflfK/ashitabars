@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.37.1';
+addon.version   = '0.38.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -1043,6 +1043,9 @@ local state = {
     bst_bar_open = T{ true },
     bst_bar_cache = { at = -1, slots = {} },
     bst_selected_jug_id = 17877,
+    bst_jug_picker_open = false,
+    bst_picker_pending_open = nil,
+    bst_picker_pending_jug_id = nil,
     recast_cache = {},
     recast_totals = {},
     mount_recast_overlay = nil,
@@ -1687,6 +1690,9 @@ local function load_config()
         local bst_bar_settings = BST_BAR.settings();
         state.bst_bar_window_x = tonumber(bst_bar_settings.window_x);
         state.bst_bar_window_y = tonumber(bst_bar_settings.window_y);
+        state.bst_jug_picker_open = false;
+        state.bst_picker_pending_open = nil;
+        state.bst_picker_pending_jug_id = nil;
         BST_BAR.invalidate();
         state.recast_cache = {};
         state.recast_totals = {};
@@ -1779,6 +1785,9 @@ local function load_config()
     local bst_bar_settings = BST_BAR.settings();
     state.bst_bar_window_x = tonumber(bst_bar_settings.window_x);
     state.bst_bar_window_y = tonumber(bst_bar_settings.window_y);
+    state.bst_jug_picker_open = false;
+    state.bst_picker_pending_open = nil;
+    state.bst_picker_pending_jug_id = nil;
     BST_BAR.invalidate();
     state.recast_cache = {};
     state.recast_totals = {};
@@ -7695,23 +7704,42 @@ function BST_BAR.selected_jug()
     return selected;
 end
 
-function BST_BAR.cycle_jug(direction)
-    local selected = BST_BAR.selected_jug();
-    local selected_index = 1;
-    for index, jug in ipairs(BST_BAR.PROTECTED_JUGS) do
-        if jug.id == selected.id then
-            selected_index = index;
-            break;
+function BST_BAR.queue_picker_toggle()
+    state.bst_picker_pending_open = state.bst_jug_picker_open ~= true;
+end
+
+function BST_BAR.queue_jug_selection(item_id)
+    local jug = BST_BAR.jug_by_id(item_id);
+    if jug == nil or BST_BAR.jug_count(jug.id) <= 0 then
+        return false;
+    end
+    state.bst_picker_pending_jug_id = jug.id;
+    return true;
+end
+
+function BST_BAR.apply_pending_picker_change()
+    local changed = false;
+    local pending_jug_id = state.bst_picker_pending_jug_id;
+    state.bst_picker_pending_jug_id = nil;
+    if pending_jug_id ~= nil then
+        local jug = BST_BAR.jug_by_id(pending_jug_id);
+        if jug ~= nil and BST_BAR.jug_count(jug.id) > 0 then
+            state.bst_selected_jug_id = jug.id;
+            state.bst_jug_picker_open = false;
+            changed = true;
+        end
+        state.bst_picker_pending_open = nil;
+    elseif state.bst_picker_pending_open ~= nil then
+        local picker_open = state.bst_picker_pending_open == true;
+        state.bst_picker_pending_open = nil;
+        if state.bst_jug_picker_open ~= picker_open then
+            state.bst_jug_picker_open = picker_open;
+            changed = true;
         end
     end
-
-    local step = direction == 'decrease' and -1 or 1;
-    selected_index = selected_index + step;
-    if selected_index < 1 then selected_index = #BST_BAR.PROTECTED_JUGS; end
-    if selected_index > #BST_BAR.PROTECTED_JUGS then selected_index = 1; end
-    state.bst_selected_jug_id = BST_BAR.PROTECTED_JUGS[selected_index].id;
-    BST_BAR.invalidate();
-    return BST_BAR.PROTECTED_JUGS[selected_index];
+    if changed then
+        BST_BAR.invalidate();
+    end
 end
 
 function BST_BAR.ready_slots()
@@ -7738,19 +7766,38 @@ function BST_BAR.slots(force)
     local now = os.clock();
     local pet = COMMAND_MODE.current_pet_state();
     local selected = BST_BAR.selected_jug();
-    local cache_key = ('%d:%s'):fmt(selected.id, pet ~= nil and tostring(pet.server_id or pet.index or 0) or 'none');
+    local picker_open = state.bst_jug_picker_open == true;
+    local cache_key = ('%d:%s:%s'):fmt(selected.id, pet ~= nil and tostring(pet.server_id or pet.index or 0) or 'none', picker_open and 'open' or 'closed');
     local cached = state.bst_bar_cache or { at = -1, slots = {} };
     if force ~= true and cached.key == cache_key and (now - (tonumber(cached.at) or -1)) <= LIMITS.bst_bar_cache_seconds then
         return cached.slots;
     end
 
     local selected_count = BST_BAR.jug_count(selected.id);
-    local slots = {
-        {
+    local slots = {};
+    if picker_open then
+        for _, jug in ipairs(BST_BAR.PROTECTED_JUGS) do
+            local count = BST_BAR.jug_count(jug.id);
+            slots[#slots + 1] = {
+                label = jug.short,
+                command = '',
+                icon = 'bst_bestial_loyalty',
+                bst_jug_choice = true,
+                bst_jug_selected = jug.id == selected.id,
+                bst_jug_id = jug.id,
+                bst_jug_name = jug.item,
+                bst_pet_name = jug.pet,
+                bst_count = count,
+                bst_available = count > 0,
+                item_icon_id = jug.id,
+            };
+        end
+    else
+        slots[#slots + 1] = {
             label = 'BL Jug',
-            command = ('/lac fwd bstjug %d'):fmt(selected.id),
+            command = '',
             icon = 'bst_bestial_loyalty',
-            bst_selector = true,
+            bst_picker_toggle = true,
             bst_value = selected.short,
             bst_jug_id = selected.id,
             bst_jug_name = selected.item,
@@ -7758,8 +7805,8 @@ function BST_BAR.slots(force)
             bst_count = selected_count,
             bst_available = selected_count > 0,
             item_icon_id = selected.id,
-        },
-    };
+        };
+    end
 
     if pet == nil then
         slots[#slots + 1] = {
@@ -9313,9 +9360,12 @@ local function execute_slot(group, index, source, direction)
         if (type(slot) ~= 'table') then
             return false;
         end
-        if (slot.bst_selector == true) then
-            BST_BAR.cycle_jug(direction);
+        if (slot.bst_picker_toggle == true) then
+            BST_BAR.queue_picker_toggle();
             return true;
+        end
+        if (slot.bst_jug_choice == true) then
+            return BST_BAR.queue_jug_selection(slot.bst_jug_id);
         end
 
         local commands = MACRO.slot_commands(slot);
@@ -9341,6 +9391,9 @@ local function execute_slot(group, index, source, direction)
             return false;
         end
         COMMAND_MODE.track_command_execution(commands);
+        if state.bst_jug_picker_open == true then
+            state.bst_picker_pending_open = false;
+        end
         return true;
     end
 
@@ -11031,12 +11084,16 @@ local function apply_resource_shortage(state_info, kind, label, current, require
 end
 
 local function slot_visual_state(slot)
-    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+    if (slot == nil) then
+        return nil;
+    end
+    local bst_picker_slot = slot.bst_picker_toggle == true or slot.bst_jug_choice == true;
+    if (not bst_picker_slot and (type(slot.command) ~= 'string' or slot.command == '')) then
         return nil;
     end
 
-    local show_counts = setting_enabled('show_counts', true) and slot.count ~= false;
-    local show_availability = setting_enabled('show_availability', true) and slot.availability ~= false;
+    local show_counts = bst_picker_slot or (setting_enabled('show_counts', true) and slot.count ~= false);
+    local show_availability = bst_picker_slot or (setting_enabled('show_availability', true) and slot.availability ~= false);
     if (not show_counts and not show_availability) then
         return nil;
     end
@@ -11973,6 +12030,22 @@ function COMMAND_MODE.draw_value_stepper_overlay(draw_list, x, y, slot_size, lab
     end
 end
 
+function BST_BAR.draw_picker_toggle_overlay(draw_list, x, y, slot_size, value)
+    local theme = current_theme();
+    local text_color = theme.label_text or { 0.96, 0.93, 0.84, 1.00 };
+    local accent = theme.icon_border or { 1.00, 0.86, 0.54, 1.00 };
+    local label_text = fit_text('BL Jug', slot_size - 10);
+    local value_text = fit_text(value or '?', slot_size - 14);
+    local label_w, label_h = imgui.CalcTextSize(label_text);
+    local value_w, value_h = imgui.CalcTextSize(value_text);
+    label_w, label_h = tonumber(label_w) or 0, tonumber(label_h) or 0;
+    value_w, value_h = tonumber(value_w) or 0, tonumber(value_h) or 0;
+    local center_y = y + (slot_size * 0.58);
+    draw_text_shadow(draw_list, x + ((slot_size - label_w) * 0.5), center_y - label_h - 1, text_color, label_text);
+    draw_text_shadow(draw_list, x + ((slot_size - value_w) * 0.5), center_y + 1, accent, value_text);
+    draw_text_shadow(draw_list, x + slot_size - 10, center_y + 1, accent, 'v');
+end
+
 local function draw_empty_slot_overlay(draw_list, x, y, slot_size)
     local theme = current_theme();
     local inset = math.max(8, math.floor(slot_size * 0.18));
@@ -12629,9 +12702,12 @@ end
 
 local function render_slot_button(row, index, slot_size, active, transition_alpha, capture_anchor, show_frame)
     local slot = get_slot(row.id, index);
+    local is_bst_picker_toggle = type(slot) == 'table' and slot.bst_picker_toggle == true;
+    local is_bst_jug_choice = type(slot) == 'table' and slot.bst_jug_choice == true;
+    local is_bst_picker_slot = is_bst_picker_toggle or is_bst_jug_choice;
     local commands = MACRO.slot_commands(slot);
-    local has_command = #commands > 0;
-    local command_supported = has_command and MACRO.commands_validation_error(commands) == nil;
+    local has_command = is_bst_picker_slot or #commands > 0;
+    local command_supported = is_bst_picker_slot or (has_command and MACRO.commands_validation_error(commands) == nil);
     local clicked = imgui.InvisibleButton(('##ashitabars_%s_%d'):fmt(row.id, index), { slot_size, slot_size });
     local hovered = imgui.IsItemHovered();
     local pressed = imgui.IsItemActive();
@@ -12641,7 +12717,6 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local edit_hovered = show_frame and not dynamic_slot and hovered and edit_handle_hovered(x, y, slot_size);
     local edit_clicked = clicked and edit_hovered;
     local is_value_stepper = COMMAND_MODE.mode_for_slot(slot) == 'valuestepper';
-    local is_bst_selector = type(slot) == 'table' and slot.bst_selector == true;
     local stepper_definition = is_value_stepper and COMMAND_MODE.stepper_from_slot(slot) or nil;
     if (is_value_stepper and COMMAND_MODE.stepper_validation_error(stepper_definition) ~= nil) then
         command_supported = false;
@@ -12677,18 +12752,6 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
                     stepper_direction = mouse_x < (x + (slot_size * 0.5)) and 'decrease' or 'increase';
                 end
             end
-        end
-    end
-    if (is_bst_selector and hovered and not edit_clicked) then
-        local right_clicked = safe_read(function () return imgui.IsMouseClicked(1); end, false) == true;
-        local wheel = safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
-        if (right_clicked) then
-            stepper_direction = 'decrease';
-        elseif (wheel ~= 0) then
-            stepper_direction = wheel < 0 and 'decrease' or 'increase';
-        elseif (clicked) then
-            local mouse_x = imgui.GetMousePos();
-            stepper_direction = mouse_x < (x + (slot_size * 0.5)) and 'decrease' or 'increase';
         end
     end
     if (capture_anchor) then
@@ -12829,8 +12892,10 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     local label = COMMAND_MODE.slot_label(slot);
-    if (is_bst_selector and has_command) then
-        COMMAND_MODE.draw_value_stepper_overlay(draw_list, rx, ry, slot_size, 'BL Jug', slot.bst_value or '?', { orientation = 'horizontal' }, nil);
+    if (is_bst_picker_toggle and has_command) then
+        BST_BAR.draw_picker_toggle_overlay(draw_list, rx, ry, slot_size, slot.bst_value or '?');
+    elseif (is_bst_jug_choice and has_command) then
+        draw_label_overlay(draw_list, rx, ry, slot_size, label, draw_icon_color);
     elseif (is_value_stepper and has_command) then
         COMMAND_MODE.draw_value_stepper_overlay(draw_list, rx, ry, slot_size, label, stepper_value, stepper_definition, stepper_feedback);
     elseif (setting_enabled('show_labels', true) and has_command and label ~= nil and label ~= '') then
@@ -12843,6 +12908,13 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
 
     if (has_command and not command_supported) then
         draw_unsupported_overlay(draw_list, rx, ry, slot_size);
+    end
+
+    if (is_bst_jug_choice and slot.bst_jug_selected == true) then
+        local selected_color = theme.icon_border or { 1.00, 0.86, 0.54, 1.00 };
+        draw_list:AddRect({ rx + 1, ry + 1 }, { rx + slot_size - 1, ry + slot_size - 1 }, color_u32(color_with_alpha(selected_color, 0.96)), rr, ImDrawCornerFlags_All, 2.2);
+        draw_list:AddLine({ rx + 6, ry + 11 }, { rx + 10, ry + 15 }, color_u32(selected_color), 2.0);
+        draw_list:AddLine({ rx + 10, ry + 15 }, { rx + 17, ry + 7 }, color_u32(selected_color), 2.0);
     end
 
     if (show_frame) then
@@ -12861,7 +12933,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         return nil;
     end
 
-    if (is_value_stepper or is_bst_selector) then
+    if (is_value_stepper) then
         return stepper_direction;
     end
     return clicked and 'activate' or nil;
@@ -12894,10 +12966,25 @@ local function render_tooltip(row, index)
     if (label ~= nil and label ~= '') then
         imgui.Text(label);
     end
-    if (slot ~= nil and slot.bst_selector == true) then
+    if (slot ~= nil and slot.bst_picker_toggle == true) then
         imgui.Text(('%s | %s'):fmt(slot.bst_pet_name or 'Selected pet', slot.bst_jug_name or 'Protected jug'));
         imgui.Text(('equippable count: %d'):fmt(tonumber(slot.bst_count) or 0));
-        imgui.Text('left half/right-click: previous; right half/wheel-up: next');
+        imgui.Text('click to choose from all protected jugs');
+        imgui.EndTooltip();
+        return;
+    end
+    if (slot ~= nil and slot.bst_jug_choice == true) then
+        imgui.Text(('%s | %s'):fmt(slot.bst_pet_name or 'Protected pet', slot.bst_jug_name or 'Protected jug'));
+        imgui.Text(('equippable count: %d'):fmt(tonumber(slot.bst_count) or 0));
+        if slot.bst_jug_selected == true then
+            imgui.Text('currently selected');
+        elseif slot.bst_available == false then
+            imgui.Text('unavailable: no equippable copies');
+        else
+            imgui.Text('click to select for Bestial Loyalty');
+        end
+        imgui.EndTooltip();
+        return;
     end
     if (slot ~= nil and slot.bst_bestial_loyalty == true) then
         imgui.Text(('selected: %s | %s'):fmt(slot.bst_pet_name or 'Protected pet', slot.bst_jug_name or 'Protected jug'));
@@ -13321,6 +13408,12 @@ end
 
 function BST_BAR.render()
     if (not BST_BAR.enabled()) then
+        if state.bst_jug_picker_open == true or state.bst_picker_pending_open ~= nil or state.bst_picker_pending_jug_id ~= nil then
+            state.bst_jug_picker_open = false;
+            state.bst_picker_pending_open = nil;
+            state.bst_picker_pending_jug_id = nil;
+            BST_BAR.invalidate();
+        end
         return;
     end
 
@@ -13363,6 +13456,7 @@ function BST_BAR.render()
     imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
     imgui.PushStyleColor(ImGuiCol_Border, theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
     state.bst_bar_open[1] = true;
+    local picker_window_hovered = false;
     if (imgui.Begin('AshitaBars BST Companion###AshitaBarsBstCompanion', state.bst_bar_open, flags)) then
         state.bst_bar_window_x, state.bst_bar_window_y = imgui.GetWindowPos();
         local index = 1;
@@ -13378,7 +13472,7 @@ function BST_BAR.render()
                 if (column > 1) then
                     imgui.SameLine(0, gap);
                 end
-                local activation = render_slot_button(BST_BAR_ROW, index, current_slot_size, false, 0, false, show_frame);
+                local activation = render_slot_button(BST_BAR_ROW, index, current_slot_size, slot.bst_jug_selected == true, 0, false, show_frame);
                 if (slot.bst_ready_cost ~= nil) then
                     local x, y = imgui.GetItemRectMin();
                     draw_count_badge(imgui.GetWindowDrawList(), x, y, current_slot_size, ('C%d'):fmt(slot.bst_ready_cost), 'top_right');
@@ -13389,6 +13483,10 @@ function BST_BAR.render()
                 render_tooltip(BST_BAR_ROW, index);
                 index = index + 1;
             end
+        end
+        picker_window_hovered = safe_read(function () return imgui.IsWindowHovered(); end, false) == true;
+        if state.bst_jug_picker_open == true and safe_read(function () return imgui.IsMouseClicked(0); end, false) == true and not picker_window_hovered then
+            state.bst_picker_pending_open = false;
         end
     end
     imgui.End();
@@ -13401,6 +13499,7 @@ function BST_BAR.render()
     if (style_var_count > 0) then
         imgui.PopStyleVar(style_var_count);
     end
+    BST_BAR.apply_pending_picker_change();
     state.render_bar_key = previous_bar_key;
 end
 
@@ -13652,7 +13751,7 @@ end
 function BST_BAR.render_config_tab()
     local settings = BST_BAR.settings();
     imgui.TextColored(UI_COLORS.config_header, 'BST Companion Palette');
-    imgui.TextWrapped('Shows a compact protected-jug selector while BST is the main job. With no pet it adds Bestial Loyalty; with a pet it shows only the live pet-specific Ready moves.');
+    imgui.TextWrapped('Shows a compact protected-jug picker while BST is the main job. Click it to reveal three direct jug choices. With no pet it adds Bestial Loyalty; with a pet it shows only the live pet-specific Ready moves.');
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
     render_runtime_int_control('Buttons Per Row', 'bst_bar_buttons_per_row', math.max(1, math.min(20, math.floor(tonumber(settings.buttons_per_row) or 7))), 'config', 1, 20, function (value)

@@ -31,7 +31,11 @@ foreach ($needle in @(
     "{ id = 17877, item = 'Fish Oil Broth'",
     "{ id = 17867, item = 'C. Carrion Broth'",
     "{ id = 17865, item = 'S. Herbal Broth'",
-    'function BST_BAR.cycle_jug(direction)',
+    'function BST_BAR.queue_picker_toggle()',
+    'function BST_BAR.queue_jug_selection(item_id)',
+    'function BST_BAR.apply_pending_picker_change()',
+    'bst_jug_choice = true',
+    'state.bst_picker_pending_jug_id = jug.id',
     'function BST_BAR.ready_slots()',
     'COMMAND_MODE.pet_command_actions()',
     "('/lac fwd bstjug %d'):fmt(jug_id)",
@@ -51,6 +55,9 @@ if ($bstSlotsStart -lt 0 -or $bstSlotsEnd -le $bstSlotsStart) {
 $bstSlotsText = $lua.Substring($bstSlotsStart, $bstSlotsEnd - $bstSlotsStart)
 if ($bstSlotsText.Contains("label = 'Call Beast'")) {
     throw 'Call Beast must remain absent from the BST companion palette.'
+}
+if ($lua.Contains('function BST_BAR.cycle_jug(direction)') -or $lua.Contains('bst_selector = true')) {
+    throw 'Legacy jug cycling must remain absent from the direct BST picker.'
 }
 
 foreach ($needle in @(
@@ -117,7 +124,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` selector', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'live `HasPetCommand`')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'live `HasPetCommand`')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }
