@@ -45,9 +45,10 @@ most one configured action or static macro.
 - Done: pet command mode backed by Ashita's live `HasPetCommand` state for the
   current main/sub job.
 - Done: compact click-only BST companion palette with a direct three-choice
-  protected Bestial Loyalty jug picker, Bestial Loyalty, and live pet-specific
-  Ready buttons; Call Beast remains outside this palette under LuAshitacast's
-  Fish Broth rule.
+  protected Bestial Loyalty jug picker, Bestial Loyalty, and explicit Ready
+  sets keyed to Courier Carrie/Crab Familiar, Coldblood Como, or Lullaby
+  Melodia; Call Beast remains outside this palette under LuAshitacast's Fish
+  Broth rule.
 - Done: item command mode previews and renders the selected item's in-game icon
   instead of requiring a manual icon token.
 - Done: shared button definitions that can be assigned by name to slots across

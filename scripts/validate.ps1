@@ -36,8 +36,15 @@ foreach ($needle in @(
     'function BST_BAR.apply_pending_picker_change()',
     'bst_jug_choice = true',
     'state.bst_picker_pending_jug_id = jug.id',
-    'function BST_BAR.ready_slots()',
-    'COMMAND_MODE.pet_command_actions()',
+    'BST_BAR.PET_READY_BY_NAME',
+    "['crabfamiliar'] = 'crab'",
+    "['couriercarrie'] = 'crab'",
+    "['coldbloodcomo'] = 'lizard'",
+    "['lullabymelodia'] = 'sheep'",
+    "crab = { 'Metallic Body', 'Bubble Shower', 'Bubble Curtain', 'Scissor Guard', 'Big Scissors' }",
+    "lizard = { 'Tail Blow', 'Fireball', 'Blockhead', 'Brain Crush', 'Infrasonics', 'Secretion' }",
+    "sheep = { 'Sheep Charge', 'Lamb Chop', 'Rage', 'Sheep Song' }",
+    'function BST_BAR.ready_slots(pet)',
     "('/lac fwd bstjug %d'):fmt(jug_id)",
     '''/ja "Bestial Loyalty" <me>''',
     'BST_BAR.render();'
@@ -58,6 +65,16 @@ if ($bstSlotsText.Contains("label = 'Call Beast'")) {
 }
 if ($lua.Contains('function BST_BAR.cycle_jug(direction)') -or $lua.Contains('bst_selector = true')) {
     throw 'Legacy jug cycling must remain absent from the direct BST picker.'
+}
+
+$readySlotsStart = $lua.IndexOf('function BST_BAR.ready_slots(pet)')
+$readySlotsEnd = $lua.IndexOf('function BST_BAR.slots(force)', $readySlotsStart)
+if ($readySlotsStart -lt 0 -or $readySlotsEnd -le $readySlotsStart) {
+    throw 'Could not isolate the BST Ready slot builder.'
+}
+$readySlotsText = $lua.Substring($readySlotsStart, $readySlotsEnd - $readySlotsStart)
+if ($readySlotsText.Contains('pet_command_actions') -or $readySlotsText.Contains('HasPetCommand')) {
+    throw 'BST companion Ready slots must not enumerate the job-wide pet-command catalog.'
 }
 
 foreach ($needle in @(
@@ -124,7 +141,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'live `HasPetCommand`')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }

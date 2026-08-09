@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.38.0';
+addon.version   = '0.38.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -264,6 +264,17 @@ BST_BAR.PROTECTED_JUGS = {
     { id = 17867, item = 'C. Carrion Broth', short = 'Como', pet = 'Coldblood Como' },
     { id = 17865, item = 'S. Herbal Broth', short = 'Melodia', pet = 'Lullaby Melodia' },
 };
+BST_BAR.PET_READY_BY_NAME = {
+    ['crabfamiliar'] = 'crab',
+    ['couriercarrie'] = 'crab',
+    ['coldbloodcomo'] = 'lizard',
+    ['lullabymelodia'] = 'sheep',
+};
+BST_BAR.PET_READY_SETS = {
+    crab = { 'Metallic Body', 'Bubble Shower', 'Bubble Curtain', 'Scissor Guard', 'Big Scissors' },
+    lizard = { 'Tail Blow', 'Fireball', 'Blockhead', 'Brain Crush', 'Infrasonics', 'Secretion' },
+    sheep = { 'Sheep Charge', 'Lamb Chop', 'Rage', 'Sheep Song' },
+};
 BST_BAR.READY_COSTS = {
     ['bubble shower'] = 1,
     ['bubble curtain'] = 3,
@@ -287,19 +298,6 @@ BST_BAR.SELF_TARGET_MOVES = {
     ['metallic body'] = true,
     ['secretion'] = true,
     ['rage'] = true,
-};
-BST_BAR.CONTROL_COMMANDS = {
-    ['fight'] = true,
-    ['heel'] = true,
-    ['stay'] = true,
-    ['leave'] = true,
-    ['release'] = true,
-    ['ready'] = true,
-    ['sic'] = true,
-    ['snarl'] = true,
-    ['reward'] = true,
-    ['charm'] = true,
-    ['tame'] = true,
 };
 ITEM_BAR.CAN_USE_FLAG = 0x0200;
 ITEM_BAR.FOOD_FLAG = 0x0008;
@@ -7742,12 +7740,15 @@ function BST_BAR.apply_pending_picker_change()
     end
 end
 
-function BST_BAR.ready_slots()
+function BST_BAR.ready_slots(pet)
     local slots = {};
-    for _, action in ipairs(COMMAND_MODE.pet_command_actions()) do
-        local name = COMMAND_MODE.clean_name(action.name);
+    local pet_name = type(pet) == 'table' and tostring(pet.name or '') or '';
+    local pet_key = pet_name:lower():gsub('[^a-z0-9]', '');
+    local ready_set = BST_BAR.PET_READY_SETS[BST_BAR.PET_READY_BY_NAME[pet_key]] or {};
+    for _, move_name in ipairs(ready_set) do
+        local name = COMMAND_MODE.clean_name(move_name);
         local key = name:lower();
-        if name ~= '' and BST_BAR.CONTROL_COMMANDS[key] ~= true then
+        if name ~= '' then
             local target = BST_BAR.SELF_TARGET_MOVES[key] == true and '<me>' or '<t>';
             slots[#slots + 1] = {
                 label = name,
@@ -7822,7 +7823,7 @@ function BST_BAR.slots(force)
             bst_available = selected_count > 0,
         };
     else
-        for _, slot in ipairs(BST_BAR.ready_slots()) do
+        for _, slot in ipairs(BST_BAR.ready_slots(pet)) do
             slots[#slots + 1] = slot;
         end
     end
@@ -13751,7 +13752,7 @@ end
 function BST_BAR.render_config_tab()
     local settings = BST_BAR.settings();
     imgui.TextColored(UI_COLORS.config_header, 'BST Companion Palette');
-    imgui.TextWrapped('Shows a compact protected-jug picker while BST is the main job. Click it to reveal three direct jug choices. With no pet it adds Bestial Loyalty; with a pet it shows only the live pet-specific Ready moves.');
+    imgui.TextWrapped('Shows a compact protected-jug picker while BST is the main job. Click it to reveal three direct jug choices. With no pet it adds Bestial Loyalty; with a recognized pet it shows only that pet\'s explicit Ready set.');
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
     render_runtime_int_control('Buttons Per Row', 'bst_bar_buttons_per_row', math.max(1, math.min(20, math.floor(tonumber(settings.buttons_per_row) or 7))), 'config', 1, 20, function (value)

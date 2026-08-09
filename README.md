@@ -88,12 +88,13 @@ inexpensive Fish Broth. This prevents the protected selection from being
 consumed accidentally through Call Beast.
 
 While a pet is present, the picker remains available for the next summon and
-the Bestial Loyalty button is replaced by the pet-specific commands currently
-reported by Ashita's live `HasPetCommand` state. Universal controls such as
-Fight, Heel, Stay, Leave, Ready, and Sic are excluded so the palette stays
-small. Clicking a displayed move issues exactly that named `/pet` command.
-Known Ready charge costs are shown as `C1`, `C2`, or `C3` badges. No move is
-chosen or executed automatically.
+the Bestial Loyalty button is replaced by an explicit move set keyed to the
+summoned pet's name. Courier Carrie and Crab Familiar show their five crab
+moves; Coldblood Como shows six lizard moves; Lullaby Melodia shows four sheep
+moves. The palette deliberately does not enumerate Ashita's job-wide
+`HasPetCommand` catalog. Clicking a displayed move issues exactly that named
+`/pet` command. Known Ready charge costs are shown as `C1`, `C2`, or `C3`
+badges. No move is chosen or executed automatically.
 
 ## Party Picker
 
