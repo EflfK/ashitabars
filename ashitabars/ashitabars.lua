@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.36.1';
+addon.version   = '0.37.0';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -90,6 +90,7 @@ local ROWS              = {
 };
 local CLICK_ROW         = { id = 'click', label = 'Click', keyPrefix = '', showHotkeys = false };
 ITEM_BAR_ROW            = { id = 'itembar', label = 'Items', keyPrefix = '', showHotkeys = false };
+BST_BAR_ROW             = { id = 'bstbar', label = 'BST Companion', keyPrefix = '', showHotkeys = false };
 local BUTTON_ROWS       = {
     ROWS[1],
     ROWS[2],
@@ -100,6 +101,7 @@ local BUTTON_ROWS       = {
     { id = 'click3', label = 'Click 3', keyPrefix = '', showHotkeys = false },
     { id = 'click4', label = 'Click 4', keyPrefix = '', showHotkeys = false },
     ITEM_BAR_ROW,
+    BST_BAR_ROW,
     { id = 'click_ctrl', label = 'Ctrl', keyPrefix = 'C', parent = 'click', modifier = 'ctrl', showHotkeys = false },
     { id = 'click_alt', label = 'Alt', keyPrefix = 'A', parent = 'click', modifier = 'alt', showHotkeys = false },
     { id = 'click_shift', label = 'Shift', keyPrefix = 'S', parent = 'click', modifier = 'shift', showHotkeys = false },
@@ -214,12 +216,14 @@ local ROW_THEME = {
     shift = { 0.72, 0.56, 1.00, 1.00 },
     click = { 0.55, 0.86, 0.64, 1.00 },
     itembar = { 0.82, 0.68, 0.36, 1.00 },
+    bstbar = { 1.00, 0.70, 0.34, 1.00 },
 };
 
 local LIMITS = {
     item_count_containers = { 0, 3 },
     item_count_cache_seconds = 0.40,
     item_bar_cache_seconds = 0.25,
+    bst_bar_cache_seconds = 0.25,
     slot_size_min = 40,
     slot_size_max = 96,
     button_count_min = 1,
@@ -252,6 +256,51 @@ local LIMITS = {
 };
 local BAR = {};
 ITEM_BAR = {};
+BST_BAR = {};
+BST_BAR.BST_JOB_ID = 9;
+BST_BAR.EQUIP_CONTAINERS = { 0, 8, 10, 11, 12, 13, 14, 15, 16 };
+BST_BAR.PROTECTED_JUGS = {
+    { id = 17877, item = 'Fish Oil Broth', short = 'Carrie', pet = 'Courier Carrie' },
+    { id = 17867, item = 'C. Carrion Broth', short = 'Como', pet = 'Coldblood Como' },
+    { id = 17865, item = 'S. Herbal Broth', short = 'Melodia', pet = 'Lullaby Melodia' },
+};
+BST_BAR.READY_COSTS = {
+    ['bubble shower'] = 1,
+    ['bubble curtain'] = 3,
+    ['big scissors'] = 1,
+    ['scissor guard'] = 2,
+    ['metallic body'] = 1,
+    ['tail blow'] = 1,
+    ['fireball'] = 1,
+    ['blockhead'] = 1,
+    ['brain crush'] = 1,
+    ['infrasonics'] = 2,
+    ['secretion'] = 1,
+    ['lamb chop'] = 1,
+    ['rage'] = 2,
+    ['sheep charge'] = 1,
+    ['sheep song'] = 2,
+};
+BST_BAR.SELF_TARGET_MOVES = {
+    ['bubble curtain'] = true,
+    ['scissor guard'] = true,
+    ['metallic body'] = true,
+    ['secretion'] = true,
+    ['rage'] = true,
+};
+BST_BAR.CONTROL_COMMANDS = {
+    ['fight'] = true,
+    ['heel'] = true,
+    ['stay'] = true,
+    ['leave'] = true,
+    ['release'] = true,
+    ['ready'] = true,
+    ['sic'] = true,
+    ['snarl'] = true,
+    ['reward'] = true,
+    ['charm'] = true,
+    ['tame'] = true,
+};
 ITEM_BAR.CAN_USE_FLAG = 0x0200;
 ITEM_BAR.FOOD_FLAG = 0x0008;
 ITEM_BAR.CATEGORY_GAP = 10;
@@ -891,6 +940,17 @@ local DEFAULT_CONFIG = {
             window_y = 440,
             excluded_item_ids = {},
         },
+        bst_companion_bar = {
+            visible = true,
+            buttons_per_row = 7,
+            slot_size = 48,
+            button_gap = 4,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 520,
+        },
     },
     profiles = {
         DEFAULT = {
@@ -978,6 +1038,11 @@ local state = {
     item_bar_open = T{ true },
     item_bar_cache = { at = -1, all = {}, visible = {} },
     item_bar_filter_buffer = T{ '' },
+    bst_bar_window_x = nil,
+    bst_bar_window_y = nil,
+    bst_bar_open = T{ true },
+    bst_bar_cache = { at = -1, slots = {} },
+    bst_selected_jug_id = 17877,
     recast_cache = {},
     recast_totals = {},
     mount_recast_overlay = nil,
@@ -1432,6 +1497,9 @@ function BAR.key_for_group(group)
     if (parent_group == ITEM_BAR_ROW.id) then
         return 'item';
     end
+    if (parent_group == BST_BAR_ROW.id) then
+        return 'bst';
+    end
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         if (BAR.extra_row_id(bar_key) == parent_group) then
             return bar_key;
@@ -1616,6 +1684,10 @@ local function load_config()
         state.item_bar_window_x = tonumber(item_bar_settings.window_x);
         state.item_bar_window_y = tonumber(item_bar_settings.window_y);
         ITEM_BAR.invalidate();
+        local bst_bar_settings = BST_BAR.settings();
+        state.bst_bar_window_x = tonumber(bst_bar_settings.window_x);
+        state.bst_bar_window_y = tonumber(bst_bar_settings.window_y);
+        BST_BAR.invalidate();
         state.recast_cache = {};
         state.recast_totals = {};
         state.macro_runs = {};
@@ -1704,6 +1776,10 @@ local function load_config()
     state.item_bar_window_x = tonumber(item_bar_settings.window_x);
     state.item_bar_window_y = tonumber(item_bar_settings.window_y);
     ITEM_BAR.invalidate();
+    local bst_bar_settings = BST_BAR.settings();
+    state.bst_bar_window_x = tonumber(bst_bar_settings.window_x);
+    state.bst_bar_window_y = tonumber(bst_bar_settings.window_y);
+    BST_BAR.invalidate();
     state.recast_cache = {};
     state.recast_totals = {};
     state.macro_runs = {};
@@ -2157,6 +2233,7 @@ BAR.EXTRA_LABEL = {
 BAR.SETTINGS_KEY = {
     main = 'main_bar',
     item = 'item_bar',
+    bst = 'bst_companion_bar',
     extra1 = 'extra_bar_1',
     extra2 = 'extra_bar_2',
     extra3 = 'extra_bar_3',
@@ -3943,6 +4020,19 @@ local function current_runtime_visual_settings()
         excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids),
     };
 
+    local bst_settings = BST_BAR.settings();
+    result.bst_companion_bar = {
+        visible = bst_settings.visible ~= false,
+        buttons_per_row = math.max(1, math.min(20, math.floor(tonumber(bst_settings.buttons_per_row) or 7))),
+        slot_size = slot_size('bst'),
+        button_gap = button_gap('bst'),
+        slot_glow_size = slot_glow_size('bst'),
+        slot_glow_opacity = slot_glow_opacity('bst'),
+        label_vertical_position = label_vertical_position('bst'),
+        window_x = math.floor((tonumber(state.bst_bar_window_x) or tonumber(bst_settings.window_x) or DEFAULT_CONFIG.settings.bst_companion_bar.window_x) + 0.5),
+        window_y = math.floor((tonumber(state.bst_bar_window_y) or tonumber(bst_settings.window_y) or DEFAULT_CONFIG.settings.bst_companion_bar.window_y) + 0.5),
+    };
+
     return result;
 end
 
@@ -3997,12 +4087,16 @@ local function apply_visual_settings(settings)
             target[settings_key] = {};
         end
     end
+    if (type(target.bst_companion_bar) ~= 'table') then
+        target.bst_companion_bar = copy_slot(DEFAULT_CONFIG.settings.bst_companion_bar);
+    end
 
     BAR.apply_visual_settings(target.main_bar, settings.main_bar, 'main');
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         local settings_key = BAR.SETTINGS_KEY[bar_key];
         BAR.apply_visual_settings(target[settings_key], settings[settings_key], bar_key);
     end
+    BAR.apply_visual_settings(target.bst_companion_bar, settings.bst_companion_bar, 'bst');
     if (type(target.item_bar) ~= 'table') then
         target.item_bar = copy_slot(DEFAULT_CONFIG.settings.item_bar);
     end
@@ -4161,6 +4255,19 @@ local function serialize_visual_settings(settings)
     table.insert(lines, ('            excluded_item_ids = { %s },'):fmt(table.concat(excluded_parts, ', ')));
     table.insert(lines, '        },');
 
+    local bst_bar = settings.bst_companion_bar or {};
+    table.insert(lines, '        bst_companion_bar = {');
+    table.insert(lines, ('            visible = %s,'):fmt(tostring(bst_bar.visible ~= false)));
+    table.insert(lines, ('            buttons_per_row = %d,'):fmt(bst_bar.buttons_per_row or 7));
+    table.insert(lines, ('            slot_size = %d,'):fmt(bst_bar.slot_size or 48));
+    table.insert(lines, ('            button_gap = %d,'):fmt(bst_bar.button_gap or 4));
+    table.insert(lines, ('            slot_glow_size = %d,'):fmt(bst_bar.slot_glow_size or 100));
+    table.insert(lines, ('            slot_glow_opacity = %d,'):fmt(bst_bar.slot_glow_opacity or 100));
+    table.insert(lines, ('            label_vertical_position = %d,'):fmt(bst_bar.label_vertical_position or 100));
+    table.insert(lines, ('            window_x = %d,'):fmt(bst_bar.window_x or 820));
+    table.insert(lines, ('            window_y = %d,'):fmt(bst_bar.window_y or 520));
+    table.insert(lines, '        },');
+
     local extra = settings.extra_bar_1 or {};
     for _, line in ipairs({
         ('        display_mode = %s,'):fmt(lua_string_literal(settings.display_mode)),
@@ -4257,6 +4364,10 @@ local function save_visual_settings()
     if (type(settings.item_bar) == 'table') then
         state.item_bar_window_x = settings.item_bar.window_x;
         state.item_bar_window_y = settings.item_bar.window_y;
+    end
+    if (type(settings.bst_companion_bar) == 'table') then
+        state.bst_bar_window_x = settings.bst_companion_bar.window_x;
+        state.bst_bar_window_y = settings.bst_companion_bar.window_y;
     end
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         local values = settings[BAR.SETTINGS_KEY[bar_key]];
@@ -5022,6 +5133,9 @@ end
 local function get_slot(group, index)
     if (group == ITEM_BAR_ROW.id) then
         return MACRO.normalize_slot_runtime(ITEM_BAR.slot(index));
+    end
+    if (group == BST_BAR_ROW.id) then
+        return MACRO.normalize_slot_runtime(BST_BAR.slot(index));
     end
 
     local bar_key = BAR.key_for_group(group);
@@ -7522,6 +7636,169 @@ function ITEM_BAR.slot(index)
     return entry ~= nil and entry.slot or nil;
 end
 
+function BST_BAR.settings()
+    local settings = state.config.settings or {};
+    if (type(settings.bst_companion_bar) ~= 'table') then
+        settings.bst_companion_bar = copy_slot(DEFAULT_CONFIG.settings.bst_companion_bar);
+    end
+    return settings.bst_companion_bar;
+end
+
+function BST_BAR.enabled()
+    return BST_BAR.settings().visible ~= false and current_main_job_id() == BST_BAR.BST_JOB_ID;
+end
+
+function BST_BAR.invalidate()
+    state.bst_bar_cache = { at = -1, slots = {} };
+end
+
+function BST_BAR.jug_count(item_id)
+    item_id = math.floor(tonumber(item_id) or 0);
+    if (item_id <= 0) then
+        return 0;
+    end
+
+    local inventory = safe_read(function () return AshitaCore:GetMemoryManager():GetInventory(); end, nil);
+    if (inventory == nil) then
+        return 0;
+    end
+
+    local count = 0;
+    for _, container_id in ipairs(BST_BAR.EQUIP_CONTAINERS) do
+        local maximum = tonumber(safe_read(function () return inventory:GetContainerCountMax(container_id); end, 0)) or 0;
+        for slot_index = 0, maximum do
+            local item = safe_read(function () return inventory:GetContainerItem(container_id, slot_index); end, nil);
+            if (item ~= nil and tonumber(item.Id) == item_id) then
+                count = count + math.max(0, tonumber(item.Count) or 0);
+            end
+        end
+    end
+    return count;
+end
+
+function BST_BAR.jug_by_id(item_id)
+    item_id = math.floor(tonumber(item_id) or 0);
+    for _, jug in ipairs(BST_BAR.PROTECTED_JUGS) do
+        if jug.id == item_id then
+            return jug;
+        end
+    end
+    return nil;
+end
+
+function BST_BAR.selected_jug()
+    local selected = BST_BAR.jug_by_id(state.bst_selected_jug_id);
+    if selected == nil then
+        selected = BST_BAR.PROTECTED_JUGS[1];
+        state.bst_selected_jug_id = selected.id;
+    end
+    return selected;
+end
+
+function BST_BAR.cycle_jug(direction)
+    local selected = BST_BAR.selected_jug();
+    local selected_index = 1;
+    for index, jug in ipairs(BST_BAR.PROTECTED_JUGS) do
+        if jug.id == selected.id then
+            selected_index = index;
+            break;
+        end
+    end
+
+    local step = direction == 'decrease' and -1 or 1;
+    selected_index = selected_index + step;
+    if selected_index < 1 then selected_index = #BST_BAR.PROTECTED_JUGS; end
+    if selected_index > #BST_BAR.PROTECTED_JUGS then selected_index = 1; end
+    state.bst_selected_jug_id = BST_BAR.PROTECTED_JUGS[selected_index].id;
+    BST_BAR.invalidate();
+    return BST_BAR.PROTECTED_JUGS[selected_index];
+end
+
+function BST_BAR.ready_slots()
+    local slots = {};
+    for _, action in ipairs(COMMAND_MODE.pet_command_actions()) do
+        local name = COMMAND_MODE.clean_name(action.name);
+        local key = name:lower();
+        if name ~= '' and BST_BAR.CONTROL_COMMANDS[key] ~= true then
+            local target = BST_BAR.SELF_TARGET_MOVES[key] == true and '<me>' or '<t>';
+            slots[#slots + 1] = {
+                label = name,
+                command = ('/pet "%s" %s'):fmt(name:gsub('"', ''), target),
+                macro_mode = 'pet',
+                use_action_name_label = true,
+                icon = 'bst_ready',
+                bst_ready_cost = BST_BAR.READY_COSTS[key],
+            };
+        end
+    end
+    return slots;
+end
+
+function BST_BAR.slots(force)
+    local now = os.clock();
+    local pet = COMMAND_MODE.current_pet_state();
+    local selected = BST_BAR.selected_jug();
+    local cache_key = ('%d:%s'):fmt(selected.id, pet ~= nil and tostring(pet.server_id or pet.index or 0) or 'none');
+    local cached = state.bst_bar_cache or { at = -1, slots = {} };
+    if force ~= true and cached.key == cache_key and (now - (tonumber(cached.at) or -1)) <= LIMITS.bst_bar_cache_seconds then
+        return cached.slots;
+    end
+
+    local selected_count = BST_BAR.jug_count(selected.id);
+    local slots = {
+        {
+            label = 'BL Jug',
+            command = ('/lac fwd bstjug %d'):fmt(selected.id),
+            icon = 'bst_bestial_loyalty',
+            bst_selector = true,
+            bst_value = selected.short,
+            bst_jug_id = selected.id,
+            bst_jug_name = selected.item,
+            bst_pet_name = selected.pet,
+            bst_count = selected_count,
+            bst_available = selected_count > 0,
+            item_icon_id = selected.id,
+        },
+    };
+
+    if pet == nil then
+        slots[#slots + 1] = {
+            label = 'Bestial Loyalty',
+            command = '/ja "Bestial Loyalty" <me>',
+            macro_mode = 'ability',
+            use_action_name_label = true,
+            icon = 'bst_bestial_loyalty',
+            bst_bestial_loyalty = true,
+            bst_jug_id = selected.id,
+            bst_jug_name = selected.item,
+            bst_pet_name = selected.pet,
+            bst_available = selected_count > 0,
+        };
+        slots[#slots + 1] = {
+            label = 'Call Beast',
+            command = '/ja "Call Beast" <me>',
+            macro_mode = 'ability',
+            use_action_name_label = true,
+            icon = 'bst_call_beast',
+        };
+    else
+        for _, slot in ipairs(BST_BAR.ready_slots()) do
+            slots[#slots + 1] = slot;
+        end
+    end
+
+    state.bst_bar_cache = { at = now, key = cache_key, slots = slots };
+    return slots;
+end
+
+function BST_BAR.slot(index)
+    return BST_BAR.slots(false)[tonumber(index) or 0];
+end
+
+function BST_BAR.slot_count()
+    return #BST_BAR.slots(false);
+end
+
 function COMMAND_MODE.render_item_icon_preview(editor, size)
     size = size or 36;
     local action, resource = COMMAND_MODE.selected_item_action(editor);
@@ -7644,6 +7921,7 @@ function COMMAND_MODE.current_pet_state()
     return {
         index = pet_index,
         server_id = tonumber(safe_read(function () return pet_entity.ServerId; end, nil)),
+        name = trim_one_line(tostring(safe_read(function () return pet_entity.Name; end, '') or ''), 48),
         status = pet_status,
         hp_percent = tonumber(safe_read(function () return pet_entity.HPPercent; end, nil)),
     };
@@ -9037,6 +9315,42 @@ function MACRO.run_editor_commands()
 end
 
 local function execute_slot(group, index, source, direction)
+    if (group == BST_BAR_ROW.id) then
+        local slot = get_slot(group, index);
+        if (type(slot) ~= 'table') then
+            return false;
+        end
+        if (slot.bst_selector == true) then
+            BST_BAR.cycle_jug(direction);
+            return true;
+        end
+
+        local commands = MACRO.slot_commands(slot);
+        if (slot.bst_bestial_loyalty == true) then
+            local jug_id = math.floor(tonumber(slot.bst_jug_id) or 0);
+            commands = {
+                ('/lac fwd bstjug %d'):fmt(jug_id),
+                '/ja "Bestial Loyalty" <me>',
+            };
+        end
+        if (#commands == 0) then
+            return false;
+        end
+        local validation_error = MACRO.commands_validation_error(commands);
+        if (validation_error ~= nil) then
+            log_warn(('Rejected BST companion slot %d command from %s: %s'):fmt(index, source, validation_error));
+            return false;
+        end
+        local context = { profile_key = 'BST', group = group, index = index, script = false };
+        local queue_ok, queue_message = MACRO.queue_commands(commands, context);
+        if (not queue_ok) then
+            log_warn(('Rejected BST companion slot %d command from %s: %s'):fmt(index, source, queue_message));
+            return false;
+        end
+        COMMAND_MODE.track_command_execution(commands);
+        return true;
+    end
+
     local bar_key = BAR.key_for_group(group);
     refresh_profile_context(bar_key);
 
@@ -10739,7 +11053,17 @@ local function slot_visual_state(slot)
         available = true,
     };
 
-    if (prefix == '/item') then
+    if (slot.bst_jug_id ~= nil) then
+        local count = tonumber(slot.bst_count);
+        state_info.kind = 'item';
+        state_info.count = count;
+        state_info.count_label = show_counts and count ~= nil and format_count(count) or nil;
+        if (show_availability and slot.bst_available == false) then
+            state_info.available = false;
+            state_info.reason = ('%s is unavailable'):fmt(slot.bst_jug_name or 'Selected jug');
+            state_info.reason_label = '0';
+        end
+    elseif (prefix == '/item') then
         local source = item_source_for_command(slot.command);
         if (source ~= nil) then
             local count = DEFERRED.item_count(source.id);
@@ -12195,7 +12519,17 @@ function MACRO.render_icon_picker_window(editor)
 end
 
 function COMMAND_MODE.item_icon_handle_for_slot(slot)
-    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+    if (slot == nil) then
+        return nil;
+    end
+
+    local explicit_item_id = math.floor(tonumber(slot.item_icon_id) or 0);
+    if (explicit_item_id > 0) then
+        local resource = COMMAND_MODE.item_resource(explicit_item_id, nil);
+        return COMMAND_MODE.item_icon_handle(explicit_item_id, resource);
+    end
+
+    if (type(slot.command) ~= 'string' or slot.command == '') then
         return nil;
     end
 
@@ -12310,9 +12644,11 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local pressed = imgui.IsItemActive();
     local x, y = imgui.GetItemRectMin();
     local draw_list = imgui.GetWindowDrawList();
-    local edit_hovered = show_frame and hovered and edit_handle_hovered(x, y, slot_size);
+    local dynamic_slot = row.id == BST_BAR_ROW.id;
+    local edit_hovered = show_frame and not dynamic_slot and hovered and edit_handle_hovered(x, y, slot_size);
     local edit_clicked = clicked and edit_hovered;
     local is_value_stepper = COMMAND_MODE.mode_for_slot(slot) == 'valuestepper';
+    local is_bst_selector = type(slot) == 'table' and slot.bst_selector == true;
     local stepper_definition = is_value_stepper and COMMAND_MODE.stepper_from_slot(slot) or nil;
     if (is_value_stepper and COMMAND_MODE.stepper_validation_error(stepper_definition) ~= nil) then
         command_supported = false;
@@ -12348,6 +12684,18 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
                     stepper_direction = mouse_x < (x + (slot_size * 0.5)) and 'decrease' or 'increase';
                 end
             end
+        end
+    end
+    if (is_bst_selector and hovered and not edit_clicked) then
+        local right_clicked = safe_read(function () return imgui.IsMouseClicked(1); end, false) == true;
+        local wheel = safe_read(function () return tonumber(imgui.GetIO().MouseWheel) or 0; end, 0);
+        if (right_clicked) then
+            stepper_direction = 'decrease';
+        elseif (wheel ~= 0) then
+            stepper_direction = wheel < 0 and 'decrease' or 'increase';
+        elseif (clicked) then
+            local mouse_x = imgui.GetMousePos();
+            stepper_direction = mouse_x < (x + (slot_size * 0.5)) and 'decrease' or 'increase';
         end
     end
     if (capture_anchor) then
@@ -12488,7 +12836,9 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     end
 
     local label = COMMAND_MODE.slot_label(slot);
-    if (is_value_stepper and has_command) then
+    if (is_bst_selector and has_command) then
+        COMMAND_MODE.draw_value_stepper_overlay(draw_list, rx, ry, slot_size, 'BL Jug', slot.bst_value or '?', { orientation = 'horizontal' }, nil);
+    elseif (is_value_stepper and has_command) then
         COMMAND_MODE.draw_value_stepper_overlay(draw_list, rx, ry, slot_size, label, stepper_value, stepper_definition, stepper_feedback);
     elseif (setting_enabled('show_labels', true) and has_command and label ~= nil and label ~= '') then
         draw_label_overlay(draw_list, rx, ry, slot_size, label, command_supported and draw_icon_color or { 1.00, 0.30, 0.24, 1.00 });
@@ -12518,7 +12868,7 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
         return nil;
     end
 
-    if (is_value_stepper) then
+    if (is_value_stepper or is_bst_selector) then
         return stepper_direction;
     end
     return clicked and 'activate' or nil;
@@ -12550,6 +12900,17 @@ local function render_tooltip(row, index)
     local label = COMMAND_MODE.slot_label(slot);
     if (label ~= nil and label ~= '') then
         imgui.Text(label);
+    end
+    if (slot ~= nil and slot.bst_selector == true) then
+        imgui.Text(('%s | %s'):fmt(slot.bst_pet_name or 'Selected pet', slot.bst_jug_name or 'Protected jug'));
+        imgui.Text(('equippable count: %d'):fmt(tonumber(slot.bst_count) or 0));
+        imgui.Text('left half/right-click: previous; right half/wheel-up: next');
+    end
+    if (slot ~= nil and slot.bst_bestial_loyalty == true) then
+        imgui.Text(('selected: %s | %s'):fmt(slot.bst_pet_name or 'Protected pet', slot.bst_jug_name or 'Protected jug'));
+    end
+    if (slot ~= nil and slot.bst_ready_cost ~= nil) then
+        imgui.Text(('Ready charge cost: %d'):fmt(tonumber(slot.bst_ready_cost) or 0));
     end
     if (COMMAND_MODE.mode_for_slot(slot) == 'valuestepper') then
         local bar_key = BAR.key_for_group(row.id);
@@ -12965,6 +13326,91 @@ function ITEM_BAR.render()
     state.render_bar_key = previous_bar_key;
 end
 
+function BST_BAR.render()
+    if (not BST_BAR.enabled()) then
+        return;
+    end
+
+    local slots = BST_BAR.slots(false);
+    local slot_count = #slots;
+    if (slot_count == 0) then
+        return;
+    end
+
+    local settings = BST_BAR.settings();
+    local previous_bar_key = state.render_bar_key;
+    state.render_bar_key = 'bst';
+    local current_slot_size = slot_size('bst');
+    local gap = button_gap('bst');
+    local columns = math.max(1, math.min(slot_count, math.floor(tonumber(settings.buttons_per_row) or 7)));
+    local rows = math.max(1, math.ceil(slot_count / columns));
+    local row_gap = tonumber((state.config.settings or {}).row_gap) or DEFAULT_CONFIG.settings.row_gap;
+    local show_frame = bar_frame_visible();
+    local hidden_pad = show_frame and 0 or frameless_window_padding();
+    local content_width = (current_slot_size * columns) + (gap * math.max(0, columns - 1));
+    local content_height = (current_slot_size * rows) + (row_gap * math.max(0, rows - 1));
+    local width = content_width + (show_frame and 20 or (hidden_pad * 2));
+    local height = content_height + (show_frame and 48 or (hidden_pad * 2));
+    local window_x = tonumber(state.bst_bar_window_x) or tonumber(settings.window_x) or DEFAULT_CONFIG.settings.bst_companion_bar.window_x;
+    local window_y = tonumber(state.bst_bar_window_y) or tonumber(settings.window_y) or DEFAULT_CONFIG.settings.bst_companion_bar.window_y;
+    local flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
+    local style_var_count = 0;
+    if (show_frame) then
+        imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_FirstUseEver);
+    else
+        imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_Always);
+        flags = bit.bor(flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
+        imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
+        imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
+        style_var_count = 2;
+    end
+
+    imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
+    local theme = current_theme();
+    imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
+    imgui.PushStyleColor(ImGuiCol_Border, theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
+    state.bst_bar_open[1] = true;
+    if (imgui.Begin('AshitaBars BST Companion###AshitaBarsBstCompanion', state.bst_bar_open, flags)) then
+        state.bst_bar_window_x, state.bst_bar_window_y = imgui.GetWindowPos();
+        local index = 1;
+        for row_index = 1, rows do
+            if (row_index > 1 and row_gap > 0) then
+                imgui.Dummy({ 1, row_gap });
+            end
+            for column = 1, columns do
+                local slot = slots[index];
+                if (slot == nil) then
+                    break;
+                end
+                if (column > 1) then
+                    imgui.SameLine(0, gap);
+                end
+                local activation = render_slot_button(BST_BAR_ROW, index, current_slot_size, false, 0, false, show_frame);
+                if (slot.bst_ready_cost ~= nil) then
+                    local x, y = imgui.GetItemRectMin();
+                    draw_count_badge(imgui.GetWindowDrawList(), x, y, current_slot_size, ('C%d'):fmt(slot.bst_ready_cost), 'top_right');
+                end
+                if (activation ~= nil) then
+                    execute_slot(BST_BAR_ROW.id, index, 'BST companion click', activation);
+                end
+                render_tooltip(BST_BAR_ROW, index);
+                index = index + 1;
+            end
+        end
+    end
+    imgui.End();
+    if (state.bst_bar_open[1] == false) then
+        settings.visible = false;
+        state.bst_bar_open[1] = true;
+        state.config_save_message = nil;
+    end
+    imgui.PopStyleColor(2);
+    if (style_var_count > 0) then
+        imgui.PopStyleVar(style_var_count);
+    end
+    state.render_bar_key = previous_bar_key;
+end
+
 local function render_runtime_int_control(label, id, value, source, min_value, max_value, apply_value, unit)
     unit = unit or 'px';
     local text = (unit == '%') and ('%d%% (%s)'):fmt(value, source) or ('%d %s (%s)'):fmt(value, unit, source);
@@ -13016,12 +13462,17 @@ function BAR.render_visibility_config()
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
         bars[#bars + 1] = { key = bar_key, label = BAR.extra_label(bar_key) };
     end
+    bars[#bars + 1] = { key = 'bst', label = 'BST Companion' };
     bars[#bars + 1] = { key = 'item', label = 'Item Bar' };
 
     for _, bar in ipairs(bars) do
         local is_main = bar.key == 'main';
         local is_item = bar.key == 'item';
-        local visible = is_main and main_bar_visible() or (is_item and ITEM_BAR.settings().visible ~= false or BAR.extra_bar_visible(bar.key));
+        local is_bst = bar.key == 'bst';
+        local visible = is_main and main_bar_visible()
+            or (is_item and ITEM_BAR.settings().visible ~= false)
+            or (is_bst and BST_BAR.settings().visible ~= false)
+            or ((not is_item and not is_bst) and BAR.extra_bar_visible(bar.key));
         if (imgui.Checkbox(('%s##ashitabars_config_visible_%s'):fmt(bar.label, bar.key), { visible })) then
             local next_visible = not visible;
             if (is_main) then
@@ -13030,6 +13481,9 @@ function BAR.render_visibility_config()
             elseif (is_item) then
                 ITEM_BAR.settings().visible = next_visible;
                 state.item_bar_open[1] = true;
+            elseif (is_bst) then
+                BST_BAR.settings().visible = next_visible;
+                state.bst_bar_open[1] = true;
             else
                 BAR.set_override(bar.key, 'visible', next_visible);
                 BAR.extra_runtime(bar.key).open[1] = true;
@@ -13037,7 +13491,7 @@ function BAR.render_visibility_config()
             state.config_save_message = nil;
         end
         imgui.SameLine(0, 8);
-        imgui.Text(('(%s)'):fmt(is_item and 'config' or (is_main and main_bar_visible_source() or BAR.extra_bar_visible_source(bar.key))));
+        imgui.Text(('(%s)'):fmt((is_item or is_bst) and 'config' or (is_main and main_bar_visible_source() or BAR.extra_bar_visible_source(bar.key))));
     end
 end
 
@@ -13202,6 +13656,32 @@ function ITEM_BAR.render_config_tab()
     end
 end
 
+function BST_BAR.render_config_tab()
+    local settings = BST_BAR.settings();
+    imgui.TextColored(UI_COLORS.config_header, 'BST Companion Palette');
+    imgui.TextWrapped('Shows a compact protected-jug selector while BST is the main job. With no pet it adds Bestial Loyalty and Fish Broth Call Beast; with a pet it shows only the live pet-specific Ready moves.');
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
+    render_runtime_int_control('Buttons Per Row', 'bst_bar_buttons_per_row', math.max(1, math.min(20, math.floor(tonumber(settings.buttons_per_row) or 7))), 'config', 1, 20, function (value)
+        settings.buttons_per_row = math.max(1, math.min(20, math.floor(value + 0.5)));
+        state.config_save_message = nil;
+    end, 'buttons');
+    render_runtime_int_control('Button Size', 'bst_bar_slot_size', slot_size('bst'), 'config', LIMITS.slot_size_min, LIMITS.slot_size_max, function (value)
+        settings.slot_size = normalize_slot_size(value);
+        state.config_save_message = nil;
+    end);
+    render_runtime_int_control('Button Gap', 'bst_bar_button_gap', button_gap('bst'), 'config', LIMITS.button_gap_min, LIMITS.button_gap_max, function (value)
+        settings.button_gap = normalize_button_gap(value);
+        state.config_save_message = nil;
+    end);
+    imgui.Separator();
+    imgui.TextColored(UI_COLORS.config_header, 'Protected Bestial Loyalty Jugs');
+    for _, jug in ipairs(BST_BAR.PROTECTED_JUGS) do
+        imgui.Text(('%s  |  %s  |  x%d'):fmt(jug.pet, jug.item, BST_BAR.jug_count(jug.id)));
+    end
+    imgui.TextWrapped('Call Beast is not selectable here and remains controlled by the LuAshitacast Fish Broth safety rule.');
+end
+
 local function render_config_window()
     if (not state.config_visible[1]) then
         return;
@@ -13252,6 +13732,10 @@ local function render_config_window()
             end
             if (imgui.BeginTabItem('Item Bar##ashitabars_config_item_bar', nil)) then
                 ITEM_BAR.render_config_tab();
+                imgui.EndTabItem();
+            end
+            if (imgui.BeginTabItem('BST Companion##ashitabars_config_bst_bar', nil)) then
+                BST_BAR.render_config_tab();
                 imgui.EndTabItem();
             end
             imgui.EndTabBar();
@@ -13866,6 +14350,7 @@ ashita.events.register('d3d_present', 'present_cb', function ()
     handle_bound_mouse_wheel();
     render_bars();
     render_click_bar();
+    BST_BAR.render();
     ITEM_BAR.render();
     render_config_window();
     render_macro_editor_window();

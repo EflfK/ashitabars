@@ -39,6 +39,10 @@ or another text input is open.
 - Draws display-only item count badges and low-resource dimming for supported
   spell, item, and weapon-skill slots.
 - Draws optional TP-driven weapon-skill button effects, configurable per button.
+- Shows an optional click-only BST companion palette while Beastmaster is the
+  main job. Its compact on-bar toggle selects only protected Bestial Loyalty
+  jugs, and a summoned pet replaces the summon actions with that pet's live
+  Ready moves.
 - Supports optional per-slot built-in icon tokens, with inferred icons in
   `auto` mode.
 - When `/ashitabars config` is open, each button shows a small edit corner that
@@ -64,6 +68,30 @@ can wrap normal item-use and gear-state flows.
 
 Unlisted active-helper behavior should be reviewed under CatsEyeXI addon policy
 before normal use.
+
+## BST Companion Palette
+
+The BST companion palette is visible only while Beastmaster is the main job.
+With no pet, it contains three compact buttons: a split `BL Jug` selector,
+`Bestial Loyalty`, and `Call Beast`. Click the selector's left or right half,
+right-click it, or use the mouse wheel while hovering it to cycle the protected
+jug list. The selector shows the chosen pet name, the jug's in-game item icon,
+and its count across Inventory and Wardrobes.
+
+The protected list is deliberately limited to Fish Oil Broth, C. Carrion
+Broth, and S. Herbal Broth. Pressing Bestial Loyalty forwards the selected item
+id to the BST LuAshitacast profile immediately before issuing the attended job
+ability. Call Beast issues only `/ja "Call Beast" <me>`; the profile remains
+responsible for equipping and validating inexpensive Fish Broth. This prevents
+the protected selection from being consumed accidentally through Call Beast.
+
+While a pet is present, the selector remains available for the next summon and
+the two summon buttons are replaced by the pet-specific commands currently
+reported by Ashita's live `HasPetCommand` state. Universal controls such as
+Fight, Heel, Stay, Leave, Ready, and Sic are excluded so the palette stays
+small. Clicking a displayed move issues exactly that named `/pet` command.
+Known Ready charge costs are shown as `C1`, `C2`, or `C3` badges. No move is
+chosen or executed automatically.
 
 ## Party Picker
 
@@ -245,6 +273,17 @@ settings = {
         window_x = 820,
         window_y = 440,
     },
+    bst_companion_bar = {
+        visible = true,
+        buttons_per_row = 7,
+        slot_size = 48,
+        button_gap = 4,
+        slot_glow_size = 100,
+        slot_glow_opacity = 100,
+        label_vertical_position = 100,
+        window_x = 820,
+        window_y = 520,
+    },
 }
 ```
 
@@ -275,7 +314,7 @@ as the main bar and stores an independent position with its own `window_x` /
 `window_y`.
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
-and one tab for each visible extra bar. The General tab exposes global visual
+the dedicated Item and BST Companion tabs, and one tab for each visible extra bar. The General tab exposes global visual
 effects such as weapon-skill pulse, the visible bar list, and the global
 `Unlock Bars` control. Only visible bars get their own config tab. Hiding a bar is visual only and does
 not delete its saved button profiles. The bar tabs expose profile scope, button

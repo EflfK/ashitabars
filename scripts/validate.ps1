@@ -20,9 +20,27 @@ if ($topLevelLocalCount -gt 199) {
     throw "Addon has $topLevelLocalCount top-level local declarations; keep this below Lua 5.1's 200-local chunk limit."
 }
 
-foreach ($needle in @('item_bar = {', 'excluded_item_ids = {}', 'buttons_per_row = 10', "potency_order = 'highest'", 'show_recovery_amounts = true')) {
+foreach ($needle in @('item_bar = {', 'excluded_item_ids = {}', 'buttons_per_row = 10', "potency_order = 'highest'", 'show_recovery_amounts = true', 'bst_companion_bar = {', 'buttons_per_row = 7')) {
     if (-not $configText.Contains($needle)) {
         throw "Expected dynamic Item Bar configuration not found: $needle"
+    }
+}
+
+foreach ($needle in @(
+    'BST_BAR.PROTECTED_JUGS',
+    "{ id = 17877, item = 'Fish Oil Broth'",
+    "{ id = 17867, item = 'C. Carrion Broth'",
+    "{ id = 17865, item = 'S. Herbal Broth'",
+    'function BST_BAR.cycle_jug(direction)',
+    'function BST_BAR.ready_slots()',
+    'COMMAND_MODE.pet_command_actions()',
+    "('/lac fwd bstjug %d'):fmt(jug_id)",
+    '''/ja "Bestial Loyalty" <me>''',
+    'command = ''/ja "Call Beast" <me>''',
+    'BST_BAR.render();'
+)) {
+    if (-not $lua.Contains($needle)) {
+        throw "Expected BST companion integration not found: $needle"
     }
 }
 
@@ -87,6 +105,12 @@ foreach ($needle in @(
 foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'Temporary addon overlays', '`/afishing cast`', '`/aminimap toggle`', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"
+    }
+}
+
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` selector', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast', 'live `HasPetCommand`')) {
+    if (-not $readmeText.Contains($needle)) {
+        throw "Expected BST companion documentation not found: $needle"
     }
 }
 

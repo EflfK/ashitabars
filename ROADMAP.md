@@ -44,6 +44,9 @@ most one configured action or static macro.
   spell/item/ability lists where Ashita exposes them.
 - Done: pet command mode backed by Ashita's live `HasPetCommand` state for the
   current main/sub job.
+- Done: compact click-only BST companion palette with a protected Bestial
+  Loyalty jug toggle, a Fish Broth-only Call Beast path delegated to
+  LuAshitacast, and live pet-specific Ready buttons.
 - Done: item command mode previews and renders the selected item's in-game icon
   instead of requiring a manual icon token.
 - Done: shared button definitions that can be assigned by name to slots across

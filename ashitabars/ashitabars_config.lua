@@ -250,6 +250,17 @@ return {
             window_y = 440,
             excluded_item_ids = {},
         },
+        bst_companion_bar = {
+            visible = true,
+            buttons_per_row = 7,
+            slot_size = 48,
+            button_gap = 4,
+            slot_glow_size = 100,
+            slot_glow_opacity = 100,
+            label_vertical_position = 100,
+            window_x = 820,
+            window_y = 520,
+        },
     },
 
     profiles = {
