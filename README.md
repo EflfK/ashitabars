@@ -78,6 +78,9 @@ choices: Carrie, Como, and Melodia. Each choice uses the jug's in-game item icon
 and shows its count across Inventory and Wardrobes. The current choice has a
 gold border and check; zero-count choices remain visible but cannot be selected.
 Choosing an available jug immediately collapses the picker back to one button.
+Picker choices and gameplay actions use separate internal button identities,
+with a brief release guard so a collapsing choice cannot fall through into
+Bestial Loyalty.
 
 The protected list is deliberately limited to Fish Oil Broth, C. Carrion
 Broth, and S. Herbal Broth. Pressing Bestial Loyalty forwards the selected item

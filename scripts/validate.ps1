@@ -34,8 +34,16 @@ foreach ($needle in @(
     'function BST_BAR.queue_picker_toggle()',
     'function BST_BAR.queue_jug_selection(item_id)',
     'function BST_BAR.apply_pending_picker_change()',
+    'BST_BAR.PICKER_RELEASE_GUARD_SECONDS = 0.25',
     'bst_jug_choice = true',
     'state.bst_picker_pending_jug_id = jug.id',
+    "bst_widget_id = ('jug-choice-%d'):fmt(jug.id)",
+    "bst_widget_id = 'jug-picker-toggle'",
+    "bst_widget_id = 'bestial-loyalty'",
+    "bst_widget_id = 'ready-' .. key:gsub('[^a-z0-9]', '-')",
+    'state.bst_action_suppressed_until = os.clock() + BST_BAR.PICKER_RELEASE_GUARD_SECONDS',
+    'if os.clock() < (tonumber(state.bst_action_suppressed_until) or 0) then',
+    "('##ashitabars_%s_%s'):fmt(row.id, tostring(widget_id))",
     'BST_BAR.PET_READY_BY_NAME',
     "['crabfamiliar'] = 'crab'",
     "['couriercarrie'] = 'crab'",
@@ -141,7 +149,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }

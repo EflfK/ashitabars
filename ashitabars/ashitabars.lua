@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.38.1';
+addon.version   = '0.38.2';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -258,6 +258,7 @@ local BAR = {};
 ITEM_BAR = {};
 BST_BAR = {};
 BST_BAR.BST_JOB_ID = 9;
+BST_BAR.PICKER_RELEASE_GUARD_SECONDS = 0.25;
 BST_BAR.EQUIP_CONTAINERS = { 0, 8, 10, 11, 12, 13, 14, 15, 16 };
 BST_BAR.PROTECTED_JUGS = {
     { id = 17877, item = 'Fish Oil Broth', short = 'Carrie', pet = 'Courier Carrie' },
@@ -1044,6 +1045,7 @@ local state = {
     bst_jug_picker_open = false,
     bst_picker_pending_open = nil,
     bst_picker_pending_jug_id = nil,
+    bst_action_suppressed_until = 0,
     recast_cache = {},
     recast_totals = {},
     mount_recast_overlay = nil,
@@ -7724,6 +7726,7 @@ function BST_BAR.apply_pending_picker_change()
         if jug ~= nil and BST_BAR.jug_count(jug.id) > 0 then
             state.bst_selected_jug_id = jug.id;
             state.bst_jug_picker_open = false;
+            state.bst_action_suppressed_until = os.clock() + BST_BAR.PICKER_RELEASE_GUARD_SECONDS;
             changed = true;
         end
         state.bst_picker_pending_open = nil;
@@ -7753,6 +7756,7 @@ function BST_BAR.ready_slots(pet)
             slots[#slots + 1] = {
                 label = name,
                 command = ('/pet "%s" %s'):fmt(name:gsub('"', ''), target),
+                bst_widget_id = 'ready-' .. key:gsub('[^a-z0-9]', '-'),
                 macro_mode = 'pet',
                 use_action_name_label = true,
                 icon = 'bst_ready',
@@ -7782,6 +7786,7 @@ function BST_BAR.slots(force)
             slots[#slots + 1] = {
                 label = jug.short,
                 command = '',
+                bst_widget_id = ('jug-choice-%d'):fmt(jug.id),
                 icon = 'bst_bestial_loyalty',
                 bst_jug_choice = true,
                 bst_jug_selected = jug.id == selected.id,
@@ -7797,6 +7802,7 @@ function BST_BAR.slots(force)
         slots[#slots + 1] = {
             label = 'BL Jug',
             command = '',
+            bst_widget_id = 'jug-picker-toggle',
             icon = 'bst_bestial_loyalty',
             bst_picker_toggle = true,
             bst_value = selected.short,
@@ -7813,6 +7819,7 @@ function BST_BAR.slots(force)
         slots[#slots + 1] = {
             label = 'Bestial Loyalty',
             command = '/ja "Bestial Loyalty" <me>',
+            bst_widget_id = 'bestial-loyalty',
             macro_mode = 'ability',
             use_action_name_label = true,
             icon = 'bst_bestial_loyalty',
@@ -9367,6 +9374,9 @@ local function execute_slot(group, index, source, direction)
         end
         if (slot.bst_jug_choice == true) then
             return BST_BAR.queue_jug_selection(slot.bst_jug_id);
+        end
+        if os.clock() < (tonumber(state.bst_action_suppressed_until) or 0) then
+            return false;
         end
 
         local commands = MACRO.slot_commands(slot);
@@ -12709,7 +12719,9 @@ local function render_slot_button(row, index, slot_size, active, transition_alph
     local commands = MACRO.slot_commands(slot);
     local has_command = is_bst_picker_slot or #commands > 0;
     local command_supported = is_bst_picker_slot or (has_command and MACRO.commands_validation_error(commands) == nil);
-    local clicked = imgui.InvisibleButton(('##ashitabars_%s_%d'):fmt(row.id, index), { slot_size, slot_size });
+    local widget_id = row.id == BST_BAR_ROW.id and type(slot) == 'table' and slot.bst_widget_id or nil;
+    local button_id = widget_id ~= nil and ('##ashitabars_%s_%s'):fmt(row.id, tostring(widget_id)) or ('##ashitabars_%s_%d'):fmt(row.id, index);
+    local clicked = imgui.InvisibleButton(button_id, { slot_size, slot_size });
     local hovered = imgui.IsItemHovered();
     local pressed = imgui.IsItemActive();
     local x, y = imgui.GetItemRectMin();
