@@ -36,12 +36,21 @@ foreach ($needle in @(
     'COMMAND_MODE.pet_command_actions()',
     "('/lac fwd bstjug %d'):fmt(jug_id)",
     '''/ja "Bestial Loyalty" <me>''',
-    'command = ''/ja "Call Beast" <me>''',
     'BST_BAR.render();'
 )) {
     if (-not $lua.Contains($needle)) {
         throw "Expected BST companion integration not found: $needle"
     }
+}
+
+$bstSlotsStart = $lua.IndexOf('function BST_BAR.slots(force)')
+$bstSlotsEnd = $lua.IndexOf('function BST_BAR.slot(index)', $bstSlotsStart)
+if ($bstSlotsStart -lt 0 -or $bstSlotsEnd -le $bstSlotsStart) {
+    throw 'Could not isolate the BST companion slot builder.'
+}
+$bstSlotsText = $lua.Substring($bstSlotsStart, $bstSlotsEnd - $bstSlotsStart)
+if ($bstSlotsText.Contains("label = 'Call Beast'")) {
+    throw 'Call Beast must remain absent from the BST companion palette.'
 }
 
 foreach ($needle in @(
@@ -108,7 +117,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` selector', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast', 'live `HasPetCommand`')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` selector', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'live `HasPetCommand`')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }

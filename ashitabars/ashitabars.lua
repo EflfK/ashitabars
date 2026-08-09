@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.37.0';
+addon.version   = '0.37.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -7774,13 +7774,6 @@ function BST_BAR.slots(force)
             bst_pet_name = selected.pet,
             bst_available = selected_count > 0,
         };
-        slots[#slots + 1] = {
-            label = 'Call Beast',
-            command = '/ja "Call Beast" <me>',
-            macro_mode = 'ability',
-            use_action_name_label = true,
-            icon = 'bst_call_beast',
-        };
     else
         for _, slot in ipairs(BST_BAR.ready_slots()) do
             slots[#slots + 1] = slot;
@@ -13659,7 +13652,7 @@ end
 function BST_BAR.render_config_tab()
     local settings = BST_BAR.settings();
     imgui.TextColored(UI_COLORS.config_header, 'BST Companion Palette');
-    imgui.TextWrapped('Shows a compact protected-jug selector while BST is the main job. With no pet it adds Bestial Loyalty and Fish Broth Call Beast; with a pet it shows only the live pet-specific Ready moves.');
+    imgui.TextWrapped('Shows a compact protected-jug selector while BST is the main job. With no pet it adds Bestial Loyalty; with a pet it shows only the live pet-specific Ready moves.');
     imgui.Separator();
     imgui.TextColored(UI_COLORS.config_header, 'Button Layout');
     render_runtime_int_control('Buttons Per Row', 'bst_bar_buttons_per_row', math.max(1, math.min(20, math.floor(tonumber(settings.buttons_per_row) or 7))), 'config', 1, 20, function (value)
@@ -13679,7 +13672,7 @@ function BST_BAR.render_config_tab()
     for _, jug in ipairs(BST_BAR.PROTECTED_JUGS) do
         imgui.Text(('%s  |  %s  |  x%d'):fmt(jug.pet, jug.item, BST_BAR.jug_count(jug.id)));
     end
-    imgui.TextWrapped('Call Beast is not selectable here and remains controlled by the LuAshitacast Fish Broth safety rule.');
+    imgui.TextWrapped('Call Beast is not shown on this palette and remains controlled by the LuAshitacast Fish Broth safety rule.');
 end
 
 local function render_config_window()

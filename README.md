@@ -72,8 +72,8 @@ before normal use.
 ## BST Companion Palette
 
 The BST companion palette is visible only while Beastmaster is the main job.
-With no pet, it contains three compact buttons: a split `BL Jug` selector,
-`Bestial Loyalty`, and `Call Beast`. Click the selector's left or right half,
+With no pet, it contains two compact buttons: a split `BL Jug` selector and
+`Bestial Loyalty`. Click the selector's left or right half,
 right-click it, or use the mouse wheel while hovering it to cycle the protected
 jug list. The selector shows the chosen pet name, the jug's in-game item icon,
 and its count across Inventory and Wardrobes.
@@ -81,12 +81,13 @@ and its count across Inventory and Wardrobes.
 The protected list is deliberately limited to Fish Oil Broth, C. Carrion
 Broth, and S. Herbal Broth. Pressing Bestial Loyalty forwards the selected item
 id to the BST LuAshitacast profile immediately before issuing the attended job
-ability. Call Beast issues only `/ja "Call Beast" <me>`; the profile remains
-responsible for equipping and validating inexpensive Fish Broth. This prevents
-the protected selection from being consumed accidentally through Call Beast.
+ability. Call Beast is intentionally absent from this palette; when invoked
+elsewhere, the profile remains responsible for equipping and validating
+inexpensive Fish Broth. This prevents the protected selection from being
+consumed accidentally through Call Beast.
 
 While a pet is present, the selector remains available for the next summon and
-the two summon buttons are replaced by the pet-specific commands currently
+the Bestial Loyalty button is replaced by the pet-specific commands currently
 reported by Ashita's live `HasPetCommand` state. Universal controls such as
 Fight, Heel, Stay, Leave, Ready, and Sic are excluded so the palette stays
 small. Clicking a displayed move issues exactly that named `/pet` command.
