@@ -418,9 +418,11 @@ You can tune button spacing at runtime without editing the config:
 setting when present, otherwise `main_bar.button_gap`. `/ashitabars reload` also
 clears the runtime gap override.
 
-Built-in themes are `ffxi`, `jeuno`, and `sandoria`. `ffxi` is the default and
-preserves the current brass-and-crystal look; the other themes only change the
-window chrome and overlay palette.
+Built-in themes are `spectral`, `ffxi`, `jeuno`, and `sandoria`. `spectral`
+uses low-opacity blue-black chrome with a restrained teal accent for compact
+HUD layouts. `ffxi` is the default and preserves the current
+brass-and-crystal look; themes only change the window chrome and overlay
+palette.
 
 Profiles are keyed by the current bar's configured `profile_scope`. `DEFAULT`
 is used for global bars and as the configured-slot fallback when a specific
