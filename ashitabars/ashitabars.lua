@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.39.0';
+addon.version   = '0.39.1';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -11373,7 +11373,12 @@ local function icon_def_for_token(token, family)
 end
 
 local function slot_icon(slot, family)
-    if (slot == nil or type(slot.command) ~= 'string' or slot.command == '') then
+    if (slot == nil) then
+        return nil, nil;
+    end
+
+    local commandless_picker = slot.bst_picker_toggle == true or slot.bst_jug_choice == true;
+    if ((type(slot.command) ~= 'string' or slot.command == '') and not commandless_picker) then
         return nil, nil;
     end
 

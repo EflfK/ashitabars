@@ -49,6 +49,8 @@ foreach ($needle in @(
     "bst_widget_id = ('jug-choice-%d'):fmt(jug.id)",
     "bst_widget_id = 'jug-picker-toggle'",
     "bst_widget_id = 'bestial-loyalty'",
+    'local commandless_picker = slot.bst_picker_toggle == true or slot.bst_jug_choice == true;',
+    "if ((type(slot.command) ~= 'string' or slot.command == '') and not commandless_picker) then",
     "bst_widget_id = 'ready-' .. key:gsub('[^a-z0-9]', '-')",
     'state.bst_action_suppressed_until = os.clock() + BST_BAR.PICKER_RELEASE_GUARD_SECONDS',
     'Bestial Loyalty jug selected: %s (%s).',
