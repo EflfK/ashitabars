@@ -779,7 +779,9 @@ executes one attended `/item ... <me>` action when clicked, and shows its group,
 known recovery amount, and full item resource description on hover.
 
 The `Item Bar` configuration tab controls its button size, spacing, buttons per
-row, potency order, recovery-amount badges, and a searchable exclusion list.
+row, potency order, recovery-amount badges, category headers, and a searchable
+exclusion list. Category headers can be disabled for a compact icon-only strip;
+category gaps and tooltip details remain available.
 Exclusions persist by numeric item ID, so an unwanted item stays hidden when it
 is reacquired. `Reset Exclusions` restores all currently usable items. Existing
 installations can run

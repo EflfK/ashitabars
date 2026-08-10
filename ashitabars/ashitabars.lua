@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.39.1';
+addon.version   = '0.39.2';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -960,6 +960,7 @@ local DEFAULT_CONFIG = {
             slot_glow_opacity = 100,
             potency_order = 'highest',
             show_recovery_amounts = true,
+            show_category_headers = true,
             window_x = 820,
             window_y = 440,
             excluded_item_ids = {},
@@ -4049,6 +4050,7 @@ local function current_runtime_visual_settings()
         slot_glow_opacity = slot_glow_opacity('item'),
         potency_order = ITEM_BAR.normalize_potency_order(item_settings.potency_order),
         show_recovery_amounts = item_settings.show_recovery_amounts ~= false,
+        show_category_headers = item_settings.show_category_headers ~= false,
         window_x = math.floor((tonumber(state.item_bar_window_x) or tonumber(item_settings.window_x) or DEFAULT_CONFIG.settings.item_bar.window_x) + 0.5),
         window_y = math.floor((tonumber(state.item_bar_window_y) or tonumber(item_settings.window_y) or DEFAULT_CONFIG.settings.item_bar.window_y) + 0.5),
         excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids),
@@ -4150,6 +4152,7 @@ local function apply_visual_settings(settings)
         if (glow_opacity ~= nil) then item_target.slot_glow_opacity = glow_opacity; end
         item_target.potency_order = ITEM_BAR.normalize_potency_order(item_settings.potency_order);
         if (item_settings.show_recovery_amounts ~= nil) then item_target.show_recovery_amounts = item_settings.show_recovery_amounts ~= false; end
+        if (item_settings.show_category_headers ~= nil) then item_target.show_category_headers = item_settings.show_category_headers ~= false; end
         if (tonumber(item_settings.window_x) ~= nil) then item_target.window_x = math.floor(tonumber(item_settings.window_x) + 0.5); end
         if (tonumber(item_settings.window_y) ~= nil) then item_target.window_y = math.floor(tonumber(item_settings.window_y) + 0.5); end
         item_target.excluded_item_ids = ITEM_BAR.normalize_excluded_ids(item_settings.excluded_item_ids);
@@ -4277,6 +4280,7 @@ local function serialize_visual_settings(settings)
     table.insert(lines, ('            slot_glow_opacity = %d,'):fmt(item_bar.slot_glow_opacity or 100));
     table.insert(lines, ('            potency_order = %s,'):fmt(lua_string_literal(ITEM_BAR.normalize_potency_order(item_bar.potency_order))));
     table.insert(lines, ('            show_recovery_amounts = %s,'):fmt(tostring(item_bar.show_recovery_amounts ~= false)));
+    table.insert(lines, ('            show_category_headers = %s,'):fmt(tostring(item_bar.show_category_headers ~= false)));
     table.insert(lines, ('            window_x = %d,'):fmt(item_bar.window_x or 820));
     table.insert(lines, ('            window_y = %d,'):fmt(item_bar.window_y or 440));
     local excluded_parts = {};
@@ -13355,7 +13359,8 @@ function ITEM_BAR.render()
     local rows = math.max(1, math.ceil(item_count / columns));
     local row_gap = tonumber((state.config.settings or {}).row_gap) or DEFAULT_CONFIG.settings.row_gap;
     local category_gap = ITEM_BAR.CATEGORY_GAP;
-    local header_height = ITEM_BAR.HEADER_HEIGHT;
+    local show_category_headers = settings.show_category_headers ~= false;
+    local header_height = show_category_headers and ITEM_BAR.HEADER_HEIGHT or 0;
     local show_frame = bar_frame_visible();
     local hidden_pad = show_frame and 0 or frameless_window_padding();
     local content_width = 0;
@@ -13400,7 +13405,9 @@ function ITEM_BAR.render()
             if (row_index > 1 and row_gap > 0) then
                 imgui.Dummy({ 1, row_gap });
             end
-            imgui.Dummy({ 1, header_height });
+            if (header_height > 0) then
+                imgui.Dummy({ 1, header_height });
+            end
 
             local previous_category_key = nil;
             for column = 1, columns do
@@ -13417,7 +13424,7 @@ function ITEM_BAR.render()
                 local activation = render_slot_button(ITEM_BAR_ROW, index, current_slot_size, false, 0, false, false);
                 local x, y = imgui.GetItemRectMin();
                 local draw_list = imgui.GetWindowDrawList();
-                if (column == 1 or category_boundary) then
+                if (show_category_headers and (column == 1 or category_boundary)) then
                     ITEM_BAR.draw_group_header(draw_list, x, y, current_slot_size, entry.category, category_boundary, item_gap);
                 end
                 if (setting_enabled('show_counts', true)) then
@@ -13708,6 +13715,11 @@ function ITEM_BAR.render_config_tab()
     local show_recovery_amounts = settings.show_recovery_amounts ~= false;
     if (imgui.Checkbox('Show Recovery Amounts##ashitabars_item_bar_show_recovery_amounts', { show_recovery_amounts })) then
         settings.show_recovery_amounts = not show_recovery_amounts;
+        state.config_save_message = nil;
+    end
+    local show_category_headers = settings.show_category_headers ~= false;
+    if (imgui.Checkbox('Show Category Headers##ashitabars_item_bar_show_category_headers', { show_category_headers })) then
+        settings.show_category_headers = not show_category_headers;
         state.config_save_message = nil;
     end
     imgui.TextWrapped('HP and MP items show their restored amount on the icon. Percentage-based items show a percent badge. Unknown values remain grouped without a potency badge.');

@@ -29,7 +29,7 @@ if ($topLevelLocalCount -gt 199) {
     throw "Addon has $topLevelLocalCount top-level local declarations; keep this below Lua 5.1's 200-local chunk limit."
 }
 
-foreach ($needle in @('item_bar = {', 'excluded_item_ids = {}', 'buttons_per_row = 10', "potency_order = 'highest'", 'show_recovery_amounts = true', 'bst_companion_bar = {', 'buttons_per_row = 7')) {
+foreach ($needle in @('item_bar = {', 'excluded_item_ids = {}', 'buttons_per_row = 10', "potency_order = 'highest'", 'show_recovery_amounts = true', 'show_category_headers = true', 'bst_companion_bar = {', 'buttons_per_row = 7')) {
     if (-not $configText.Contains($needle)) {
         throw "Expected dynamic Item Bar configuration not found: $needle"
     }
@@ -112,6 +112,7 @@ foreach ($needle in @(
     'function ITEM_BAR.sort_items(items)',
     'ITEM_BAR.RECOVERY_BY_ID',
     'ITEM_BAR.draw_group_header',
+    'show_category_headers',
     'ITEM_BAR.draw_recovery_badge',
     'resource.Type',
     'item_type == 7',
