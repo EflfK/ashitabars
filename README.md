@@ -78,6 +78,8 @@ choices: Carrie, Como, and Melodia. Each choice uses the jug's in-game item icon
 and shows its count across Inventory and Wardrobes. The current choice has a
 gold border and check; zero-count choices remain visible but cannot be selected.
 Choosing an available jug immediately collapses the picker back to one button.
+The picker stays expanded through the complete mouse press and release; click
+the current choice if you want to close it without changing the selection.
 Picker choices and gameplay actions use separate internal button identities,
 with a brief release guard so a collapsing choice cannot fall through into
 Bestial Loyalty.

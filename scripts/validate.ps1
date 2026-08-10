@@ -42,6 +42,7 @@ foreach ($needle in @(
     "bst_widget_id = 'bestial-loyalty'",
     "bst_widget_id = 'ready-' .. key:gsub('[^a-z0-9]', '-')",
     'state.bst_action_suppressed_until = os.clock() + BST_BAR.PICKER_RELEASE_GUARD_SECONDS',
+    'Bestial Loyalty jug selected: %s (%s).',
     'if os.clock() < (tonumber(state.bst_action_suppressed_until) or 0) then',
     "('##ashitabars_%s_%s'):fmt(row.id, tostring(widget_id))",
     'BST_BAR.PET_READY_BY_NAME',
@@ -73,6 +74,9 @@ if ($bstSlotsText.Contains("label = 'Call Beast'")) {
 }
 if ($lua.Contains('function BST_BAR.cycle_jug(direction)') -or $lua.Contains('bst_selector = true')) {
     throw 'Legacy jug cycling must remain absent from the direct BST picker.'
+}
+if ($lua.Contains('imgui.IsWindowHovered()')) {
+    throw 'The BST picker must not close from an unavailable window-hover fallback before mouse release.'
 }
 
 $readySlotsStart = $lua.IndexOf('function BST_BAR.ready_slots(pet)')
@@ -149,7 +153,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'complete mouse press and release', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }

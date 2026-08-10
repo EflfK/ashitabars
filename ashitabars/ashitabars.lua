@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.38.2';
+addon.version   = '0.38.3';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -7727,6 +7727,7 @@ function BST_BAR.apply_pending_picker_change()
             state.bst_selected_jug_id = jug.id;
             state.bst_jug_picker_open = false;
             state.bst_action_suppressed_until = os.clock() + BST_BAR.PICKER_RELEASE_GUARD_SECONDS;
+            log_info(('Bestial Loyalty jug selected: %s (%s).'):fmt(jug.pet, jug.item));
             changed = true;
         end
         state.bst_picker_pending_open = nil;
@@ -13469,7 +13470,6 @@ function BST_BAR.render()
     imgui.PushStyleColor(ImGuiCol_WindowBg, theme.window_bg or { 0.025, 0.022, 0.018, 0.72 });
     imgui.PushStyleColor(ImGuiCol_Border, theme.window_border or { 0.58, 0.44, 0.20, 0.88 });
     state.bst_bar_open[1] = true;
-    local picker_window_hovered = false;
     if (imgui.Begin('AshitaBars BST Companion###AshitaBarsBstCompanion', state.bst_bar_open, flags)) then
         state.bst_bar_window_x, state.bst_bar_window_y = imgui.GetWindowPos();
         local index = 1;
@@ -13496,10 +13496,6 @@ function BST_BAR.render()
                 render_tooltip(BST_BAR_ROW, index);
                 index = index + 1;
             end
-        end
-        picker_window_hovered = safe_read(function () return imgui.IsWindowHovered(); end, false) == true;
-        if state.bst_jug_picker_open == true and safe_read(function () return imgui.IsMouseClicked(0); end, false) == true and not picker_window_hovered then
-            state.bst_picker_pending_open = false;
         end
     end
     imgui.End();
