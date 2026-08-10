@@ -5,8 +5,17 @@ $addon = Join-Path $root 'ashitabars\ashitabars.lua'
 $config = Join-Path $root 'ashitabars\ashitabars_config.lua'
 $readme = Join-Path $root 'README.md'
 $fishIcon = Join-Path $root 'ashitabars\assets\icons\fish.png'
+$bstIconNames = @(
+    'bst_pet_courier_carrie', 'bst_pet_coldblood_como', 'bst_pet_lullaby_melodia',
+    'bst_ready_metallic_body', 'bst_ready_bubble_shower', 'bst_ready_bubble_curtain',
+    'bst_ready_scissor_guard', 'bst_ready_big_scissors', 'bst_ready_tail_blow',
+    'bst_ready_fireball', 'bst_ready_blockhead', 'bst_ready_brain_crush',
+    'bst_ready_infrasonics', 'bst_ready_secretion', 'bst_ready_sheep_charge',
+    'bst_ready_lamb_chop', 'bst_ready_rage', 'bst_ready_sheep_song'
+)
+$bstIcons = $bstIconNames | ForEach-Object { Join-Path $root "ashitabars\assets\icons\$_.png" }
 
-foreach ($path in @($addon, $config, $readme, $fishIcon)) {
+foreach ($path in @($addon, $config, $readme, $fishIcon) + $bstIcons) {
     if (-not (Test-Path -LiteralPath $path)) {
         throw "Missing required file: $path"
     }
@@ -28,9 +37,9 @@ foreach ($needle in @('item_bar = {', 'excluded_item_ids = {}', 'buttons_per_row
 
 foreach ($needle in @(
     'BST_BAR.PROTECTED_JUGS',
-    "{ id = 17877, item = 'Fish Oil Broth'",
-    "{ id = 17867, item = 'C. Carrion Broth'",
-    "{ id = 17865, item = 'S. Herbal Broth'",
+    "icon = 'bst_pet_courier_carrie'",
+    "icon = 'bst_pet_coldblood_como'",
+    "icon = 'bst_pet_lullaby_melodia'",
     'function BST_BAR.queue_picker_toggle()',
     'function BST_BAR.queue_jug_selection(item_id)',
     'function BST_BAR.apply_pending_picker_change()',
@@ -54,6 +63,7 @@ foreach ($needle in @(
     "lizard = { 'Tail Blow', 'Fireball', 'Blockhead', 'Brain Crush', 'Infrasonics', 'Secretion' }",
     "sheep = { 'Sheep Charge', 'Lamb Chop', 'Rage', 'Sheep Song' }",
     'function BST_BAR.ready_slots(pet)',
+    "icon = 'bst_ready_' .. key:gsub('[^a-z0-9]+', '_')",
     "('/lac fwd bstjug %d'):fmt(jug_id)",
     '''/ja "Bestial Loyalty" <me>''',
     'BST_BAR.render();'
@@ -87,6 +97,9 @@ if ($readySlotsStart -lt 0 -or $readySlotsEnd -le $readySlotsStart) {
 $readySlotsText = $lua.Substring($readySlotsStart, $readySlotsEnd - $readySlotsStart)
 if ($readySlotsText.Contains('pet_command_actions') -or $readySlotsText.Contains('HasPetCommand')) {
     throw 'BST companion Ready slots must not enumerate the job-wide pet-command catalog.'
+}
+if ($bstSlotsText.Contains('item_icon_id = jug.id') -or $bstSlotsText.Contains('item_icon_id = selected.id')) {
+    throw 'BST jug choices must render their pet portraits instead of broth item textures.'
 }
 
 foreach ($needle in @(
@@ -153,7 +166,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'complete mouse press and release', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, and Melodia', 'gold border and check', 'distinct portrait', 'Every supported Ready move has its own ability artwork', 'complete mouse press and release', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }
