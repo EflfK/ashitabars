@@ -837,6 +837,8 @@ buttons; other `/refa` subcommands remain rejected. `/ashitabars`,
 `/ashitabars config` or `/ashitaframes config`. Other `/ashitaguide`
 subcommands remain rejected. `/aminimap toggle` is accepted for an attended
 AshitaMiniMap visibility button; other `/aminimap` subcommands remain rejected.
+`/ainv toggle` is accepted for an attended AshitaInventory visibility button;
+other `/ainv` subcommands remain rejected.
 Chat commands such as `/say` and `/s` are accepted for attended chat/server
 command use. Supported bare CatsEye support commands such as `!signet`,
 `!sigil`, `!sanction`, and `!ionis` are also accepted and are queued as the

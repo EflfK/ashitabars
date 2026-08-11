@@ -178,6 +178,7 @@ local ALLOWED_PREFIXES = T{
     ['/ashitaframes'] = true,
     ['/ashitaguide'] = true,
     ['/aminimap'] = true,
+    ['/ainv'] = true,
     ['/afishing'] = true,
     ['/echo'] = true,
     ['/p'] = true,
@@ -9238,6 +9239,9 @@ local function command_validation_error(command)
     end
     if (prefix == '/aminimap' and command:lower():match('^%s*/aminimap%s+toggle%s*$') == nil) then
         return 'Invalid AshitaMiniMap command. Use /aminimap toggle.';
+    end
+    if (prefix == '/ainv' and command:lower():match('^%s*/ainv%s+toggle%s*$') == nil) then
+        return 'Invalid AshitaInventory command. Use /ainv toggle.';
     end
 
     return nil;
