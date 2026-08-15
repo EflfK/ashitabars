@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.39.2';
+addon.version   = '0.39.3';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -13176,7 +13176,8 @@ local function render_bars()
     local window_x = anchor_x - offset_x;
     local window_y = anchor_y - offset_y;
     local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
-    local style_var_count = 0;
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 7.0);
+    local style_var_count = 1;
     local anchor_locked = state.bar_anchor_lock_x ~= nil and state.bar_anchor_lock_y ~= nil;
 
     state.bar_measured_anchor_x = nil;
@@ -13189,7 +13190,7 @@ local function render_bars()
         window_flags = bit.bor(window_flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
         imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
         imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
-        style_var_count = 2;
+        style_var_count = 3;
     end
 
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
@@ -13261,7 +13262,8 @@ function BAR.render_extra_bar(bar_key)
     local window_x = anchor_x - offset_x;
     local window_y = anchor_y - offset_y;
     local window_flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
-    local style_var_count = 0;
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 7.0);
+    local style_var_count = 1;
     local runtime = BAR.extra_runtime(bar_key);
     local anchor_locked = runtime.anchor_lock_x ~= nil and runtime.anchor_lock_y ~= nil;
 
@@ -13276,7 +13278,7 @@ function BAR.render_extra_bar(bar_key)
         window_flags = bit.bor(window_flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
         imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
         imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
-        style_var_count = 2;
+        style_var_count = 3;
     end
 
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
@@ -13386,7 +13388,8 @@ function ITEM_BAR.render()
     local window_x = tonumber(state.item_bar_window_x) or tonumber(settings.window_x) or DEFAULT_CONFIG.settings.item_bar.window_x;
     local window_y = tonumber(state.item_bar_window_y) or tonumber(settings.window_y) or DEFAULT_CONFIG.settings.item_bar.window_y;
     local flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
-    local style_var_count = 0;
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 7.0);
+    local style_var_count = 1;
     if (show_frame) then
         imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_FirstUseEver);
     else
@@ -13394,7 +13397,7 @@ function ITEM_BAR.render()
         flags = bit.bor(flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
         imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
         imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
-        style_var_count = 2;
+        style_var_count = 3;
     end
 
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
@@ -13493,7 +13496,8 @@ function BST_BAR.render()
     local window_x = tonumber(state.bst_bar_window_x) or tonumber(settings.window_x) or DEFAULT_CONFIG.settings.bst_companion_bar.window_x;
     local window_y = tonumber(state.bst_bar_window_y) or tonumber(settings.window_y) or DEFAULT_CONFIG.settings.bst_companion_bar.window_y;
     local flags = bit.bor(ImGuiWindowFlags_NoScrollbar, ImGuiWindowFlags_NoScrollWithMouse, ImGuiWindowFlags_NoCollapse, ImGuiWindowFlags_NoResize, ImGuiWindowFlags_NoSavedSettings);
-    local style_var_count = 0;
+    imgui.PushStyleVar(ImGuiStyleVar_WindowRounding, 7.0);
+    local style_var_count = 1;
     if (show_frame) then
         imgui.SetNextWindowPos({ window_x, window_y }, ImGuiCond_FirstUseEver);
     else
@@ -13501,7 +13505,7 @@ function BST_BAR.render()
         flags = bit.bor(flags, ImGuiWindowFlags_NoDecoration, ImGuiWindowFlags_NoBackground, ImGuiWindowFlags_NoMove, ImGuiWindowFlags_NoFocusOnAppearing, ImGuiWindowFlags_NoBringToFrontOnFocus);
         imgui.PushStyleVar(ImGuiStyleVar_WindowPadding, { hidden_pad, hidden_pad });
         imgui.PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0);
-        style_var_count = 2;
+        style_var_count = 3;
     end
 
     imgui.SetNextWindowSize({ width, height }, ImGuiCond_Always);
