@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.39.3';
+addon.version   = '0.39.4';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -871,6 +871,7 @@ local DEFAULT_CONFIG = {
         click_bar_window_y = 680,
         block_native_macro_modifiers = true,
         suppress_native_macro_alt = false,
+        mod_lock = {},
         main_bar = {
             visible = true,
             display_mode = 'single',
@@ -1012,6 +1013,8 @@ local state = {
     config_save_message_color = UI_COLORS.success,
     config_error = nil,
     profile = nil,
+    locked_modifier = nil,
+    modifier_lock_job_key = nil,
     display_mode_override = nil,
     slot_size_override = nil,
     button_gap_override = nil,
@@ -2228,7 +2231,131 @@ local function clear_directinput_modifier_state(e)
     end
 end
 
+MOD_LOCK = {};
+
+function MOD_LOCK.current_job_key()
+    return job_abbr(current_main_job_id());
+end
+
+function MOD_LOCK.is_known_job_key(value)
+    local normalized = normalize_profile_key(value);
+    if (normalized == nil) then
+        return false;
+    end
+
+    for _, job_key in pairs(JOB_ABBRS) do
+        if job_key == normalized then
+            return true;
+        end
+    end
+    return false;
+end
+
+function MOD_LOCK.normalize_settings(values)
+    local result = {};
+    if (type(values) ~= 'table') then
+        return result;
+    end
+
+    for key, enabled in pairs(values) do
+        local job_key = normalize_profile_key(key);
+        if MOD_LOCK.is_known_job_key(job_key) and type(enabled) == 'boolean' then
+            result[job_key] = enabled;
+        end
+    end
+    return result;
+end
+
+function MOD_LOCK.configured_for_job(job_key)
+    job_key = normalize_profile_key(job_key);
+    if (job_key == nil) then
+        return false;
+    end
+
+    local values = (state.config.settings or {}).mod_lock;
+    if (type(values) ~= 'table') then
+        return false;
+    end
+    if (type(values[job_key]) == 'boolean') then
+        return values[job_key];
+    end
+
+    for key, enabled in pairs(values) do
+        if (normalize_profile_key(key) == job_key and type(enabled) == 'boolean') then
+            return enabled;
+        end
+    end
+    return false;
+end
+
+function MOD_LOCK.enabled()
+    local job_key = MOD_LOCK.current_job_key();
+    if (state.modifier_lock_job_key ~= job_key) then
+        state.modifier_lock_job_key = job_key;
+        state.locked_modifier = nil;
+    end
+
+    local enabled = job_key ~= nil and MOD_LOCK.configured_for_job(job_key);
+    if not enabled then
+        state.locked_modifier = nil;
+    end
+    return enabled, job_key;
+end
+
+function MOD_LOCK.set_enabled(job_key, enabled)
+    job_key = normalize_profile_key(job_key);
+    if (not MOD_LOCK.is_known_job_key(job_key)) then
+        return false;
+    end
+
+    local settings = state.config.settings or {};
+    state.config.settings = settings;
+    settings.mod_lock = MOD_LOCK.normalize_settings(settings.mod_lock);
+    settings.mod_lock[job_key] = enabled == true;
+    state.modifier_lock_job_key = job_key;
+    if enabled ~= true then
+        state.locked_modifier = nil;
+    end
+    return true;
+end
+
+function MOD_LOCK.combo_parts()
+    local enabled = MOD_LOCK.enabled();
+    if enabled then
+        return state.locked_modifier == 'ctrl', state.locked_modifier == 'alt', state.locked_modifier == 'shift';
+    end
+
+    return key_down(VK.CONTROL), key_down(VK.ALT), key_down(VK.SHIFT);
+end
+
+function MOD_LOCK.handle_key_event(e)
+    local enabled = MOD_LOCK.enabled();
+    if not enabled then
+        return false;
+    end
+
+    local modifier = nil;
+    if (e.wparam == VK.CONTROL) then modifier = 'ctrl'; end
+    if (e.wparam == VK.ALT) then modifier = 'alt'; end
+    if (e.wparam == VK.SHIFT) then modifier = 'shift'; end
+    if (modifier == nil) then
+        return false;
+    end
+
+    if (state.locked_modifier == modifier) then
+        state.locked_modifier = nil;
+    else
+        state.locked_modifier = modifier;
+    end
+    return true;
+end
+
 local function active_group()
+    local mod_lock_enabled = MOD_LOCK.enabled();
+    if mod_lock_enabled then
+        return state.locked_modifier or 'base';
+    end
+
     local ctrl = key_down(VK.CONTROL);
     local alt = key_down(VK.ALT);
     local shift = key_down(VK.SHIFT);
@@ -3315,7 +3442,8 @@ function KEYBIND.combo_from_event(e)
         return nil;
     end
 
-    return KEYBIND.combo_from_parts(key, key_down(VK.CONTROL), key_down(VK.ALT), key_down(VK.SHIFT));
+    local ctrl, alt, shift = MOD_LOCK.combo_parts();
+    return KEYBIND.combo_from_parts(key, ctrl, alt, shift);
 end
 
 function KEYBIND.display_label(combo)
@@ -4002,6 +4130,7 @@ local function current_runtime_visual_settings()
     };
     local result = {
         main_bar = main_bar,
+        mod_lock = MOD_LOCK.normalize_settings(settings.mod_lock),
         visible = main_bar.visible,
         display_mode = main_bar.display_mode,
         slot_size = main_bar.slot_size,
@@ -4180,6 +4309,9 @@ local function apply_visual_settings(settings)
     if (settings.show_party_picker ~= nil) then
         target.show_party_picker = settings.show_party_picker ~= false;
     end
+    if (type(settings.mod_lock) == 'table') then
+        target.mod_lock = MOD_LOCK.normalize_settings(settings.mod_lock);
+    end
     if (settings.bars_unlocked ~= nil) then
         target.bars_unlocked = settings.bars_unlocked == true;
     end
@@ -4265,6 +4397,13 @@ local function serialize_visual_settings(settings)
         table.insert(lines, ('            window_y = %d,'):fmt(values.window_y or settings.window_y or settings.click_bar_window_y));
         table.insert(lines, '        },');
     end
+
+    local mod_lock_settings = MOD_LOCK.normalize_settings(settings.mod_lock);
+    table.insert(lines, '        mod_lock = {');
+    for _, job_key in ipairs(sorted_keys(mod_lock_settings)) do
+        table.insert(lines, ('            %s = %s,'):fmt(job_key, tostring(mod_lock_settings[job_key] == true)));
+    end
+    table.insert(lines, '        },');
 
     append_bar('main_bar', 'main', main, true);
     for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
@@ -13860,6 +13999,18 @@ local function render_config_window()
                     state.config_save_message = nil;
                 end
                 imgui.Separator();
+                imgui.TextColored(UI_COLORS.config_header, 'Input');
+                local mod_lock_enabled, mod_lock_job_key = MOD_LOCK.enabled();
+                if (mod_lock_job_key ~= nil) then
+                    if (imgui.Checkbox(('Modifier Lock (%s)##ashitabars_config_mod_lock'):fmt(mod_lock_job_key), { mod_lock_enabled })) then
+                        MOD_LOCK.set_enabled(mod_lock_job_key, not mod_lock_enabled);
+                        state.config_save_message = nil;
+                    end
+                    imgui.TextWrapped('Tap Ctrl, Alt, or Shift to latch that button layer. Tap the same modifier again to return to Main. This setting follows the main job only.');
+                else
+                    imgui.Text('Modifier Lock: current main job unavailable.');
+                end
+                imgui.Separator();
                 imgui.TextColored(UI_COLORS.config_header, 'Weapon Skills');
                 local ws_pulse = MACRO.weaponskill_pulse_enabled();
                 if (imgui.Checkbox('Weapon Skill Pulse##ashitabars_config_ws_pulse', { ws_pulse })) then
@@ -14343,6 +14494,11 @@ ashita.events.register('command', 'command_cb', function (e)
             tostring(extra_profile.source),
             tostring(settings.block_native_macro_modifiers ~= false),
             tostring(settings.suppress_native_macro_alt == true)));
+        local mod_lock_enabled, mod_lock_job_key = MOD_LOCK.enabled();
+        log_info(('modifierLock job=%s enabled=%s latched=%s'):fmt(
+            mod_lock_job_key or 'unknown',
+            tostring(mod_lock_enabled),
+            state.locked_modifier or 'base'));
         log_info(('visualEffects weaponskillPulse=%s'):fmt(tostring(MACRO.weaponskill_pulse_enabled())));
         for _, bar_key in ipairs(BAR.EXTRA_KEYS) do
             local extra_status_profile = refresh_profile_context(bar_key);
@@ -14431,6 +14587,10 @@ ashita.events.register('key', 'key_cb', function (e)
         return;
     end
 
+    if (input_is_closed() and MOD_LOCK.handle_key_event(e)) then
+        return;
+    end
+
     local combo = KEYBIND.combo_from_event(e);
     if (combo == nil) then
         return;
@@ -14443,7 +14603,8 @@ ashita.events.register('key', 'key_cb', function (e)
     local map = KEYBIND.binding_map();
     local binding = map[combo];
     local direction = 'increase';
-    if (binding == nil and key_down(VK.SHIFT) and not key_down(VK.CONTROL) and not key_down(VK.ALT)) then
+    local ctrl, alt, shift = MOD_LOCK.combo_parts();
+    if (binding == nil and shift and not ctrl and not alt) then
         local key = KEYBIND.event_key_label(e.wparam);
         local base_combo = KEYBIND.combo_from_parts(key, false, false, false);
         local candidate = base_combo ~= nil and map[base_combo] or nil;
@@ -14478,7 +14639,8 @@ local function handle_bound_mouse_wheel()
         return;
     end
 
-    local combo = KEYBIND.combo_from_parts('Wheel', key_down(VK.CONTROL), key_down(VK.ALT), key_down(VK.SHIFT));
+    local ctrl, alt, shift = MOD_LOCK.combo_parts();
+    local combo = KEYBIND.combo_from_parts('Wheel', ctrl, alt, shift);
     local map = KEYBIND.binding_map();
     local binding = combo ~= nil and map[combo] or nil;
     if (binding == nil) then

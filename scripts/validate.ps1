@@ -165,6 +165,34 @@ foreach ($needle in @(
     }
 }
 
+foreach ($needle in @(
+    'mod_lock = {}',
+    'function MOD_LOCK.enabled()',
+    'function MOD_LOCK.handle_key_event(e)',
+    "state.locked_modifier == modifier",
+    "return state.locked_modifier or 'base'",
+    'local ctrl, alt, shift = MOD_LOCK.combo_parts();',
+    'mod_lock = MOD_LOCK.normalize_settings(settings.mod_lock)',
+    "Modifier Lock (%s)##ashitabars_config_mod_lock",
+    'MOD_LOCK.set_enabled(mod_lock_job_key, not mod_lock_enabled)'
+)) {
+    if (-not $lua.Contains($needle)) {
+        throw "Expected per-main-job modifier lock behavior not found: $needle"
+    }
+}
+
+foreach ($needle in @('mod_lock = {', 'Optional per-main-job modifier latch')) {
+    if (-not $configText.Contains($needle)) {
+        throw "Expected modifier lock sample configuration not found: $needle"
+    }
+}
+
+foreach ($needle in @('Modifier Lock is configured per main job', 'tap Ctrl, Alt, or Shift', 'normal hold-and-release behavior', 'BST = true')) {
+    if (-not $readmeText.Contains($needle)) {
+        throw "Expected modifier lock documentation not found: $needle"
+    }
+}
+
 foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that button opens', '<p0>`-`<p5>', 'server ID', 'show_party_picker = false', 'suppress_native_macro_alt = true', 'Temporary addon overlays', '`/afishing cast`', '`/aminimap toggle`', '`/ainv toggle`', 'never')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected party-picker documentation not found: $needle"

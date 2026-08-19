@@ -312,6 +312,20 @@ Leave an extra bar's matching `click* = {}` row empty to keep that bar
 click-only. Configured duplicate keybinds are allowed but warned about in the
 config window and `/ashitabars status`; the first matching enabled button runs.
 
+Modifier Lock is configured per main job and ignores the subjob. When enabled
+for the current job, tap Ctrl, Alt, or Shift to latch that modifier layer after
+releasing the key. Tap the same modifier again to return to the Main layer, or
+tap a different modifier to switch the latch. The latched layer controls both
+the buttons shown and which action a parent key runs. When Modifier Lock is off,
+modifier layers retain their normal hold-and-release behavior.
+
+```lua
+mod_lock = {
+    BST = true,
+    WHM = false,
+},
+```
+
 Each bar has its own `profile_scope`:
 
 - `global`: use `profiles.DEFAULT` and save runtime edits under `DEFAULT`.
@@ -327,8 +341,8 @@ as the main bar and stores an independent position with its own `window_x` /
 
 `/ashitabars config` opens a configuration window with `General`, `Main Bar`,
 the dedicated Item and BST Companion tabs, and one tab for each visible extra bar. The General tab exposes global visual
-effects such as weapon-skill pulse, the visible bar list, and the global
-`Unlock Bars` control. Only visible bars get their own config tab. Hiding a bar is visual only and does
+effects such as weapon-skill pulse, the visible bar list, the per-main-job
+Modifier Lock toggle, and the global `Unlock Bars` control. Only visible bars get their own config tab. Hiding a bar is visual only and does
 not delete its saved button profiles. The bar tabs expose profile scope, button
 count, buttons per row, sizing, spacing, text placement, glow, keybinds, and
 position settings. Numeric controls use sliders. Click a keybind button, then

@@ -157,6 +157,9 @@ return {
         row_gap = 6,
         block_native_macro_modifiers = true,
         suppress_native_macro_alt = true,
+        mod_lock = {
+            -- BST = true, -- Optional per-main-job modifier latch. Subjob is ignored.
+        },
         main_bar = {
             visible = true, -- General tab toggle. Hiding a bar does not remove saved profiles.
             profile_scope = 'job', -- 'global', 'job', or 'job_sub'.
