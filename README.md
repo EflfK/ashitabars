@@ -73,12 +73,12 @@ before normal use.
 
 The BST companion palette is visible only while Beastmaster is the main job.
 With no pet, it contains two compact buttons: a `BL Jug` picker and `Bestial
-Loyalty`. Click the picker once to temporarily expand it into three direct jug
-choices: Carrie, Como, and Melodia. Each choice uses a distinct portrait of the
-pet it summons and shows its count across Inventory and Wardrobes. The current
-choice has a gold border and check; zero-count choices remain visible but cannot
-be selected. The closed picker uses the selected pet's portrait, so the on-bar
-image changes with the protected jug selection.
+Loyalty`. Click the picker once to temporarily expand it into four direct jug
+choices: Carrie, Como, Melodia, and Louise. Each choice uses a distinct portrait
+of the pet it summons and shows its count across Inventory and Wardrobes. The
+current choice has a gold border and check; zero-count choices remain visible but
+cannot be selected. The closed picker uses the selected pet's portrait, so the
+on-bar image changes with the protected jug selection.
 Choosing an available jug immediately collapses the picker back to one button.
 The picker stays expanded through the complete mouse press and release; click
 the current choice if you want to close it without changing the selection.
@@ -87,18 +87,18 @@ with a brief release guard so a collapsing choice cannot fall through into
 Bestial Loyalty.
 
 The protected list is deliberately limited to Fish Oil Broth, C. Carrion
-Broth, and S. Herbal Broth. Pressing Bestial Loyalty forwards the selected item
-id to the BST LuAshitacast profile immediately before issuing the attended job
-ability. Call Beast is intentionally absent from this palette; when invoked
-elsewhere, the profile remains responsible for equipping and validating
-inexpensive Fish Broth. This prevents the protected selection from being
-consumed accidentally through Call Beast.
+Broth, S. Herbal Broth, and C. Blood Broth. Pressing Bestial Loyalty forwards the
+selected item id to the BST LuAshitacast profile immediately before issuing the
+attended job ability. Call Beast is intentionally absent from this palette; when
+invoked elsewhere, the profile remains responsible for equipping and validating
+inexpensive Fish Broth. This prevents the protected selection from being consumed
+accidentally through Call Beast.
 
 While a pet is present, the picker remains available for the next summon and
 the Bestial Loyalty button is replaced by an explicit move set keyed to the
 summoned pet's name. Courier Carrie and Crab Familiar show their five crab
 moves; Coldblood Como shows six lizard moves; Lullaby Melodia shows four sheep
-moves. Every supported Ready move has its own ability artwork while its charge
+moves; Discreet Louise shows three flytrap moves. Ready move artwork, charge
 cost, cooldown, and availability remain live addon overlays. The palette
 deliberately does not enumerate Ashita's job-wide
 `HasPetCommand` catalog. Clicking a displayed move issues exactly that named
