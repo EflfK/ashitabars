@@ -100,8 +100,9 @@ While a pet is present, the picker remains available for the next summon and
 the Bestial Loyalty button is replaced by an explicit move set keyed to the
 summoned pet's name. Courier Carrie and Crab Familiar show their five crab
 moves; Coldblood Como shows six lizard moves; Lullaby Melodia shows four sheep
-moves; Lifedrinker Lars shows four diremite moves. Ready move artwork, charge
-cost, cooldown, and availability remain live addon overlays. The palette
+moves; Lifedrinker Lars shows four diremite moves. Ready move artwork is
+distinct for Lars's Double Claw, Grapple, Spinning Top, and Filamented Hold.
+Charge cost, cooldown, and availability remain live addon overlays. The palette
 deliberately does not enumerate Ashita's job-wide
 `HasPetCommand` catalog. Clicking a displayed move issues exactly that named
 `/pet` command. Known Ready charge costs are shown as `C1`, `C2`, or `C3`

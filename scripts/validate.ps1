@@ -12,7 +12,9 @@ $bstIconNames = @(
     'bst_ready_scissor_guard', 'bst_ready_big_scissors', 'bst_ready_tail_blow',
     'bst_ready_fireball', 'bst_ready_blockhead', 'bst_ready_brain_crush',
     'bst_ready_infrasonics', 'bst_ready_secretion', 'bst_ready_sheep_charge',
-    'bst_ready_lamb_chop', 'bst_ready_rage', 'bst_ready_sheep_song'
+    'bst_ready_lamb_chop', 'bst_ready_rage', 'bst_ready_sheep_song',
+    'bst_ready_double_claw', 'bst_ready_grapple', 'bst_ready_spinning_top',
+    'bst_ready_filamented_hold'
 )
 $bstIcons = $bstIconNames | ForEach-Object { Join-Path $root "ashitabars\assets\icons\$_.png" }
 
