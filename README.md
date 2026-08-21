@@ -73,15 +73,17 @@ before normal use.
 
 The BST companion palette is visible only while Beastmaster is the main job.
 With no pet, it contains two compact buttons: a `BL Jug` picker and `Bestial
-Loyalty`. Click the picker once to temporarily expand it into four direct jug
-choices: Carrie, Como, Melodia, and Louise. Each choice uses a distinct portrait
-of the pet it summons and shows its count across Inventory and Wardrobes. The
-current choice has a gold border and check; zero-count choices remain visible but
-cannot be selected. The closed picker uses the selected pet's portrait, so the
-on-bar image changes with the protected jug selection.
-Choosing an available jug immediately collapses the picker back to one button.
-The picker stays expanded through the complete mouse press and release; click
-the current choice if you want to close it without changing the selection.
+Loyalty`. Click the picker to open an anchored 2-by-2 popover with four direct
+jug choices: Carrie, Como, Melodia, and Louise. Each choice uses a distinct
+portrait of the pet it summons and shows its count across Inventory and
+Wardrobes. The current choice has a gold border and check; zero-count choices
+remain visible but cannot be selected. The closed picker uses the selected pet's
+portrait, so the on-bar image changes with the protected jug selection.
+Choosing an available jug immediately closes the popover. The main bar never
+changes width, so Bestial Loyalty and the pet-specific Ready buttons remain fixed
+while choosing a jug. The popover stays open through the complete mouse press
+and release; click the current choice if you want to close it without changing
+the selection.
 Picker choices and gameplay actions use separate internal button identities,
 with a brief release guard so a collapsing choice cannot fall through into
 Bestial Loyalty.
