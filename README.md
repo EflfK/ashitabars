@@ -74,7 +74,7 @@ before normal use.
 The BST companion palette is visible only while Beastmaster is the main job.
 With no pet, it contains two compact buttons: a `BL Jug` picker and `Bestial
 Loyalty`. Click the picker to open an anchored 2-by-2 popover with four direct
-jug choices: Carrie, Como, Melodia, and Louise. Each choice uses a distinct
+jug choices: Carrie, Como, Melodia, and Lars. Each choice uses a distinct
 portrait of the pet it summons and shows its count across Inventory and
 Wardrobes. The current choice has a gold border and check; zero-count choices
 remain visible but cannot be selected. The closed picker uses the selected pet's
@@ -100,7 +100,7 @@ While a pet is present, the picker remains available for the next summon and
 the Bestial Loyalty button is replaced by an explicit move set keyed to the
 summoned pet's name. Courier Carrie and Crab Familiar show their five crab
 moves; Coldblood Como shows six lizard moves; Lullaby Melodia shows four sheep
-moves; Discreet Louise shows three flytrap moves. Ready move artwork, charge
+moves; Lifedrinker Lars shows four diremite moves. Ready move artwork, charge
 cost, cooldown, and availability remain live addon overlays. The palette
 deliberately does not enumerate Ashita's job-wide
 `HasPetCommand` catalog. Clicking a displayed move issues exactly that named

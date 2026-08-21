@@ -1,6 +1,6 @@
 addon.name      = 'ashitabars';
 addon.author    = 'Eflfk';
-addon.version   = '0.39.5';
+addon.version   = '0.39.6';
 addon.desc      = 'Configurable attended action bars for Ashita.';
 
 require('common');
@@ -267,20 +267,20 @@ BST_BAR.PROTECTED_JUGS = {
     { id = 17877, item = 'Fish Oil Broth', short = 'Carrie', pet = 'Courier Carrie', icon = 'bst_pet_courier_carrie' },
     { id = 17867, item = 'C. Carrion Broth', short = 'Como', pet = 'Coldblood Como', icon = 'bst_pet_coldblood_como' },
     { id = 17865, item = 'S. Herbal Broth', short = 'Melodia', pet = 'Lullaby Melodia', icon = 'bst_pet_lullaby_melodia' },
-    { id = 17890, item = 'C. Blood Broth', short = 'Louise', pet = 'Discreet Louise', icon = 'bst_pet_discreet_louise' },
+    { id = 17890, item = 'C. Blood Broth', short = 'Lars', pet = 'Lifedrinker Lars', icon = 'bst_pet_lifedrinker_lars' },
 };
 BST_BAR.PET_READY_BY_NAME = {
     ['crabfamiliar'] = 'crab',
     ['couriercarrie'] = 'crab',
     ['coldbloodcomo'] = 'lizard',
     ['lullabymelodia'] = 'sheep',
-    ['discreetlouise'] = 'flytrap',
+    ['lifedrinkerlars'] = 'diremite',
 };
 BST_BAR.PET_READY_SETS = {
     crab = { 'Metallic Body', 'Bubble Shower', 'Bubble Curtain', 'Scissor Guard', 'Big Scissors' },
     lizard = { 'Tail Blow', 'Fireball', 'Blockhead', 'Brain Crush', 'Infrasonics', 'Secretion' },
     sheep = { 'Sheep Charge', 'Lamb Chop', 'Rage', 'Sheep Song' },
-    flytrap = { 'Palsy Pollen', 'Soporific', 'Gloeosuccus' },
+    diremite = { 'Double Claw', 'Grapple', 'Spinning Top', 'Filamented Hold' },
 };
 BST_BAR.READY_COSTS = {
     ['bubble shower'] = 1,
@@ -298,9 +298,10 @@ BST_BAR.READY_COSTS = {
     ['rage'] = 2,
     ['sheep charge'] = 1,
     ['sheep song'] = 2,
-    ['palsy pollen'] = 1,
-    ['soporific'] = 1,
-    ['gloeosuccus'] = 1,
+    ['double claw'] = 1,
+    ['grapple'] = 1,
+    ['spinning top'] = 1,
+    ['filamented hold'] = 2,
 };
 BST_BAR.SELF_TARGET_MOVES = {
     ['bubble curtain'] = true,
@@ -666,7 +667,7 @@ local ICON_DEFS = {
 
 local ICON_ASSET_CATEGORIES = {
     { label = 'White Mage', family = 'white_magic', tokens = { 'whm_aquaveil', 'whm_banish', 'whm_banish_2', 'whm_banishga', 'whm_baraera', 'whm_barblindra', 'whm_barblizzara', 'whm_barfira', 'whm_barparalyzra', 'whm_barpoisonra', 'whm_barsilencera', 'whm_barsleepra', 'whm_barstonra', 'whm_barthundra', 'whm_barwatera', 'whm_blindna', 'whm_blink', 'whm_curaga', 'whm_cure', 'whm_cure_2', 'whm_cure_3', 'whm_cursna', 'whm_deodorize', 'whm_dia', 'whm_diaga', 'whm_invisible', 'whm_paralyna', 'whm_paralyze', 'whm_poisona', 'whm_protect', 'whm_protect_2', 'whm_protectra', 'whm_protectra_2', 'whm_raise', 'whm_regen', 'whm_reraise', 'whm_shell', 'whm_shellra', 'whm_silena', 'whm_silence', 'whm_slow', 'whm_sneak', 'whm_stoneskin' } },
-    { label = 'Beastmaster', family = 'ability', tokens = { 'bst_bestial_loyalty', 'bst_call_beast', 'bst_charm', 'bst_familiar', 'bst_feral_howl', 'bst_fight', 'bst_gauge', 'bst_heel', 'bst_killer_instinct', 'bst_leave', 'bst_pet_coldblood_como', 'bst_pet_courier_carrie', 'bst_pet_discreet_louise', 'bst_pet_lullaby_melodia', 'bst_ready', 'bst_ready_big_scissors', 'bst_ready_blockhead', 'bst_ready_brain_crush', 'bst_ready_bubble_curtain', 'bst_ready_bubble_shower', 'bst_ready_fireball', 'bst_ready_infrasonics', 'bst_ready_lamb_chop', 'bst_ready_metallic_body', 'bst_ready_rage', 'bst_ready_scissor_guard', 'bst_ready_secretion', 'bst_ready_sheep_charge', 'bst_ready_sheep_song', 'bst_ready_tail_blow', 'bst_reward', 'bst_run_wild', 'bst_sic', 'bst_snarl', 'bst_spur', 'bst_stay', 'bst_tame', 'bst_unleash' } },
+    { label = 'Beastmaster', family = 'ability', tokens = { 'bst_bestial_loyalty', 'bst_call_beast', 'bst_charm', 'bst_familiar', 'bst_feral_howl', 'bst_fight', 'bst_gauge', 'bst_heel', 'bst_killer_instinct', 'bst_leave', 'bst_pet_coldblood_como', 'bst_pet_courier_carrie', 'bst_pet_lifedrinker_lars', 'bst_pet_lullaby_melodia', 'bst_ready', 'bst_ready_big_scissors', 'bst_ready_blockhead', 'bst_ready_brain_crush', 'bst_ready_bubble_curtain', 'bst_ready_bubble_shower', 'bst_ready_fireball', 'bst_ready_infrasonics', 'bst_ready_lamb_chop', 'bst_ready_metallic_body', 'bst_ready_rage', 'bst_ready_scissor_guard', 'bst_ready_secretion', 'bst_ready_sheep_charge', 'bst_ready_sheep_song', 'bst_ready_tail_blow', 'bst_reward', 'bst_run_wild', 'bst_sic', 'bst_snarl', 'bst_spur', 'bst_stay', 'bst_tame', 'bst_unleash' } },
     { label = 'Trusts', family = 'ability', tokens = { 'trusts_summon' } },
     { label = 'Cure', family = 'white_magic', tokens = { 'cure_1', 'cure_2', 'cure_3', 'cure_4' } },
     { label = 'Support', family = 'white_magic', tokens = { 'protect_1', 'protect_2', 'protect_3', 'protect_4', 'raise_1', 'raise_2', 'raise_3', 'raise_4', 'shell_1', 'shell_2', 'shell_3', 'shell_4', 'status_1', 'status_2', 'status_3', 'status_4', 'stealth_1', 'stealth_2', 'stealth_3', 'stealth_4', 'signet', 'sigil', 'sanction', 'ionis' } },

@@ -7,7 +7,7 @@ $readme = Join-Path $root 'README.md'
 $fishIcon = Join-Path $root 'ashitabars\assets\icons\fish.png'
 $bstIconNames = @(
     'bst_pet_courier_carrie', 'bst_pet_coldblood_como', 'bst_pet_lullaby_melodia',
-    'bst_pet_discreet_louise',
+    'bst_pet_lifedrinker_lars',
     'bst_ready_metallic_body', 'bst_ready_bubble_shower', 'bst_ready_bubble_curtain',
     'bst_ready_scissor_guard', 'bst_ready_big_scissors', 'bst_ready_tail_blow',
     'bst_ready_fireball', 'bst_ready_blockhead', 'bst_ready_brain_crush',
@@ -41,7 +41,7 @@ foreach ($needle in @(
     "icon = 'bst_pet_courier_carrie'",
     "icon = 'bst_pet_coldblood_como'",
     "icon = 'bst_pet_lullaby_melodia'",
-    "icon = 'bst_pet_discreet_louise'",
+    "icon = 'bst_pet_lifedrinker_lars'",
     'BST_PICKER_ROW',
     'function BST_BAR.queue_picker_toggle()',
     'function BST_BAR.queue_jug_selection(item_id)',
@@ -66,9 +66,15 @@ foreach ($needle in @(
     "['couriercarrie'] = 'crab'",
     "['coldbloodcomo'] = 'lizard'",
     "['lullabymelodia'] = 'sheep'",
+    "['lifedrinkerlars'] = 'diremite'",
     "crab = { 'Metallic Body', 'Bubble Shower', 'Bubble Curtain', 'Scissor Guard', 'Big Scissors' }",
     "lizard = { 'Tail Blow', 'Fireball', 'Blockhead', 'Brain Crush', 'Infrasonics', 'Secretion' }",
     "sheep = { 'Sheep Charge', 'Lamb Chop', 'Rage', 'Sheep Song' }",
+    "diremite = { 'Double Claw', 'Grapple', 'Spinning Top', 'Filamented Hold' }",
+    "['double claw'] = 1",
+    "['grapple'] = 1",
+    "['spinning top'] = 1",
+    "['filamented hold'] = 2",
     'function BST_BAR.ready_slots(pet)',
     "icon = 'bst_ready_' .. key:gsub('[^a-z0-9]+', '_')",
     "('/lac fwd bstjug %d'):fmt(jug_id)",
@@ -204,7 +210,7 @@ foreach ($needle in @('`/fish`', '`asset_fish`', 'Pressing or clicking that butt
     }
 }
 
-foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, Melodia, and Louise', 'anchored 2-by-2 popover', 'never', 'remain fixed', 'gold border and check', 'Each choice uses a distinct', 'Ready move artwork', 'complete mouse press', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'C. Blood Broth', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep', 'three flytrap')) {
+foreach ($needle in @('## BST Companion Palette', '`BL Jug` picker', 'Carrie, Como, Melodia, and Lars', 'anchored 2-by-2 popover', 'never', 'remain fixed', 'gold border and check', 'Each choice uses a distinct', 'Ready move artwork', 'complete mouse press', 'release guard', 'cannot fall through', 'Fish Oil Broth', 'C. Carrion', 'S. Herbal', 'C. Blood Broth', 'Call Beast is intentionally absent', 'job-wide', '`HasPetCommand` catalog', 'five crab', 'six lizard', 'four sheep', 'four diremite')) {
     if (-not $readmeText.Contains($needle)) {
         throw "Expected BST companion documentation not found: $needle"
     }
